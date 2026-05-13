@@ -1,0 +1,107 @@
+/* =============================================================
+   sailvlog — Colors & Type tokens
+   v3 — "Claude-paper" edition: warm cream surfaces, deep ink,
+   terracotta accent, serif display. Approachable & editorial.
+   ============================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---------- SURFACE (warm paper) ---------- */
+  --paper:      #F4F0E8;   /* page background — oat / antique paper */
+  --paper-2:    #EDE7DA;   /* secondary section bg */
+  --card:       #FBF9F4;   /* card / module bg */
+  --card-warm:  #F7F2E6;   /* warm raised */
+  --ink:        var(--paper);   /* legacy alias for kit */
+  --ink-2:      var(--card);
+  --ink-3:      var(--card-warm);
+  --ink-4:      #E5DFD0;
+
+  /* ---------- FOREGROUND (deep warm ink) ---------- */
+  --fg:         #1F1E1B;   /* primary text */
+  --fg-2:       #3D3A33;   /* body text */
+  --fg-mute:    #6B6760;   /* meta, captions */
+  --fg-dim:     #9A968C;   /* disabled, scaffolding */
+  --bone:       var(--fg);     /* legacy alias for kit */
+  --bone-2:     var(--fg-2);
+  --bone-mute:  var(--fg-mute);
+  --bone-dim:   var(--fg-dim);
+
+  /* ---------- ACCENTS (terracotta + sage + dijon) ---------- */
+  --terra:      #C96442;   /* primary — terracotta */
+  --terra-2:    #B5553A;   /* primary hover/pressed */
+  --terra-soft: #E8B8A6;   /* tints/backgrounds */
+  --sage:       #6B8E5A;   /* success / solved */
+  --sage-2:     #57764B;
+  --dijon:      #C39A3F;   /* highlight / featured */
+  --flare:      var(--terra);   /* legacy alias */
+  --flare-2:    var(--terra-2);
+  --cyan:       var(--sage);    /* legacy alias */
+  --cyan-2:     var(--sage-2);
+  --lime:       var(--dijon);   /* legacy alias */
+  --lime-2:     var(--dijon);
+
+  /* ---------- BORDERS / OVERLAYS ---------- */
+  --border:        rgba(31,30,27,0.10);
+  --border-strong: rgba(31,30,27,0.18);
+  --border-flare:  rgba(201,100,66,0.40);
+  --border-cyan:   rgba(107,142,90,0.40);
+
+  /* ---------- ELEVATION (soft, low-contrast) ---------- */
+  --shadow-sm:    0 1px 2px rgba(31,30,27,0.04), 0 2px 8px rgba(31,30,27,0.04);
+  --shadow:       0 4px 16px rgba(31,30,27,0.06), 0 12px 32px rgba(31,30,27,0.05);
+  --shadow-flare: 0 6px 24px rgba(201,100,66,0.14);
+  --shadow-cyan:  0 6px 24px rgba(107,142,90,0.12);
+
+  /* ---------- RADIUS (soft, generous) ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius:    12px;
+  --radius-lg: 20px;
+
+  /* ---------- TYPE FAMILIES ---------- */
+  --font-display: 'Source Serif 4', 'Tiempos', 'Georgia', serif;
+  --font-body:    'Inter', 'Hiragino Sans', 'Noto Sans JP', -apple-system, sans-serif;
+  --font-mono:    'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  /* ---------- EASING ---------- */
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.7, 0, 0.3, 1);
+
+  /* ---------- SEMANTIC TYPE ---------- */
+  --h1-size: clamp(2.5rem, 6.5vw, 5rem);
+  --h1-weight: 500;
+  --h1-tracking: -0.02em;
+  --h1-leading: 1.05;
+
+  --h2-size: 2rem;
+  --h2-weight: 500;
+  --h2-tracking: -0.015em;
+
+  --h3-size: 1.4rem;
+  --h3-weight: 600;
+  --h3-tracking: -0.01em;
+
+  --eyebrow-size: 0.78rem;
+  --eyebrow-tracking: 0.08em;
+
+  --label-size: 0.78rem;
+  --label-tracking: 0.02em;
+
+  --body-size: 1rem;
+  --body-leading: 1.7;
+
+  --meta-size: 0.82rem;
+  --meta-tracking: 0;
+}
+
+/* ---------- SEMANTIC TYPE HELPERS ---------- */
+.t-display     { font-family: var(--font-display); font-weight: 500; letter-spacing: var(--h1-tracking); line-height: var(--h1-leading); color: var(--fg); }
+.t-h1          { font-family: var(--font-display); font-size: var(--h1-size); font-weight: 500; letter-spacing: var(--h1-tracking); line-height: var(--h1-leading); color: var(--fg); }
+.t-h2          { font-family: var(--font-display); font-size: var(--h2-size); font-weight: 500; letter-spacing: var(--h2-tracking); color: var(--fg); }
+.t-h3          { font-family: var(--font-display); font-size: var(--h3-size); font-weight: 600; letter-spacing: var(--h3-tracking); color: var(--fg); }
+.t-eyebrow     { font-family: var(--font-body); font-size: var(--eyebrow-size); font-weight: 500; letter-spacing: var(--eyebrow-tracking); text-transform: uppercase; color: var(--fg-mute); }
+.t-label       { font-family: var(--font-body); font-size: var(--label-size); font-weight: 500; letter-spacing: var(--label-tracking); color: var(--fg-mute); }
+.t-body        { font-family: var(--font-body); font-size: var(--body-size); line-height: var(--body-leading); color: var(--fg-2); }
+.t-meta        { font-family: var(--font-body); font-size: var(--meta-size); color: var(--fg-mute); }
+.t-mono        { font-family: var(--font-mono); }

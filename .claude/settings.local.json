@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Process -Id 11244 -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process -Id 25424 -ErrorAction SilentlyContinue)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\bb38124005\\\\OneDrive\\\\ドキュメント\\\\sailvlog\\\\.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx skills *)",
+      "WebFetch(domain:localhost)",
+      "Bash(curl *)",
+      "Bash(docker exec sailvlog-frontend-1 *)",
+      "PowerShell(docker exec sailvlog-frontend-1 *)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3001\" -UseBasicParsing -TimeoutSec 60; Write-Host $r.StatusCode; $r.Content | Select-String \"hero|navbar-brand|Playfair|sailvlog\" | Select-Object -First 5)",
+      "PowerShell($css = Invoke-WebRequest -Uri \"http://localhost:3001/_next/static/css/app/layout.css?v=1778552404129\" -UseBasicParsing; $css.Content | Select-String \"navy|cyan|hero|0a2342|06b6d4\" | Select-Object -First 8)",
+      "PowerShell($urls = @\\(\"/\", \"/feed\", \"/questions\", \"/questions/1\", \"/learn\", \"/learn/470-foundations\", \"/sailors\"\\); foreach \\($u in $urls\\) { $r = try { Invoke-WebRequest -Uri \"http://localhost:3001$u\" -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop; \"OK [$\\($r.StatusCode\\)] $u\" } catch { \"ERR $u : $_\" }; Write-Host $r })",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3001\" -UseBasicParsing -TimeoutSec 30; \"Status: $\\($r.StatusCode\\)\"; \\($r.Content | Select-String \"navbar-row-bottom|class-flag|Yachts\"\\).Matches.Count | ForEach-Object { \"matched elements: $_\" })",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3001\" -UseBasicParsing -TimeoutSec 30; $content = $r.Content; @{ navbarRow = $content.Contains\\(\"navbar-row-bottom\"\\); classFlag = $content.Contains\\(\"class-flag\"\\); yachts = $content.Contains\\(\"Yachts\"\\); flag470 = $content.Contains\\(\"470 class flag\"\\) })",
+      "PowerShell(Start-Sleep -Seconds 5; $r = Invoke-WebRequest -Uri \"http://localhost:3001?nocache=$\\(Get-Random\\)\" -UseBasicParsing -TimeoutSec 30 -Headers @{\"Cache-Control\"=\"no-cache\"}; @{ navbarRow = $r.Content.Contains\\(\"navbar-row-bottom\"\\); classFlag = $r.Content.Contains\\(\"class-flag\"\\); yachts = $r.Content.Contains\\(\"Yachts\"\\); flag470 = $r.Content.Contains\\(\"470 class flag\"\\) })",
+      "PowerShell(Out-File *)",
+      "PowerShell($content = \\(Invoke-WebRequest -Uri \"http://localhost:3001\" -UseBasicParsing\\).Content; $content.Substring\\($content.IndexOf\\(\"<nav\"\\), 500\\))",
+      "PowerShell(Start-Sleep -Seconds 15; $r = Invoke-WebRequest -Uri \"http://localhost:3001\" -UseBasicParsing -TimeoutSec 60; @{ navbarRow = $r.Content.Contains\\(\"navbar-row-bottom\"\\); classFlag = $r.Content.Contains\\(\"class-flag\"\\); yachts = $r.Content.Contains\\(\"Yachts\"\\); flag470 = $r.Content.Contains\\(\"470 class flag\"\\) })",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(docker compose *)"
+    ]
+  }
+}

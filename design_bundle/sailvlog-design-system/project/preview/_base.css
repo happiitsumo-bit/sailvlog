@@ -1,0 +1,57 @@
+@import url('../colors_and_type.css');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--paper);
+  color: var(--fg);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+body {
+  background:
+    radial-gradient(circle at 15% -5%, rgba(201,100,66,0.05), transparent 50%),
+    radial-gradient(circle at 90% 8%, rgba(195,154,63,0.05), transparent 55%),
+    var(--paper);
+  background-attachment: fixed;
+}
+.card {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+.card.tight { padding: 18px 22px; gap: 12px; }
+.card.flush { padding: 0; }
+.label {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.col { display: flex; flex-direction: column; gap: 6px; }
+
+/* SWATCH */
+.swatch { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.swatch-chip {
+  height: 64px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.swatch-name {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+.swatch-hex {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--fg-mute);
+}

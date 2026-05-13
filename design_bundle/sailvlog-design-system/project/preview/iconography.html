@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"></head><body>
+<style>
+.grid { display:grid;grid-template-columns:repeat(6,1fr);gap:14px; }
+.g { display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;background:#FBF9F4;border:1px solid rgba(31,30,27,.10);border-radius:4px; }
+.glyph { font-family:var(--font-mono);font-size:1.4rem;color:#C96442;line-height:1; }
+.name { font-family:var(--font-mono);font-size:.55rem;color:var(--bone-mute);letter-spacing:.1em;text-transform:uppercase;text-align:center; }
+.g.cyan .glyph { color:#6B8E5A; }
+.g.lime .glyph { color:#C39A3F; }
+.g.bone .glyph { color:#3D3A33; }
+</style>
+<div class="card">
+  <div class="label">unicode iconography · no icon font</div>
+  <div class="grid">
+    <div class="g"><span class="glyph">▲</span><span class="name">system / cta</span></div>
+    <div class="g cyan"><span class="glyph">⤳</span><span class="name">go to</span></div>
+    <div class="g"><span class="glyph">→</span><span class="name">see all</span></div>
+    <div class="g"><span class="glyph">●</span><span class="name">active dot</span></div>
+    <div class="g cyan"><span class="glyph">//</span><span class="name">section</span></div>
+    <div class="g"><span class="glyph">+</span><span class="name">new</span></div>
+    <div class="g bone"><span class="glyph">♥</span><span class="name">like</span></div>
+    <div class="g cyan"><span class="glyph">◐</span><span class="name">comment</span></div>
+    <div class="g bone"><span class="glyph">◉</span><span class="name">views</span></div>
+    <div class="g lime"><span class="glyph">✓</span><span class="name">solved</span></div>
+    <div class="g"><span class="glyph">←</span><span class="name">back</span></div>
+    <div class="g bone"><span class="glyph">⤴</span><span class="name">share</span></div>
+  </div>
+</div></body></html>

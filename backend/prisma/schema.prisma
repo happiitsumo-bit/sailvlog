@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int        @id @default(autoincrement())
+  username       String     @unique @db.VarChar(50)
+  email          String     @unique @db.VarChar(255)
+  hashedPassword String
+  bio            String?    @db.Text
+  avatarUrl      String?
+  createdAt      DateTime   @default(now())
+  isActive       Boolean    @default(true)
+
+  articles  Article[]
+  likes     Like[]
+  bookmarks Bookmark[]
+  comments  Comment[]
+  following Follow[]   @relation("Follower")
+  followers Follow[]   @relation("Following")
+}
+
+model BoatType {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(50)
+  slug        String    @unique @db.VarChar(50)
+  description String?   @db.Text
+
+  articles Article[]
+}
+
+model Tag {
+  id       Int          @id @default(autoincrement())
+  name     String       @unique @db.VarChar(50)
+  slug     String       @unique @db.VarChar(50)
+
+  articles ArticleTag[]
+}
+
+model Article {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(255)
+  contentMd   String   @db.Text
+  slug        String   @unique
+  isPublished Boolean  @default(false)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId   Int
+  author     User     @relation(fields: [authorId], references: [id])
+
+  boatTypeId Int
+  boatType   BoatType @relation(fields: [boatTypeId], references: [id])
+
+  tags      ArticleTag[]
+  likes     Like[]
+  bookmarks Bookmark[]
+  comments  Comment[]
+}
+
+model ArticleTag {
+  articleId Int
+  tagId     Int
+
+  article Article @relation(fields: [articleId], references: [id])
+  tag     Tag     @relation(fields: [tagId], references: [id])
+
+  @@id([articleId, tagId])
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id])
+
+  articleId Int
+  article   Article @relation(fields: [articleId], references: [id])
+
+  @@unique([userId, articleId])
+}
+
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id])
+
+  articleId Int
+  article   Article @relation(fields: [articleId], references: [id])
+
+  @@unique([userId, articleId])
+}
+
+model Follow {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  followerId  Int
+  follower    User @relation("Follower", fields: [followerId], references: [id])
+
+  followingId Int
+  following   User @relation("Following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  authorId  Int
+  author    User    @relation(fields: [authorId], references: [id])
+
+  articleId Int
+  article   Article @relation(fields: [articleId], references: [id])
+}

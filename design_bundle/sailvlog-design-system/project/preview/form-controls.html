@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"></head><body>
+<style>
+label { display:block;font-family:var(--font-body);font-weight:500;font-size:.85rem;color:var(--fg);margin-bottom:.4rem; }
+input, textarea, select { width:100%;padding:.7rem .95rem;border:1px solid var(--border-strong);border-radius:10px;font-size:.95rem;font-family:var(--font-body);color:var(--fg);background:var(--card);outline:none;transition:all .15s var(--ease-out); }
+input:focus, textarea:focus, select:focus { border-color:var(--terra);box-shadow:0 0 0 3px rgba(201,100,66,.12); }
+.row2 { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+</style>
+<div class="card">
+  <div class="label">form controls</div>
+  <div class="row2">
+    <div><label>Username</label><input value="hiro_tanaka"></div>
+    <div><label>Boat class</label><select><option>470</option><option>ILCA</option><option>Snipe</option></select></div>
+  </div>
+  <div><label>Email</label><input value="sailor@sea.jp" style="border-color:var(--terra);box-shadow:0 0 0 3px rgba(201,100,66,.12);"></div>
+  <div><label>Notes</label><textarea style="min-height:60px;">Shroud tension 28 kg, halyard +2 mm. Mast tracking straight in 14 kt.</textarea></div>
+</div></body></html>

@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"></head><body>
+<style>
+@keyframes slideX { from{transform:translateX(0);} to{transform:translateX(calc(100% - 36px));} }
+.ease-out { animation: slideX 1.8s cubic-bezier(.16,1,.3,1) infinite alternate; }
+.ease-snap { animation: slideX 1.4s cubic-bezier(.7,0,.3,1) infinite alternate; }
+@keyframes pulseDot { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+</style>
+<div class="card">
+  <div class="label">motion · easing</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+    <div class="col" style="gap:8px;">
+      <span class="swatch-hex">--ease-out · cubic-bezier(.16, 1, .3, 1)</span>
+      <div style="height:36px;background:var(--card);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden;"><div class="ease-out" style="position:absolute;left:0;top:0;width:36px;height:36px;background:var(--terra);border-radius:10px;"></div></div>
+    </div>
+    <div class="col" style="gap:8px;">
+      <span class="swatch-hex">--ease-snap · cubic-bezier(.7, 0, .3, 1)</span>
+      <div style="height:36px;background:var(--card);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden;"><div class="ease-snap" style="position:absolute;left:0;top:0;width:36px;height:36px;background:var(--sage);border-radius:10px;"></div></div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;font-family:var(--font-body);font-size:.85rem;color:var(--fg-mute);">
+    <span style="display:inline-block;width:8px;height:8px;background:var(--sage);border-radius:50%;animation:pulseDot 1.8s cubic-bezier(.16,1,.3,1) infinite;"></span>
+    Live pulse — 1.8s · ease-out · opacity only
+  </div>
+  <div style="font-family:var(--font-body);font-size:.82rem;color:var(--fg-mute);">Transitions 150–220 ms · stagger 50 ms · no bouncing</div>
+</div></body></html>

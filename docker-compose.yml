@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: sailvlog_db
+      POSTGRES_USER: sailvlog_user
+      POSTGRES_PASSWORD: sailvlog_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sailvlog_user -d sailvlog_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://sailvlog_user:sailvlog_pass@db:5432/sailvlog_db
+      JWT_SECRET: change_this_secret_in_production
+      JWT_EXPIRES_IN: 30m
+      PORT: 8000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      API_URL: http://backend:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  postgres_data:

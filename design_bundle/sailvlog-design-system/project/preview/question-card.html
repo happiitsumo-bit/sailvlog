@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"></head><body>
+<style>
+.q-card { background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem 1.75rem;display:grid;grid-template-columns:96px 1fr;gap:1.4rem; }
+.metrics { display:flex;flex-direction:column;gap:.65rem;align-items:flex-end;border-right:1px solid var(--border);padding-right:1.2rem; }
+.metric { text-align:right; }
+.mv { font-family:var(--font-display);font-size:1.45rem;font-weight:500;line-height:1;letter-spacing:-.015em;color:var(--fg); }
+.mv.accepted { color:var(--sage); }
+.mv.cyan { color:var(--terra); }
+.ml { font-family:var(--font-body);font-size:.78rem;color:var(--fg-mute);margin-top:.3rem; }
+.title { font-family:var(--font-display);font-size:1.3rem;font-weight:500;line-height:1.3;color:var(--fg);margin-bottom:.65rem;letter-spacing:-.01em; }
+.body { color:var(--fg-2);font-size:.95rem;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:.85rem; }
+.meta { display:flex;gap:.7rem;align-items:center;font-family:var(--font-body);font-size:.85rem;color:var(--fg-mute);flex-wrap:wrap; }
+.accepted-pill { background:rgba(107,142,90,.12);color:var(--sage-2);border:1px solid rgba(107,142,90,.3);font-family:var(--font-body);font-size:.74rem;padding:.15rem .55rem;border-radius:999px;font-weight:600; }
+.accepted-pill::before { content:"✓ "; }
+.boat-badge { color:var(--terra);font-family:var(--font-body);font-size:.78rem;font-weight:600;padding:.15rem .6rem;border-radius:999px;border:1px solid var(--border-flare);background:var(--card-warm); }
+</style>
+<div class="card flush">
+  <div class="q-card">
+    <div class="metrics">
+      <div class="metric"><div class="mv accepted">4</div><div class="ml">Answers</div></div>
+      <div class="metric"><div class="mv">12</div><div class="ml">Votes</div></div>
+      <div class="metric"><div class="mv" style="font-size:1.05rem;color:var(--fg-mute);">284</div><div class="ml">Views</div></div>
+    </div>
+    <div>
+      <h3 class="title">How tight should the lower shrouds be on a 470 in 12–15 kt?</h3>
+      <p class="body">Sailing at Hayama this weekend, expecting 12–15 kt with chop. I usually run them firm but the mast keeps pumping…</p>
+      <div class="meta"><span class="accepted-pill">Solved</span><span class="boat-badge">470</span><span>asked by <span style="color:var(--terra);">sky_runner</span></span><span>· 2 hours ago</span></div>
+    </div>
+  </div>
+</div></body></html>
