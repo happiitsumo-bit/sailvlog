@@ -1,22 +1,16 @@
 import ArticleCard from "@/components/ArticleCard";
 import ClassFlag from "@/components/ClassFlag";
 import Link from "next/link";
-import { ArticleSummary, BoatType } from "@/types";
-import {
-  mockStats,
-  mockPosts,
-  mockHotTags,
-  mockBoatTypes,
-  mockQuestions,
-  timeAgo,
-} from "@/lib/mock";
+import { ArticleSummary, BoatType, Question, Post } from "@/types";
+import { getAvatarColor } from "@/lib/utils";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
 
-async function getArticles(): Promise<{ articles: ArticleSummary[] }> {
-  const res = await fetch(`${API_URL}/api/articles`, { cache: "no-store" });
-  if (!res.ok) return { articles: [] };
-  return res.json();
+async function getArticles(): Promise<ArticleSummary[]> {
+  const res = await fetch(`${API_URL}/api/articles?limit=5`, { cache: "no-store" });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.articles ?? [];
 }
 
 async function getBoatTypes(): Promise<BoatType[]> {
@@ -25,15 +19,39 @@ async function getBoatTypes(): Promise<BoatType[]> {
   return res.json();
 }
 
+async function getTrendingQuestions(): Promise<Question[]> {
+  const res = await fetch(`${API_URL}/api/questions?filter=top&limit=3`, { cache: "no-store" });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.questions ?? [];
+}
+
+async function getRecentPosts(): Promise<Post[]> {
+  const res = await fetch(`${API_URL}/api/posts?limit=3`, { cache: "no-store" });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.posts ?? [];
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "今";
+  if (min < 60) return `${min}分前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}日前`;
+  return new Date(iso).toLocaleDateString("ja-JP");
+}
+
 export default async function HomePage() {
-  const [{ articles }, boatTypesFromApi] = await Promise.all([
+  const [articles, boatTypes, trendingQuestions, recentPosts] = await Promise.all([
     getArticles(),
     getBoatTypes(),
+    getTrendingQuestions(),
+    getRecentPosts(),
   ]);
-
-  const boatTypes = boatTypesFromApi.length > 0 ? boatTypesFromApi : mockBoatTypes;
-  const recentPosts = mockPosts.slice(0, 3);
-  const trendingQuestions = mockQuestions.slice(0, 3);
 
   return (
     <>
@@ -67,22 +85,16 @@ export default async function HomePage() {
 
           <div className="hero-stats">
             <div className="hero-stat">
-              <div className="hero-stat-label">Total Sailors</div>
-              <div className="hero-stat-value">{mockStats.totalSailors.toLocaleString()}</div>
-            </div>
-            <div className="hero-stat">
               <div className="hero-stat-label">Articles</div>
-              <div className="hero-stat-value">{mockStats.totalArticles.toLocaleString()}</div>
+              <div className="hero-stat-value">{articles.length > 0 ? articles.length : "—"}</div>
             </div>
             <div className="hero-stat">
               <div className="hero-stat-label">Questions</div>
-              <div className="hero-stat-value">{mockStats.totalQuestions.toLocaleString()}</div>
+              <div className="hero-stat-value">{trendingQuestions.length > 0 ? trendingQuestions.length : "—"}</div>
             </div>
             <div className="hero-stat">
-              <div className="hero-stat-label">Active Now</div>
-              <div className="hero-stat-value">
-                <span className="live-dot" />{mockStats.activeNow}
-              </div>
+              <div className="hero-stat-label">Posts</div>
+              <div className="hero-stat-value">{recentPosts.length > 0 ? recentPosts.length : "—"}</div>
             </div>
           </div>
         </div>
@@ -92,10 +104,10 @@ export default async function HomePage() {
       <div className="container">
         <div className="layout-two-col">
           <div>
-            {/* Articles */}
+            {/* Latest Articles */}
             <div className="section-head">
               <h2 className="section-head-title">Latest Articles</h2>
-              <Link href="/boat/470" className="section-head-action">View All</Link>
+              <Link href="/articles" className="section-head-action">View All</Link>
             </div>
             <div className="stagger">
               {articles.length === 0 ? (
@@ -104,7 +116,7 @@ export default async function HomePage() {
                   <p className="empty-state-text">NO ARTICLES YET // 最初の一本を投稿しよう</p>
                 </div>
               ) : (
-                articles.slice(0, 5).map((a) => <ArticleCard key={a.id} article={a} />)
+                articles.map((a) => <ArticleCard key={a.id} article={a} />)
               )}
             </div>
 
@@ -114,33 +126,43 @@ export default async function HomePage() {
               <Link href="/questions" className="section-head-action">All Q&amp;A</Link>
             </div>
             <div className="stagger">
-              {trendingQuestions.map((q) => (
-                <Link key={q.id} href={`/questions/${q.id}`} className="question-card" style={{ display: "grid" }}>
-                  <div className="question-metrics">
-                    <div className="q-metric">
-                      <div className={`q-metric-value ${q.hasAcceptedAnswer ? "accepted" : q.answerCount > 0 ? "has-answers" : ""}`}>
-                        {q.answerCount}
+              {trendingQuestions.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">○</div>
+                  <p className="empty-state-text">NO QUESTIONS YET // 最初の質問者になろう</p>
+                </div>
+              ) : (
+                trendingQuestions.map((q) => {
+                  const hasAccepted = q.answers.some((a) => a.isAccepted);
+                  return (
+                    <Link key={q.id} href={`/questions/${q.id}`} className="question-card" style={{ display: "grid" }}>
+                      <div className="question-metrics">
+                        <div className="q-metric">
+                          <div className={`q-metric-value ${hasAccepted ? "accepted" : q._count.answers > 0 ? "has-answers" : ""}`}>
+                            {q._count.answers}
+                          </div>
+                          <div className="q-metric-label">Ans</div>
+                        </div>
+                        <div className="q-metric">
+                          <div className="q-metric-value">{q._count.votes}</div>
+                          <div className="q-metric-label">Votes</div>
+                        </div>
                       </div>
-                      <div className="q-metric-label">Ans</div>
-                    </div>
-                    <div className="q-metric">
-                      <div className="q-metric-value">{q.voteCount}</div>
-                      <div className="q-metric-label">Votes</div>
-                    </div>
-                  </div>
-                  <div className="question-main">
-                    <h3 className="question-title">{q.title}</h3>
-                    <p className="question-body">{q.body}</p>
-                    <div className="question-meta">
-                      <span style={{ color: "var(--terra)" }}>● {q.boatType}</span>
-                      <span>@{q.author.username}</span>
-                      <span>{timeAgo(q.createdAt)}</span>
-                      <span>{q.views} views</span>
-                      {q.hasAcceptedAnswer && <span className="accepted-pill">Solved</span>}
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                      <div className="question-main">
+                        <h3 className="question-title">{q.title}</h3>
+                        <p className="question-body">{q.body.slice(0, 100)}{q.body.length > 100 ? "…" : ""}</p>
+                        <div className="question-meta">
+                          {q.boatType && <span style={{ color: "var(--terra)" }}>● {q.boatType.name}</span>}
+                          <span>@{q.author.username}</span>
+                          <span>{timeAgo(q.createdAt)}</span>
+                          <span>{q.viewCount} views</span>
+                          {hasAccepted && <span className="accepted-pill">Solved</span>}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })
+              )}
             </div>
 
             {/* Live Feed */}
@@ -149,80 +171,61 @@ export default async function HomePage() {
               <Link href="/feed" className="section-head-action">Open Timeline</Link>
             </div>
             <div className="stagger">
-              {recentPosts.map((p) => (
-                <article key={p.id} className="post-card">
-                  <div className="post-avatar" style={{ color: p.author.avatarColor }}>
-                    {p.author.displayName.slice(0, 1)}
-                  </div>
-                  <div>
-                    <div className="post-header">
-                      <span className="post-author">{p.author.displayName}</span>
-                      <span className="post-handle">@{p.author.username}</span>
-                      <span className="post-time">{timeAgo(p.createdAt)}</span>
-                    </div>
-                    <div className="post-body">{p.body}</div>
-                    <div className="post-actions">
-                      <span>♥ {p.likeCount}</span>
-                      <span>◐ {p.replyCount}</span>
-                    </div>
-                  </div>
-                </article>
-              ))}
+              {recentPosts.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">○</div>
+                  <p className="empty-state-text">NO POSTS YET // タイムラインに投稿しよう</p>
+                </div>
+              ) : (
+                recentPosts.map((p) => {
+                  const color = getAvatarColor(p.author.username);
+                  return (
+                    <article key={p.id} className="post-card">
+                      <div className="post-avatar" style={{ color }}>
+                        {p.author.username[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="post-header">
+                          <Link href={`/users/${p.author.username}`} className="post-author">{p.author.username}</Link>
+                          <span className="post-handle">@{p.author.username}</span>
+                          <span className="post-time">{timeAgo(p.createdAt)}</span>
+                        </div>
+                        <div className="post-body">{p.body}</div>
+                        <div className="post-actions">
+                          <span>♥ {p._count.likes}</span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
             </div>
           </div>
 
           {/* Sidebar */}
           <aside className="sidebar">
             <div className="module">
-              <h3 className="sidebar-title">Today</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", fontWeight: 500, color: "var(--terra)", lineHeight: 1 }}>
-                    {mockStats.todayArticles}
-                  </div>
-                  <div style={{ fontFamily: "var(--font-body)", fontSize: "0.78rem", color: "var(--fg-mute)", marginTop: "0.3rem" }}>
-                    new articles
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: "1.8rem", fontWeight: 500, color: "var(--sage)", lineHeight: 1 }}>
-                    {mockStats.todayPosts}
-                  </div>
-                  <div style={{ fontFamily: "var(--font-body)", fontSize: "0.78rem", color: "var(--fg-mute)", marginTop: "0.3rem" }}>
-                    posts
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="module">
               <h3 className="sidebar-title">Yachts</h3>
               <ul className="sidebar-list">
-                {boatTypes.slice(0, 6).map((bt) => {
-                  const isMock = "count" in bt;
-                  return (
-                    <li key={bt.slug}>
-                      <Link href={`/boat/${bt.slug}`} className="yacht-row">
-                        <ClassFlag slug={bt.slug} />
-                        <span>{bt.name}</span>
-                        {isMock && <span className="count">{(bt as { count: number }).count}</span>}
-                      </Link>
-                    </li>
-                  );
-                })}
+                {boatTypes.map((bt) => (
+                  <li key={bt.slug}>
+                    <Link href={`/boat/${bt.slug}`} className="yacht-row">
+                      <ClassFlag slug={bt.slug} />
+                      <span>{bt.name}</span>
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 
             <div className="module">
-              <h3 className="sidebar-title">Hot Tags</h3>
-              <div className="tag-cloud">
-                {mockHotTags.slice(0, 8).map((t) => (
-                  <Link key={t.name} href={`/tag/${t.name}`} className="tag-pill">
-                    {t.name}
-                    <span className="tcount">{t.count}</span>
-                  </Link>
-                ))}
-              </div>
+              <h3 className="sidebar-title">Explore</h3>
+              <ul className="sidebar-list">
+                <li><Link href="/questions">Q&amp;A スレッド</Link></li>
+                <li><Link href="/feed">タイムライン</Link></li>
+                <li><Link href="/learn">学習コース</Link></li>
+                <li><Link href="/sailors">セーラーを探す</Link></li>
+              </ul>
             </div>
           </aside>
         </div>

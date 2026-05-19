@@ -19,6 +19,12 @@ async function request<T>(
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // トークン期限切れ・無効の場合はローカルストレージをクリアしてログインページへ
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;

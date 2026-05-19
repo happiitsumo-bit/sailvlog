@@ -1,27 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { mockSailors, mockBoatTypes } from "@/lib/mock";
+import { useMemo, useState, useEffect } from "react";
+import { Sailor, BoatType } from "@/types";
+import { getAvatarColor } from "@/lib/utils";
 
-const BADGE_VARIANTS = ["", "cyan", "lime"];
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function SailorsPage() {
   const [query, setQuery] = useState("");
   const [boat, setBoat] = useState<string | null>(null);
+  const [sailors, setSailors] = useState<Sailor[]>([]);
+  const [total, setTotal] = useState(0);
+  const [boatTypes, setBoatTypes] = useState<BoatType[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = useMemo(() => {
-    return mockSailors.filter((s) => {
-      const matchBoat = !boat || s.boatType.toLowerCase() === boat;
-      const q = query.trim().toLowerCase();
-      const matchQuery =
-        !q ||
-        s.displayName.toLowerCase().includes(q) ||
-        s.username.toLowerCase().includes(q) ||
-        s.specialty.toLowerCase().includes(q) ||
-        s.affiliation.toLowerCase().includes(q);
-      return matchBoat && matchQuery;
-    });
+  useEffect(() => {
+    fetch(`${API_URL}/api/boat-types`)
+      .then((r) => r.json())
+      .then(setBoatTypes)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("q", query.trim());
+    if (boat) params.set("boatType", boat);
+
+    fetch(`${API_URL}/api/sailors?${params}`)
+      .then((r) => r.json())
+      .then((data: { sailors: Sailor[]; total: number }) => {
+        setSailors(data.sailors);
+        setTotal(data.total);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [query, boat]);
 
   return (
@@ -29,12 +43,11 @@ export default function SailorsPage() {
       <div className="page-header">
         <Link href="/" className="page-header-back">Home</Link>
         <h1 className="page-header-title">
-          Sailors <span style={{ color: "var(--sage)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>// {filtered.length} found</span>
+          Sailors <span style={{ color: "var(--sage)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>// {total} found</span>
         </h1>
         <p className="page-header-sub">艇種・専門分野・所属からセーラーを探す。</p>
       </div>
 
-      {/* Search input */}
       <div className="composer" style={{ marginBottom: "1.25rem" }}>
         <input
           type="text"
@@ -61,7 +74,7 @@ export default function SailorsPage() {
         >
           All Boats
         </button>
-        {mockBoatTypes.map((bt) => (
+        {boatTypes.map((bt) => (
           <button
             key={bt.slug}
             className={`filter-chip ${boat === bt.slug ? "active" : ""}`}
@@ -72,50 +85,62 @@ export default function SailorsPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">○</div>
+          <p className="empty-state-text">Loading…</p>
+        </div>
+      ) : sailors.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">○</div>
           <p className="empty-state-text">NO SAILORS MATCH // 検索条件を変えてみよう</p>
         </div>
       ) : (
         <div className="sailor-grid stagger">
-          {filtered.map((s, idx) => (
-            <Link
-              key={s.id}
-              href={`/users/${s.username}`}
-              className="sailor-card"
-              style={{ ["--accent" as string]: s.avatarColor }}
-            >
-              <div className="sailor-card-top">
-                <div className="sailor-avatar" style={{ color: s.avatarColor }}>
-                  {s.displayName[0]}
+          {sailors.map((s) => {
+            const color = getAvatarColor(s.username);
+            return (
+              <Link
+                key={s.id}
+                href={`/users/${s.username}`}
+                className="sailor-card"
+                style={{ ["--accent" as string]: color }}
+              >
+                <div className="sailor-card-top">
+                  <div className="sailor-avatar" style={{ color }}>
+                    {s.username[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="sailor-name">@{s.username}</div>
+                    {s.boatType && <div className="sailor-handle">{s.boatType.name}</div>}
+                  </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="sailor-name">{s.displayName}</div>
-                  <div className="sailor-handle">@{s.username}</div>
+                <div className="sailor-tags">
+                  {s.boatType && <span className="boat-badge">{s.boatType.name}</span>}
+                  {s.experienceYears && <span className="tag">{s.experienceYears}y</span>}
                 </div>
-              </div>
-              <div className="sailor-tags">
-                <span className={`boat-badge ${BADGE_VARIANTS[idx % 3]}`}>{s.boatType}</span>
-                <span className="tag">{s.experienceYears}y</span>
-              </div>
-              <p className="sailor-specialty">{s.specialty} · {s.affiliation}</p>
-              <div className="sailor-stats">
-                <div>
-                  <strong>{s.stats.articles}</strong>
-                  <span>articles</span>
+                {(s.specialty || s.affiliation) && (
+                  <p className="sailor-specialty">
+                    {[s.specialty, s.affiliation].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+                <div className="sailor-stats">
+                  <div>
+                    <strong>{s._count.articles}</strong>
+                    <span>articles</span>
+                  </div>
+                  <div>
+                    <strong>{s._count.questions}</strong>
+                    <span>Q&amp;A</span>
+                  </div>
+                  <div>
+                    <strong>{s._count.followers}</strong>
+                    <span>followers</span>
+                  </div>
                 </div>
-                <div>
-                  <strong>{s.stats.questions}</strong>
-                  <span>Q&amp;A</span>
-                </div>
-                <div>
-                  <strong>{s.stats.followers}</strong>
-                  <span>followers</span>
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

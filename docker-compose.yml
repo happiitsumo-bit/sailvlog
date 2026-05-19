@@ -22,7 +22,7 @@ services:
     environment:
       DATABASE_URL: postgresql://sailvlog_user:sailvlog_pass@db:5432/sailvlog_db
       JWT_SECRET: change_this_secret_in_production
-      JWT_EXPIRES_IN: 30m
+      JWT_EXPIRES_IN: 7d
       PORT: 8000
     depends_on:
       db:
@@ -41,9 +41,7 @@ services:
     depends_on:
       - backend
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      - ./frontend/src:/app/src
 
 volumes:
   postgres_data:

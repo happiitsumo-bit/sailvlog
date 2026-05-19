@@ -1,16 +1,36 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { mockQuestions, mockAnswers, timeAgo } from "@/lib/mock";
+import { QuestionDetail } from "@/types";
+import AnswerComposer from "./AnswerComposer";
+import VoteButtons from "./VoteButtons";
+import AcceptButton from "./AcceptButton";
+import AcceptGate from "./AcceptGate";
 
-export default function QuestionDetailPage({ params }: { params: { id: string } }) {
-  const question = mockQuestions.find((q) => q.id === Number(params.id));
-  if (!question) notFound();
+const API_URL = process.env.API_URL ?? "http://backend:8000";
 
-  const answers = mockAnswers.filter((a) => a.questionId === question.id);
-  const sorted = [...answers].sort((a, b) => {
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "今";
+  if (min < 60) return `${min}分前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}日前`;
+  return new Date(iso).toLocaleDateString("ja-JP");
+}
+
+export default async function QuestionDetailPage({ params }: { params: { id: string } }) {
+  const res = await fetch(`${API_URL}/api/questions/${params.id}`, { cache: "no-store" });
+  if (!res.ok) notFound();
+
+  const question: QuestionDetail = await res.json();
+  const hasAccepted = question.answers.some((a) => a.isAccepted);
+
+  const sorted = [...question.answers].sort((a, b) => {
     if (a.isAccepted && !b.isAccepted) return -1;
     if (!a.isAccepted && b.isAccepted) return 1;
-    return b.voteCount - a.voteCount;
+    return b._count.votes - a._count.votes;
   });
 
   return (
@@ -19,8 +39,9 @@ export default function QuestionDetailPage({ params }: { params: { id: string } 
         <Link href="/questions" className="page-header-back">Questions</Link>
         <h1 className="page-header-title">{question.title}</h1>
         <p className="page-header-sub" style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", letterSpacing: "0.05em" }}>
-          <span style={{ color: "var(--terra)" }}>● {question.boatType}</span> · @{question.author.username} · {timeAgo(question.createdAt)} · {question.views} views
-          {question.hasAcceptedAnswer && <span className="accepted-pill" style={{ marginLeft: "0.6rem" }}>Solved</span>}
+          {question.boatType && <span style={{ color: "var(--terra)" }}>● {question.boatType.name} · </span>}
+          @{question.author.username} · {timeAgo(question.createdAt)} · {question.viewCount} views
+          {hasAccepted && <span className="accepted-pill" style={{ marginLeft: "0.6rem" }}>Solved</span>}
         </p>
       </div>
 
@@ -29,18 +50,14 @@ export default function QuestionDetailPage({ params }: { params: { id: string } 
           {/* Question body */}
           <article className="article-detail" style={{ padding: "2rem 2.25rem", marginBottom: "1.5rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: "1.25rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem" }}>
-                <button className="btn btn-ghost" style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem" }}>▲</button>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: "1.3rem", fontWeight: 700, color: "var(--fg)" }}>{question.voteCount}</div>
-                <button className="btn btn-ghost" style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem" }}>▼</button>
-              </div>
+              <VoteButtons targetId={question.id} initialVotes={question._count.votes} type="question" />
               <div>
                 <div className="markdown-body" style={{ fontSize: "0.95rem" }}>
-                  <p>{question.body}</p>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{question.body}</p>
                 </div>
                 <div className="article-card-tags" style={{ marginTop: "1.25rem", marginBottom: 0 }}>
-                  {question.tags.map((t) => (
-                    <span key={t} className="tag">{t}</span>
+                  {question.tags.map(({ tag }) => (
+                    <span key={tag.id} className="tag">{tag.name}</span>
                   ))}
                 </div>
                 <div className="article-card-footer" style={{ marginTop: "1.5rem", paddingTop: "1rem" }}>
@@ -56,11 +73,10 @@ export default function QuestionDetailPage({ params }: { params: { id: string } 
 
           {/* Answers header */}
           <div className="section-head">
-            <h2 className="section-head-title">{answers.length} Answers</h2>
+            <h2 className="section-head-title">{question.answers.length} Answers</h2>
             <span className="section-head-action" style={{ color: "var(--fg-mute)" }}>Sorted by Votes</span>
           </div>
 
-          {/* Answers */}
           <div className="stagger">
             {sorted.length === 0 ? (
               <div className="empty-state">
@@ -80,25 +96,33 @@ export default function QuestionDetailPage({ params }: { params: { id: string } 
                 >
                   <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: "1.25rem" }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem" }}>
-                      <button className="btn btn-ghost" style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem" }}>▲</button>
-                      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", fontWeight: 700, color: a.isAccepted ? "var(--sage)" : "var(--fg)" }}>
-                        {a.voteCount}
-                      </div>
-                      <button className="btn btn-ghost" style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem" }}>▼</button>
-                      {a.isAccepted && (
-                        <div title="Accepted" style={{ marginTop: "0.4rem", color: "var(--sage)", fontSize: "1.4rem" }}>✓</div>
-                      )}
+                      <VoteButtons
+                        type="answer"
+                        targetId={a.id}
+                        questionId={question.id}
+                        initialVotes={a._count.votes}
+                      />
+                      <AcceptGate
+                        questionAuthorId={question.author.id}
+                        questionId={question.id}
+                        answerId={a.id}
+                        isAccepted={a.isAccepted}
+                      />
                     </div>
                     <div>
-                      {a.isAccepted && <span className="accepted-pill" style={{ marginBottom: "0.85rem", display: "inline-flex" }}>Accepted Answer</span>}
+                      {a.isAccepted && (
+                        <span className="accepted-pill" style={{ marginBottom: "0.85rem", display: "inline-flex" }}>Accepted Answer</span>
+                      )}
                       <div className="markdown-body" style={{ fontSize: "0.95rem", marginTop: a.isAccepted ? "0.5rem" : 0 }}>
-                        <p>{a.body}</p>
+                        <p style={{ whiteSpace: "pre-wrap" }}>{a.body}</p>
                       </div>
                       <div className="article-card-footer" style={{ marginTop: "1.5rem", paddingTop: "1rem" }}>
                         <Link href={`/users/${a.author.username}`} className="author-link">
                           <span className="author-avatar-sm">{a.author.username[0].toUpperCase()}</span>
                           @{a.author.username}
-                          <span style={{ color: "var(--fg-dim)", marginLeft: "0.4rem" }}>· {a.author.specialty}</span>
+                          {a.author.specialty && (
+                            <span style={{ color: "var(--fg-dim)", marginLeft: "0.4rem" }}>· {a.author.specialty}</span>
+                          )}
                         </Link>
                         <span className="article-date">answered {timeAgo(a.createdAt)}</span>
                       </div>
@@ -109,50 +133,32 @@ export default function QuestionDetailPage({ params }: { params: { id: string } 
             )}
           </div>
 
-          {/* Answer composer */}
-          <div className="composer" style={{ marginTop: "2rem" }}>
-            <h3 className="sidebar-title" style={{ marginBottom: "1rem" }}>Your Answer</h3>
-            <textarea placeholder="Markdown supported. 体験ベースで具体的に書くと役立ちます。" rows={6} />
-            <div className="composer-footer">
-              <span className="composer-counter">Markdown // ↵ to break</span>
-              <button className="btn btn-primary">Post Answer</button>
-            </div>
-          </div>
+          <AnswerComposer questionId={question.id} />
         </div>
 
-        {/* Sidebar */}
         <aside className="sidebar">
           <div className="module">
             <h3 className="sidebar-title">Asked By</h3>
             <div style={{ display: "flex", gap: "0.85rem", alignItems: "center" }}>
-              <div className="sailor-avatar" style={{ color: question.author.avatarColor }}>
-                {question.author.displayName[0]}
+              <div className="sailor-avatar">
+                {question.author.username[0].toUpperCase()}
               </div>
               <div>
                 <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: "var(--fg)" }}>
-                  {question.author.displayName}
+                  @{question.author.username}
                 </div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)" }}>
-                  @{question.author.username} · {question.author.experienceYears}y
-                </div>
+                {question.author.experienceYears && (
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)" }}>
+                    経験 {question.author.experienceYears}年
+                  </div>
+                )}
               </div>
             </div>
-            <p style={{ fontSize: "0.85rem", color: "var(--fg-2)", marginTop: "1rem", lineHeight: 1.6 }}>
-              {question.author.bio}
-            </p>
-          </div>
-
-          <div className="module">
-            <h3 className="sidebar-title">Related</h3>
-            <ul className="sidebar-list">
-              {mockQuestions.filter((q) => q.id !== question.id).slice(0, 3).map((q) => (
-                <li key={q.id}>
-                  <Link href={`/questions/${q.id}`}>
-                    <span style={{ fontSize: "0.85rem", lineHeight: 1.4, display: "block" }}>{q.title}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {question.author.bio && (
+              <p style={{ fontSize: "0.85rem", color: "var(--fg-2)", marginTop: "1rem", lineHeight: 1.6 }}>
+                {question.author.bio}
+              </p>
+            )}
           </div>
         </aside>
       </div>

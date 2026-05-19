@@ -1,10 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { mockCourses } from "@/lib/mock";
+import { Course } from "@/types";
 
-export default function CourseDetailPage({ params }: { params: { slug: string } }) {
-  const course = mockCourses.find((c) => c.slug === params.slug);
-  if (!course) notFound();
+const API_URL = process.env.API_URL ?? "http://backend:8000";
+
+export default async function CourseDetailPage({ params }: { params: { slug: string } }) {
+  const res = await fetch(`${API_URL}/api/courses/${params.slug}`, { cache: "no-store" });
+  if (!res.ok) notFound();
+
+  const course: Course = await res.json();
+
+  // 全コース取得（サイドバー用）
+  const allRes = await fetch(`${API_URL}/api/courses`, { cache: "no-store" });
+  const allCourses: Course[] = allRes.ok ? await allRes.json() : [];
+  const otherCourses = allCourses.filter((c) => c.id !== course.id);
 
   return (
     <div className="container">
@@ -12,7 +21,7 @@ export default function CourseDetailPage({ params }: { params: { slug: string } 
         <Link href="/learn" className="page-header-back">Courses</Link>
         <div style={{ display: "flex", alignItems: "baseline", gap: "0.85rem", flexWrap: "wrap" }}>
           <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: course.accentColor, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            ── {course.level} · {course.boatType}
+            ── {course.level} · {course.boatType?.name ?? "ALL"}
           </span>
         </div>
         <h1 className="page-header-title" style={{ marginTop: "0.5rem" }}>{course.title}</h1>
@@ -21,11 +30,10 @@ export default function CourseDetailPage({ params }: { params: { slug: string } 
 
       <div className="layout-two-col">
         <div>
-          {/* Hero stats */}
           <div className="hero-stats" style={{ marginTop: 0, marginBottom: "2rem", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
             <div className="hero-stat">
               <div className="hero-stat-label">Lessons</div>
-              <div className="hero-stat-value" style={{ color: course.accentColor }}>{course.lessonCount}</div>
+              <div className="hero-stat-value" style={{ color: course.accentColor }}>{course.courseArticles.length}</div>
             </div>
             <div className="hero-stat">
               <div className="hero-stat-label">Total Time</div>
@@ -43,11 +51,11 @@ export default function CourseDetailPage({ params }: { params: { slug: string } 
 
           <div className="section-head">
             <h2 className="section-head-title">Curriculum</h2>
-            <span className="section-head-action" style={{ color: "var(--fg-mute)" }}>{course.lessonCount} lessons</span>
+            <span className="section-head-action" style={{ color: "var(--fg-mute)" }}>{course.courseArticles.length} lessons</span>
           </div>
 
           <ul className="lesson-list stagger">
-            {course.lessons.map((l, idx) => (
+            {course.courseArticles.map((l, idx) => (
               <li key={l.id} className="lesson-item">
                 <div className="lesson-num">{String(idx + 1).padStart(2, "0")}</div>
                 <div className="lesson-title">{l.title}</div>
@@ -67,19 +75,21 @@ export default function CourseDetailPage({ params }: { params: { slug: string } 
             <button className="btn btn-ghost" style={{ width: "100%" }}>＋ Save for Later</button>
           </div>
 
-          <div className="module">
-            <h3 className="sidebar-title">Other Courses</h3>
-            <ul className="sidebar-list">
-              {mockCourses.filter((c) => c.id !== course.id).map((c) => (
-                <li key={c.id}>
-                  <Link href={`/learn/${c.slug}`}>
-                    <span style={{ fontSize: "0.85rem" }}>{c.title}</span>
-                    <span className="count">{c.lessonCount}L</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {otherCourses.length > 0 && (
+            <div className="module">
+              <h3 className="sidebar-title">Other Courses</h3>
+              <ul className="sidebar-list">
+                {otherCourses.map((c) => (
+                  <li key={c.id}>
+                    <Link href={`/learn/${c.slug}`}>
+                      <span style={{ fontSize: "0.85rem" }}>{c.title}</span>
+                      <span className="count">{c.courseArticles.length}L</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </aside>
       </div>
     </div>

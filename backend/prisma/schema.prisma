@@ -14,15 +14,26 @@ model User {
   hashedPassword String
   bio            String?    @db.Text
   avatarUrl      String?
+  boatTypeId     Int?
+  experienceYears Int?
+  affiliation    String?    @db.VarChar(100)
+  specialty      String?    @db.VarChar(100)
   createdAt      DateTime   @default(now())
   isActive       Boolean    @default(true)
 
+  boatType  BoatType?  @relation("UserBoatType", fields: [boatTypeId], references: [id])
   articles  Article[]
   likes     Like[]
   bookmarks Bookmark[]
   comments  Comment[]
   following Follow[]   @relation("Follower")
   followers Follow[]   @relation("Following")
+  questions    Question[]
+  answers      Answer[]
+  posts        Post[]
+  postLikes    PostLike[]
+  questionVotes QuestionVote[]
+  answerVotes   AnswerVote[]
 }
 
 model BoatType {
@@ -31,7 +42,10 @@ model BoatType {
   slug        String    @unique @db.VarChar(50)
   description String?   @db.Text
 
-  articles Article[]
+  articles  Article[]
+  users     User[]     @relation("UserBoatType")
+  questions Question[]
+  courses   Course[]
 }
 
 model Tag {
@@ -39,7 +53,8 @@ model Tag {
   name     String       @unique @db.VarChar(50)
   slug     String       @unique @db.VarChar(50)
 
-  articles ArticleTag[]
+  articles  ArticleTag[]
+  questions QuestionTag[]
 }
 
 model Article {
@@ -58,10 +73,11 @@ model Article {
   boatTypeId Int
   boatType   BoatType @relation(fields: [boatTypeId], references: [id])
 
-  tags      ArticleTag[]
-  likes     Like[]
-  bookmarks Bookmark[]
-  comments  Comment[]
+  tags           ArticleTag[]
+  likes          Like[]
+  bookmarks      Bookmark[]
+  comments       Comment[]
+  courseArticles CourseArticle[]
 }
 
 model ArticleTag {
@@ -123,4 +139,132 @@ model Comment {
 
   articleId Int
   article   Article @relation(fields: [articleId], references: [id])
+}
+
+model Question {
+  id              Int      @id @default(autoincrement())
+  title           String   @db.VarChar(255)
+  body            String   @db.Text
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  authorId    Int
+  author      User     @relation(fields: [authorId], references: [id])
+
+  boatTypeId  Int?
+  boatType    BoatType? @relation(fields: [boatTypeId], references: [id])
+
+  tags        QuestionTag[]
+  answers     Answer[]
+  votes       QuestionVote[]
+}
+
+model QuestionTag {
+  questionId Int
+  tagId      Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id])
+
+  @@id([questionId, tagId])
+}
+
+model Answer {
+  id         Int      @id @default(autoincrement())
+  body       String   @db.Text
+  isAccepted Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  authorId   Int
+  author     User     @relation(fields: [authorId], references: [id])
+
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  votes      AnswerVote[]
+}
+
+model QuestionVote {
+  id         Int      @id @default(autoincrement())
+  value      Int      // +1 or -1
+  createdAt  DateTime @default(now())
+
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+}
+
+model AnswerVote {
+  id        Int      @id @default(autoincrement())
+  value     Int      // +1 or -1
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User   @relation(fields: [userId], references: [id])
+
+  answerId  Int
+  answer    Answer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, answerId])
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  body      String   @db.VarChar(300)
+  createdAt DateTime @default(now())
+
+  authorId  Int
+  author    User @relation(fields: [authorId], references: [id])
+
+  likes     PostLike[]
+}
+
+model PostLike {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User @relation(fields: [userId], references: [id])
+
+  postId    Int
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model Course {
+  id              Int      @id @default(autoincrement())
+  slug            String   @unique @db.VarChar(100)
+  title           String   @db.VarChar(255)
+  subtitle        String   @db.VarChar(255)
+  description     String   @db.Text
+  level           String   @db.VarChar(20)
+  estimatedHours  Int      @default(0)
+  enrolledCount   Int      @default(0)
+  accentColor     String   @db.VarChar(20)
+  createdAt       DateTime @default(now())
+
+  boatTypeId      Int?
+  boatType        BoatType? @relation(fields: [boatTypeId], references: [id])
+
+  courseArticles  CourseArticle[]
+}
+
+model CourseArticle {
+  id        Int @id @default(autoincrement())
+  position  Int @default(0)
+  title     String  @db.VarChar(255)
+  minutes   Int     @default(30)
+
+  courseId  Int
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  articleId Int?
+  article   Article? @relation(fields: [articleId], references: [id])
 }
