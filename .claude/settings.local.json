@@ -47,7 +47,9 @@
       "Bash(python3 -m json.tool)",
       "Skill(codex:setup)",
       "Bash(node *)",
-      "Bash(Get-ChildItem -Recurse -Directory -Name)"
+      "Bash(Get-ChildItem -Recurse -Directory -Name)",
+      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Users\\\\bb38124005\\\\OneDrive\\\\ドキュメント\\\\sailvlog\\\\frontend\" | Where-Object { $_.Name -match \"flag|sailing\" } | Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\bb38124005\\\\OneDrive\\\\ドキュメント\\\\sailvlog\\\\frontend\\\\sailing_flag\" | ForEach-Object { $_.Name })"
     ]
   }
 }

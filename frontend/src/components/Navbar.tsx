@@ -18,6 +18,8 @@ const CLASS_LINKS = [
   { slug: "ilca", label: "ILCA" },
   { slug: "snipe", label: "Snipe" },
   { slug: "49er", label: "49er" },
+  { slug: "420", label: "420" },
+  { slug: "op", label: "OP" },
   { slug: "cruiser", label: "Cruiser" },
   { slug: "other", label: "Other" },
 ];

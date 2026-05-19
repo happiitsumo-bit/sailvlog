@@ -7,8 +7,10 @@ async function main() {
     { name: "470", slug: "470", description: "470級 ディンギー。オリンピック種目の2人乗り艇。" },
     { name: "スナイプ", slug: "snipe", description: "スナイプ級 ディンギー。国内での競技人口が多い2人乗り艇。" },
     { name: "クルーザー", slug: "cruiser", description: "クルーザー。外洋レースや沿岸レースで使われる大型艇。" },
-    { name: "レーザー / ILCA", slug: "laser-ilca", description: "レーザー（ILCA）。オリンピック種目の1人乗りシングルハンダー。" },
+    { name: "ILCA", slug: "ilca", description: "ILCA（旧レーザー）。オリンピック種目の1人乗りシングルハンダー。" },
     { name: "49er", slug: "49er", description: "49er。高速な2人乗りスキフ。オリンピック種目。" },
+    { name: "420", slug: "420", description: "420級 ディンギー。高校生に人気の2人乗り練習艇。" },
+    { name: "OP", slug: "op", description: "オプティミスト（OP）。ジュニア向け1人乗り入門艇。" },
     { name: "その他", slug: "other", description: "上記以外の艇種。" },
   ];
 

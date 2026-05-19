@@ -1,7 +1,7 @@
 FROM node:20-slim AS base
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # ---- 開発モード（docker compose up で使用） ----
 FROM base AS development

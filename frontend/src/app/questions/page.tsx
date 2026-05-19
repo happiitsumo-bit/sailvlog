@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ClassFlag from "@/components/ClassFlag";
 import { Question, BoatType, Tag } from "@/types";
+import { timeAgo } from "@/lib/utils";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
 
@@ -34,18 +35,6 @@ async function getHotTags(): Promise<Tag[]> {
   return res.json();
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "今";
-  if (min < 60) return `${min}分前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}時間前`;
-  const day = Math.floor(hr / 24);
-  if (day < 7) return `${day}日前`;
-  return new Date(iso).toLocaleDateString("ja-JP");
-}
-
 export default async function QuestionsPage({
   searchParams,
 }: {
@@ -62,24 +51,21 @@ export default async function QuestionsPage({
 
   return (
     <div className="container">
-      <div className="page-header">
-        <Link href="/" className="page-header-back">Home</Link>
-        <h1 className="page-header-title">
-          Q&amp;A <span style={{ color: "var(--fg-mute)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>{total} threads · {solvedCount} solved</span>
-        </h1>
-        <p className="page-header-sub">セーラー同士で疑問を解決。質問を投げれば、ベテランが応える。</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", gap: "1rem", flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700, color: "var(--fg)" }}>Q&amp;A</h1>
+          <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem" }}>{total} threads · {solvedCount} solved</p>
+        </div>
+        <Link href="/questions/new" className="btn btn-primary">+ Ask</Link>
       </div>
 
       <div className="layout-two-col">
         <div>
-          <div className="filter-bar">
+          <div className="filter-bar" style={{ marginBottom: "1rem" }}>
             <Link href="/questions" className={`filter-chip ${!searchParams.filter ? "active" : ""}`}>All</Link>
             <Link href="/questions?filter=unanswered" className={`filter-chip ${currentFilter === "unanswered" ? "active" : ""}`}>Unanswered</Link>
             <Link href="/questions?filter=solved" className={`filter-chip ${currentFilter === "solved" ? "active" : ""}`}>Solved</Link>
             <Link href="/questions?filter=top" className={`filter-chip ${currentFilter === "top" ? "active" : ""}`}>Top Voted</Link>
-            <div style={{ marginLeft: "auto" }}>
-              <Link href="/questions/new" className="btn btn-primary">+ Ask</Link>
-            </div>
           </div>
 
           {questions.length === 0 ? (
@@ -92,7 +78,16 @@ export default async function QuestionsPage({
               {questions.map((q) => {
                 const hasAccepted = q.answers.some((a) => a.isAccepted);
                 return (
-                  <Link key={q.id} href={`/questions/${q.id}`} className={`question-card ${hasAccepted ? "solved" : ""}`} style={{ display: "grid" }}>
+                  <Link
+                    key={q.id}
+                    href={`/questions/${q.id}`}
+                    className={`question-card ${hasAccepted ? "solved" : ""}`}
+                    style={{
+                      display: "grid",
+                      borderLeft: hasAccepted ? "3px solid var(--sage)" : undefined,
+                      paddingLeft: hasAccepted ? "calc(1.5rem - 3px)" : undefined,
+                    }}
+                  >
                     <div className="question-metrics">
                       <div className="q-metric">
                         <div className={`q-metric-value ${hasAccepted ? "accepted" : q._count.answers > 0 ? "has-answers" : ""}`}>

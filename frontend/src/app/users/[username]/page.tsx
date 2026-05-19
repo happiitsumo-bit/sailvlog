@@ -36,39 +36,81 @@ export default async function UserProfilePage({ params }: { params: { username: 
 
   return (
     <div className="container">
-      <div className="profile-header">
-        <div className="profile-avatar-lg">
-          {user.username.slice(0, 1).toUpperCase()}
-        </div>
-        <div className="profile-info">
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-            <h1 className="profile-username">@{user.username}</h1>
-            <Link href={`/users/${user.username}/edit`} className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "0.35rem 0.85rem" }}>
-              Edit Profile
-            </Link>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+          Profile
+        </h1>
+        <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem" }}>
+          @{user.username}
+        </p>
+      </div>
+
+      <div
+        style={{
+          position: "relative",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          padding: "1.5rem 1.75rem",
+          marginBottom: "2rem",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        <Link
+          href={`/users/${user.username}/edit`}
+          className="btn btn-ghost"
+          style={{
+            position: "absolute",
+            top: "1.25rem",
+            right: "1.25rem",
+            fontSize: "0.78rem",
+            padding: "0.35rem 0.85rem",
+          }}
+        >
+          Edit Profile
+        </Link>
+
+        <div style={{ display: "flex", gap: "1.25rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div className="profile-avatar-lg">
+            {user.username.slice(0, 1).toUpperCase()}
           </div>
-          {user.boatType && (
-            <span className="boat-badge" style={{ marginBottom: "0.5rem" }}>{user.boatType.name}</span>
-          )}
-          {user.bio && <p className="profile-bio">{user.bio}</p>}
-          {(user.specialty || user.affiliation || user.experienceYears) && (
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "var(--fg-mute)", marginTop: "0.5rem" }}>
-              {[
-                user.specialty,
-                user.affiliation,
-                user.experienceYears ? `${user.experienceYears}y experience` : null,
-              ].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          <div className="profile-stats">
-            <span><strong>{user._count.articles}</strong> 記事</span>
-            <span><strong>{user._count.followers}</strong> フォロワー</span>
-            <span><strong>{user._count.following}</strong> フォロー中</span>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <h2 className="profile-username" style={{ marginBottom: "0.5rem" }}>@{user.username}</h2>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.75rem" }}>
+              {user.boatType && (
+                <span className="boat-badge" data-class={user.boatType.slug}>{user.boatType.name}</span>
+              )}
+              {user.specialty && (
+                <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", background: "rgba(201,100,66,0.08)", color: "var(--terra)", padding: "0.2rem 0.5rem", borderRadius: 4, fontWeight: 600 }}>
+                  {user.specialty}
+                </span>
+              )}
+              {user.experienceYears && (
+                <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", color: "var(--fg-dim)", padding: "0.2rem 0.5rem" }}>
+                  {user.experienceYears}yr exp
+                </span>
+              )}
+            </div>
+
+            {user.bio && <p className="profile-bio" style={{ marginBottom: "0.5rem" }}>{user.bio}</p>}
+
+            {user.affiliation && (
+              <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: "var(--fg-mute)" }}>
+                {user.affiliation}
+              </p>
+            )}
+
+            <div className="profile-stats" style={{ marginTop: "1rem" }}>
+              <span><strong>{user._count.articles}</strong> articles</span>
+              <span><strong>{user._count.followers}</strong> followers</span>
+              <span><strong>{user._count.following}</strong> following</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <p className="section-title">投稿記事</p>
+      <p className="section-title">Articles</p>
 
       {user.articles.length === 0 ? (
         <div className="empty-state">

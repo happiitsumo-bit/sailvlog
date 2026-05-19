@@ -64,14 +64,18 @@ export default function NewArticlePage() {
   return (
     <div className="editor-page">
       <div className="editor-header">
+        <label htmlFor="article-title" className="sr-only">タイトル</label>
         <input
+          id="article-title"
           className="editor-title-input"
           placeholder="タイトルを入力..."
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <div className="editor-meta">
+          <label htmlFor="article-boattype" className="sr-only">艇種</label>
           <select
+            id="article-boattype"
             className="editor-select"
             value={boatTypeId}
             onChange={(e) => setBoatTypeId(Number(e.target.value))}
@@ -97,7 +101,9 @@ export default function NewArticlePage() {
       </div>
 
       <div className="editor-body">
+        <label htmlFor="article-content" className="sr-only">本文</label>
         <textarea
+          id="article-content"
           className="editor-content"
           placeholder="Markdown で記事を書こう...&#10;&#10;## 見出し&#10;&#10;本文をここに書きます。"
           value={contentMd}

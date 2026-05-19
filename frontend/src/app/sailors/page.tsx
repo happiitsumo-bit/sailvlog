@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Sailor, BoatType } from "@/types";
 import { getAvatarColor } from "@/lib/utils";
+import { SkeletonArticleCard } from "@/components/SkeletonCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -48,12 +49,16 @@ export default function SailorsPage() {
 
   return (
     <div className="container">
-      <div className="page-header">
-        <Link href="/" className="page-header-back">Home</Link>
-        <h1 className="page-header-title">
-          Sailors <span style={{ color: "var(--sage)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>// {total} found</span>
+      <div style={{ marginBottom: "2rem" }}>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+          Sailors
+          <span style={{ color: "var(--fg-dim)", fontFamily: "var(--font-mono)", fontSize: "0.85rem", fontWeight: 500, marginLeft: "0.6rem" }}>
+            // {total} found
+          </span>
         </h1>
-        <p className="page-header-sub">艇種・専門分野・所属からセーラーを探す。</p>
+        <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem" }}>
+          Find sailors by boat class, specialty, or affiliation.
+        </p>
       </div>
 
       <div className="search-box">
@@ -85,9 +90,8 @@ export default function SailorsPage() {
       </div>
 
       {loading ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">○</div>
-          <p className="empty-state-text">Loading…</p>
+        <div className="sailor-grid">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonArticleCard key={i} />)}
         </div>
       ) : sailors.length === 0 ? (
         <div className="empty-state">
@@ -114,14 +118,21 @@ export default function SailorsPage() {
                     {s.boatType && <div className="sailor-handle">{s.boatType.name}</div>}
                   </div>
                 </div>
-                <div className="sailor-tags">
-                  {s.boatType && <span className="boat-badge">{s.boatType.name}</span>}
-                  {s.experienceYears && <span className="tag">{s.experienceYears}y</span>}
+                <div className="sailor-tags" style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                  {s.boatType && <span className="boat-badge" data-class={s.boatType.slug}>{s.boatType.name}</span>}
+                  {s.specialty && (
+                    <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", background: "rgba(201,100,66,0.08)", color: "var(--terra)", padding: "0.2rem 0.5rem", borderRadius: 4, fontWeight: 600 }}>
+                      {s.specialty}
+                    </span>
+                  )}
+                  {s.experienceYears && (
+                    <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", color: "var(--fg-dim)", padding: "0.2rem 0.5rem" }}>
+                      {s.experienceYears}yr exp
+                    </span>
+                  )}
                 </div>
-                {(s.specialty || s.affiliation) && (
-                  <p className="sailor-specialty">
-                    {[s.specialty, s.affiliation].filter(Boolean).join(" · ")}
-                  </p>
+                {s.affiliation && (
+                  <p className="sailor-specialty">{s.affiliation}</p>
                 )}
                 <div className="sailor-stats">
                   <div>

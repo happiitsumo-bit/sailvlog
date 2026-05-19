@@ -66,10 +66,11 @@ export default function NewQuestionPage() {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div>
-          <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)", marginBottom: "0.5rem", letterSpacing: "0.1em" }}>
+          <label htmlFor="q-title" style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)", marginBottom: "0.5rem", letterSpacing: "0.1em" }}>
             TITLE *
           </label>
           <input
+            id="q-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -90,10 +91,11 @@ export default function NewQuestionPage() {
         </div>
 
         <div>
-          <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)", marginBottom: "0.5rem", letterSpacing: "0.1em" }}>
+          <label htmlFor="q-body" style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)", marginBottom: "0.5rem", letterSpacing: "0.1em" }}>
             DETAIL *
           </label>
           <textarea
+            id="q-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="状況・試したこと・知りたいことを詳しく書くほど回答が集まります。Markdown使用可。"
@@ -116,10 +118,11 @@ export default function NewQuestionPage() {
         </div>
 
         <div>
-          <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)", marginBottom: "0.5rem", letterSpacing: "0.1em" }}>
+          <label htmlFor="q-boattype" style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--fg-mute)", marginBottom: "0.5rem", letterSpacing: "0.1em" }}>
             BOAT TYPE
           </label>
           <select
+            id="q-boattype"
             value={boatTypeId}
             onChange={(e) => setBoatTypeId(e.target.value ? Number(e.target.value) : "")}
             style={{

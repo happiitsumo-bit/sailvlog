@@ -5,20 +5,9 @@ import AnswerComposer from "./AnswerComposer";
 import VoteButtons from "./VoteButtons";
 import AcceptButton from "./AcceptButton";
 import AcceptGate from "./AcceptGate";
+import { timeAgo } from "@/lib/utils";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "今";
-  if (min < 60) return `${min}分前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}時間前`;
-  const day = Math.floor(hr / 24);
-  if (day < 7) return `${day}日前`;
-  return new Date(iso).toLocaleDateString("ja-JP");
-}
 
 export default async function QuestionDetailPage({ params }: { params: { id: string } }) {
   const res = await fetch(`${API_URL}/api/questions/${params.id}`, { cache: "no-store" });

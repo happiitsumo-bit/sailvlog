@@ -12,6 +12,15 @@ async function getCourses(level?: string): Promise<Course[]> {
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
+const LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
+type Level = (typeof LEVELS)[number];
+
+const levelConfig: Record<Level, { label: string; color: string; pip: number }> = {
+  BEGINNER: { label: "Beginner", color: "var(--sage)", pip: 1 },
+  INTERMEDIATE: { label: "Intermediate", color: "var(--dijon)", pip: 2 },
+  ADVANCED: { label: "Advanced", color: "var(--terra)", pip: 3 },
+};
+
 export default async function LearnPage({
   searchParams,
 }: {
@@ -20,23 +29,36 @@ export default async function LearnPage({
   const level = Array.isArray(searchParams.level) ? searchParams.level[0] : searchParams.level;
   const courses = await getCourses(level);
 
-  const levels = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
+  const grouped: Record<Level, Course[]> = {
+    BEGINNER: courses.filter((c) => c.level === "BEGINNER"),
+    INTERMEDIATE: courses.filter((c) => c.level === "INTERMEDIATE"),
+    ADVANCED: courses.filter((c) => c.level === "ADVANCED"),
+  };
 
   return (
     <div className="container">
-      <div className="page-header">
-        <Link href="/" className="page-header-back">Home</Link>
-        <h1 className="page-header-title">
-          Learn <span style={{ color: "var(--sage)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>// {courses.length} courses</span>
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.4rem",
+            fontWeight: 700,
+            color: "var(--fg)",
+            marginBottom: "0.25rem",
+          }}
+        >
+          Learn
         </h1>
-        <p className="page-header-sub">体系化された学習コースで、基礎から戦術まで段階的に学べる。</p>
+        <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem" }}>
+          Structured courses from beginner to advanced.
+        </p>
       </div>
 
       <div className="filter-bar">
         <Link href="/learn" className={`filter-chip ${!level ? "active" : ""}`}>All</Link>
-        {levels.map((l) => (
+        {LEVELS.map((l) => (
           <Link key={l} href={`/learn?level=${l}`} className={`filter-chip ${level === l ? "active" : ""}`}>
-            {l.charAt(0) + l.slice(1).toLowerCase()}
+            {levelConfig[l].label}
           </Link>
         ))}
       </div>
@@ -47,44 +69,96 @@ export default async function LearnPage({
           <p className="empty-state-text">NO COURSES // まもなく公開予定</p>
         </div>
       ) : (
-        <div className="course-grid stagger">
-          {courses.map((c) => (
-            <Link
-              key={c.id}
-              href={`/learn/${c.slug}`}
-              className="course-card"
-              style={{ ["--accent" as string]: c.accentColor }}
-            >
-              {(() => {
-                const difficultyLevel = c.level === "BEGINNER" ? 1 : c.level === "INTERMEDIATE" ? 2 : 3;
-                return (
-                  <div className="course-difficulty-bar">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className={`course-difficulty-pip ${n <= difficultyLevel ? "filled" : ""}`} />
-                    ))}
-                  </div>
-                );
-              })()}
-              <div className="course-level">{c.level} · {c.boatType?.name ?? "ALL"}</div>
-              <h2 className="course-title">{c.title}</h2>
-              <p className="course-subtitle">{c.subtitle}</p>
-              <div className="course-stats">
-                <div>
-                  <span className="course-stat-num">{c.courseArticles.length}</span>
-                  <span className="course-stat-label">Lessons</span>
+        LEVELS.map((lv) =>
+          grouped[lv].length > 0 ? (
+            <div key={lv} style={{ marginBottom: "2.5rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                <div style={{ display: "flex", gap: 3 }}>
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      style={{
+                        width: 18,
+                        height: 4,
+                        borderRadius: 2,
+                        background:
+                          n <= levelConfig[lv].pip
+                            ? levelConfig[lv].color
+                            : "var(--border-strong)",
+                      }}
+                    />
+                  ))}
                 </div>
-                <div>
-                  <span className="course-stat-num">{c.estimatedHours != null ? `${c.estimatedHours}h` : "—"}</span>
-                  <span className="course-stat-label">Total</span>
-                </div>
-                <div>
-                  <span className="course-stat-num">{c.enrolledCount}</span>
-                  <span className="course-stat-label">Enrolled</span>
-                </div>
+                <h2
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: levelConfig[lv].color,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {levelConfig[lv].label}
+                </h2>
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "0.72rem",
+                    color: "var(--fg-dim)",
+                  }}
+                >
+                  {grouped[lv].length} {grouped[lv].length === 1 ? "course" : "courses"}
+                </span>
               </div>
-            </Link>
-          ))}
-        </div>
+              <div className="course-grid stagger">
+                {grouped[lv].map((c) => {
+                  const difficultyLevel = c.level === "BEGINNER" ? 1 : c.level === "INTERMEDIATE" ? 2 : 3;
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/learn/${c.slug}`}
+                      className="course-card"
+                      style={{ ["--accent" as string]: c.accentColor }}
+                    >
+                      <div className="course-difficulty-bar">
+                        {[1, 2, 3].map((n) => (
+                          <div key={n} className={`course-difficulty-pip ${n <= difficultyLevel ? "filled" : ""}`} />
+                        ))}
+                      </div>
+                      <div className="course-level">
+                        {c.level} · {c.boatType?.name ?? "ALL"}
+                      </div>
+                      <h2 className="course-title">{c.title}</h2>
+                      <p className="course-subtitle">{c.subtitle}</p>
+                      <div className="course-stats">
+                        <div>
+                          <span className="course-stat-num">{c.courseArticles.length}</span>
+                          <span className="course-stat-label">Lessons</span>
+                        </div>
+                        <div>
+                          <span className="course-stat-num">{c.estimatedHours != null ? `${c.estimatedHours}h` : "—"}</span>
+                          <span className="course-stat-label">Total</span>
+                        </div>
+                        <div>
+                          <span className="course-stat-num">{c.enrolledCount}</span>
+                          <span className="course-stat-label">Enrolled</span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null
+        )
       )}
     </div>
   );

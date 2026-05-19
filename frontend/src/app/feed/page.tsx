@@ -3,23 +3,12 @@
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
-import { isLoggedIn } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { Post } from "@/types";
-import { getAvatarColor } from "@/lib/utils";
+import { getAvatarColor, timeAgo } from "@/lib/utils";
+import { SkeletonPostCard } from "@/components/SkeletonCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "今";
-  if (min < 60) return `${min}分前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}時間前`;
-  const day = Math.floor(hr / 24);
-  if (day < 7) return `${day}日前`;
-  return new Date(iso).toLocaleDateString("ja-JP");
-}
 
 export default function FeedPage() {
   const [draft, setDraft] = useState("");
@@ -29,11 +18,12 @@ export default function FeedPage() {
   const [submitting, setSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [likeError, setLikeError] = useState<string | null>(null);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
   const max = 300;
 
   useEffect(() => {
-    setLoggedIn(isLoggedIn());
+    const u = getUser();
+    setUsername(u?.username ?? null);
   }, []);
 
   const fetchPosts = useCallback(async () => {
@@ -76,53 +66,95 @@ export default function FeedPage() {
     }
   }
 
+  const loggedIn = !!username;
+
   return (
     <div className="container">
-      <div className="page-header">
-        <Link href="/" className="page-header-back">Home</Link>
-        <h1 className="page-header-title">Timeline</h1>
-        <p className="page-header-sub">セーラーの今を短く共有。気付き・記録・つぶやき。</p>
+      <div style={{ marginBottom: "1.25rem" }}>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.2rem" }}>
+          Timeline
+        </h1>
+        <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem" }}>
+          セーラーの今を短く共有 — 風向き、セッティング、練習のメモ。
+        </p>
       </div>
 
       <div className="layout-two-col">
         <div>
-          {likeError && (
-            <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginBottom: "0.75rem" }}>{likeError}</p>
-          )}
           {loggedIn ? (
-            <div className="composer">
-              <textarea
-                placeholder="今日の気付きを共有 — 風向き、セッティング、練習のメモ..."
-                maxLength={max}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-              />
-              <div className="composer-footer">
-                <span className="composer-counter" style={{ color: draft.length > max - 20 ? "var(--terra)" : draft.length > max - 50 ? "var(--dijon)" : undefined }}>
-                  {draft.length} / {max}
-                </span>
-                <button
-                  className="btn btn-primary"
-                  disabled={draft.trim().length === 0 || submitting}
-                  onClick={handlePost}
+            <div className="composer" style={{ marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "var(--terra)",
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
                 >
-                  {submitting ? "Posting…" : "Post"}
-                </button>
+                  {username ? username[0].toUpperCase() : "?"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <textarea
+                    placeholder="今日の気付きを共有 — 風向き、セッティング、練習のメモ..."
+                    maxLength={max}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                  <div className="composer-footer">
+                    <span
+                      className="composer-counter"
+                      style={{
+                        color:
+                          draft.length > max - 20
+                            ? "var(--terra)"
+                            : draft.length > max - 50
+                            ? "var(--dijon)"
+                            : undefined,
+                      }}
+                    >
+                      {draft.length} / {max}
+                    </span>
+                    <button
+                      className="btn btn-primary"
+                      disabled={draft.trim().length === 0 || submitting}
+                      onClick={handlePost}
+                    >
+                      {submitting ? "Posting…" : "Post"}
+                    </button>
+                  </div>
+                  {postError && (
+                    <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginTop: "0.5rem" }}>{postError}</p>
+                  )}
+                </div>
               </div>
-              {postError && (
-                <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginTop: "0.5rem" }}>{postError}</p>
-              )}
             </div>
           ) : (
-            <div className="composer" style={{ textAlign: "center", color: "var(--fg-mute)", padding: "1.5rem" }}>
-              <p>投稿するには <Link href="/login" className="form-link">ログイン</Link> が必要です。</p>
+            <div
+              className="composer"
+              style={{ textAlign: "center", color: "var(--fg-mute)", padding: "1.5rem", marginBottom: "1.5rem" }}
+            >
+              <p>
+                投稿するには <Link href="/login" className="form-link">ログイン</Link> が必要です。
+              </p>
             </div>
           )}
 
+          {likeError && (
+            <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginBottom: "0.75rem" }}>{likeError}</p>
+          )}
+
           {loading ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">○</div>
-              <p className="empty-state-text">Loading…</p>
+            <div className="stagger">
+              {Array.from({ length: 5 }).map((_, i) => <SkeletonPostCard key={i} />)}
             </div>
           ) : posts.length === 0 ? (
             <div className="empty-state">
@@ -132,7 +164,11 @@ export default function FeedPage() {
           ) : (
             <div className="stagger">
               {posts.map((p, idx) => (
-                <article key={p.id} className="post-card">
+                <article
+                  key={p.id}
+                  className="post-card"
+                  style={{ transition: "transform 0.15s ease, box-shadow 0.15s ease" }}
+                >
                   <div className="post-avatar" style={{ color: getAvatarColor(p.author.username) }}>
                     {p.author.username[0].toUpperCase()}
                   </div>

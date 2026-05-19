@@ -14,6 +14,18 @@ export default function ArticleCard({ article }: Props) {
 
   return (
     <article className="article-card">
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: `var(--class-${article.boatType.slug}, var(--terra))`,
+          borderRadius: "var(--radius) var(--radius) 0 0",
+        }}
+      />
       <div className="article-card-header">
         <span className="boat-badge" data-class={article.boatType.slug}>
           {article.boatType.name}
@@ -37,10 +49,19 @@ export default function ArticleCard({ article }: Props) {
           </span>
           @{article.author.username}
         </Link>
-        <div className="article-stats">
-          <span title="いいね" aria-label={`${article._count.likes}いいね`}>♥ {article._count.likes}</span>
-          <span title="コメント" aria-label={`${article._count.comments}コメント`}>💬 {article._count.comments}</span>
-          <span title="閲覧数" aria-label={`${article.viewCount}閲覧`}>👁 {article.viewCount}</span>
+        <div className="article-stats" aria-label="Article stats">
+          <span className="article-stat" title="Likes" aria-label={`${article._count.likes} likes`}>
+            <span aria-hidden style={{ color: "var(--terra)" }}>♥</span>
+            <span>{article._count.likes}</span>
+          </span>
+          <span className="article-stat" title="Comments" aria-label={`${article._count.comments} comments`}>
+            <span aria-hidden style={{ color: "var(--sage)" }}>💬</span>
+            <span>{article._count.comments}</span>
+          </span>
+          <span className="article-stat" title="Views" aria-label={`${article.viewCount} views`}>
+            <span aria-hidden style={{ color: "var(--fg-dim)" }}>👁</span>
+            <span>{article.viewCount}</span>
+          </span>
         </div>
       </div>
     </article>
