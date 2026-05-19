@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sailor, BoatType } from "@/types";
 import { getAvatarColor } from "@/lib/utils";
 
@@ -9,11 +9,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function SailorsPage() {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [boat, setBoat] = useState<string | null>(null);
   const [sailors, setSailors] = useState<Sailor[]>([]);
   const [total, setTotal] = useState(0);
   const [boatTypes, setBoatTypes] = useState<BoatType[]>([]);
   const [loading, setLoading] = useState(true);
+
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedQuery(value), 300);
+  }
 
   useEffect(() => {
     fetch(`${API_URL}/api/boat-types`)
@@ -25,7 +33,7 @@ export default function SailorsPage() {
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
+    if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
     if (boat) params.set("boatType", boat);
 
     fetch(`${API_URL}/api/sailors?${params}`)
@@ -36,7 +44,7 @@ export default function SailorsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [query, boat]);
+  }, [debouncedQuery, boat]);
 
   return (
     <div className="container">
@@ -48,22 +56,12 @@ export default function SailorsPage() {
         <p className="page-header-sub">艇種・専門分野・所属からセーラーを探す。</p>
       </div>
 
-      <div className="composer" style={{ marginBottom: "1.25rem" }}>
+      <div className="search-box">
         <input
           type="text"
           placeholder="Search by name, specialty, club..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            width: "100%",
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            color: "var(--fg)",
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.95rem",
-            padding: 0,
-          }}
+          onChange={(e) => handleQueryChange(e.target.value)}
         />
       </div>
 
@@ -77,6 +75,7 @@ export default function SailorsPage() {
         {boatTypes.map((bt) => (
           <button
             key={bt.slug}
+            data-class={bt.slug}
             className={`filter-chip ${boat === bt.slug ? "active" : ""}`}
             onClick={() => setBoat(bt.slug)}
           >

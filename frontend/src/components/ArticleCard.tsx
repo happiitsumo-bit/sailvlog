@@ -5,8 +5,6 @@ interface Props {
   article: ArticleSummary;
 }
 
-const BADGE_VARIANTS = ["", "cyan", "lime"];
-
 export default function ArticleCard({ article }: Props) {
   const date = new Date(article.createdAt).toLocaleDateString("ja-JP", {
     year: "numeric",
@@ -14,12 +12,10 @@ export default function ArticleCard({ article }: Props) {
     day: "2-digit",
   }).replace(/\//g, ".");
 
-  const badgeVariant = BADGE_VARIANTS[article.id % 3];
-
   return (
     <article className="article-card">
       <div className="article-card-header">
-        <span className={`boat-badge ${badgeVariant}`}>
+        <span className="boat-badge" data-class={article.boatType.slug}>
           {article.boatType.name}
         </span>
         <span className="article-date">{date}</span>
@@ -42,9 +38,9 @@ export default function ArticleCard({ article }: Props) {
           @{article.author.username}
         </Link>
         <div className="article-stats">
-          <span>♥ {article._count.likes}</span>
-          <span>◐ {article._count.comments}</span>
-          <span>◉ {article.viewCount}</span>
+          <span title="いいね" aria-label={`${article._count.likes}いいね`}>♥ {article._count.likes}</span>
+          <span title="コメント" aria-label={`${article._count.comments}コメント`}>💬 {article._count.comments}</span>
+          <span title="閲覧数" aria-label={`${article.viewCount}閲覧`}>👁 {article.viewCount}</span>
         </div>
       </div>
     </article>

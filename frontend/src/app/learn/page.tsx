@@ -10,12 +10,14 @@ async function getCourses(level?: string): Promise<Course[]> {
   return res.json();
 }
 
+type SearchParams = { [key: string]: string | string[] | undefined };
+
 export default async function LearnPage({
   searchParams,
 }: {
-  searchParams: Record<string, string>;
+  searchParams: SearchParams;
 }) {
-  const level = searchParams.level;
+  const level = Array.isArray(searchParams.level) ? searchParams.level[0] : searchParams.level;
   const courses = await getCourses(level);
 
   const levels = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
@@ -25,7 +27,7 @@ export default async function LearnPage({
       <div className="page-header">
         <Link href="/" className="page-header-back">Home</Link>
         <h1 className="page-header-title">
-          Learn <span style={{ color: "var(--cyan)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>// {courses.length} courses</span>
+          Learn <span style={{ color: "var(--sage)", fontFamily: "var(--font-mono)", fontSize: "1rem", marginLeft: "0.5rem" }}>// {courses.length} courses</span>
         </h1>
         <p className="page-header-sub">体系化された学習コースで、基礎から戦術まで段階的に学べる。</p>
       </div>
@@ -53,6 +55,16 @@ export default async function LearnPage({
               className="course-card"
               style={{ ["--accent" as string]: c.accentColor }}
             >
+              {(() => {
+                const difficultyLevel = c.level === "BEGINNER" ? 1 : c.level === "INTERMEDIATE" ? 2 : 3;
+                return (
+                  <div className="course-difficulty-bar">
+                    {[1, 2, 3].map((n) => (
+                      <div key={n} className={`course-difficulty-pip ${n <= difficultyLevel ? "filled" : ""}`} />
+                    ))}
+                  </div>
+                );
+              })()}
               <div className="course-level">{c.level} · {c.boatType?.name ?? "ALL"}</div>
               <h2 className="course-title">{c.title}</h2>
               <p className="course-subtitle">{c.subtitle}</p>
@@ -62,7 +74,7 @@ export default async function LearnPage({
                   <span className="course-stat-label">Lessons</span>
                 </div>
                 <div>
-                  <span className="course-stat-num">{c.estimatedHours}h</span>
+                  <span className="course-stat-num">{c.estimatedHours != null ? `${c.estimatedHours}h` : "—"}</span>
                   <span className="course-stat-label">Total</span>
                 </div>
                 <div>

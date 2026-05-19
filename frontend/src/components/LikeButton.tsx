@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 
@@ -14,8 +14,9 @@ export default function LikeButton({ slug, initialCount, initialLiked }: Props) 
   const [liked, setLiked] = useState(initialLiked);
   const [count, setCount] = useState(initialCount);
   const [loading, setLoading] = useState(false);
+  const [animating, setAnimating] = useState(false);
 
-  async function toggle() {
+  const toggle = useCallback(async () => {
     if (!isLoggedIn()) {
       alert("いいねにはログインが必要です");
       return;
@@ -35,21 +36,31 @@ export default function LikeButton({ slug, initialCount, initialLiked }: Props) 
         );
         setLiked(res.liked);
         setCount(res.count);
+        // いいねしたときだけポップアニメーションを発火
+        setAnimating(true);
+        setTimeout(() => setAnimating(false), 350);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }
+  }, [liked, slug]);
 
   return (
     <button
       onClick={toggle}
       disabled={loading}
-      className={`like-btn ${liked ? "liked" : ""}`}
+      className={[
+        "like-btn",
+        liked ? "liked" : "",
+        animating ? "like-pop-anim" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      ❤️ {count}
+      <span className="like-icon">{liked ? "❤️" : "🤍"}</span>
+      {count}
     </button>
   );
 }

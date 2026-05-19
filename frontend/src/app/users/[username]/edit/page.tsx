@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { isLoggedIn } from "@/lib/auth";
 import { BoatType } from "@/types";
 
 interface ProfileData {
@@ -31,6 +32,11 @@ export default function EditProfilePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // 未ログインユーザーは即座にリダイレクト
+    if (!isLoggedIn()) {
+      router.push("/login");
+      return;
+    }
     Promise.all([
       api.get<ProfileData>("/api/users/me"),
       api.get<BoatType[]>("/api/boat-types"),

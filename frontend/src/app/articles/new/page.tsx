@@ -35,6 +35,14 @@ export default function NewArticlePage() {
       setError("タイトル・本文・艇種は必須です");
       return;
     }
+    if (title.trim().length > 200) {
+      setError("タイトルは200文字以内で入力してください");
+      return;
+    }
+    if (contentMd.trim().length > 50000) {
+      setError("本文は50,000文字以内で入力してください");
+      return;
+    }
     setLoading(true);
     setError("");
     try {

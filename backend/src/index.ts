@@ -19,7 +19,10 @@ import sailorsRouter from "./routes/sailors";
 const app = express();
 const PORT = process.env.PORT ?? 8000;
 
-app.use(cors({ origin: ["http://localhost:3001", "http://localhost:3000"], credentials: true }));
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:3001,http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim());
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {

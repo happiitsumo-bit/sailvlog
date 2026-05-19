@@ -4,10 +4,18 @@ import { Question, BoatType, Tag } from "@/types";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
 
-async function getQuestions(searchParams: Record<string, string>) {
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+function getString(val: string | string[] | undefined): string | undefined {
+  return Array.isArray(val) ? val[0] : val;
+}
+
+async function getQuestions(searchParams: SearchParams) {
   const params = new URLSearchParams();
-  if (searchParams.boatType) params.set("boatType", searchParams.boatType);
-  if (searchParams.filter) params.set("filter", searchParams.filter);
+  const boatType = getString(searchParams.boatType);
+  const filter = getString(searchParams.filter);
+  if (boatType) params.set("boatType", boatType);
+  if (filter) params.set("filter", filter);
 
   const res = await fetch(`${API_URL}/api/questions?${params}`, { cache: "no-store" });
   if (!res.ok) return { questions: [], total: 0 };
@@ -41,7 +49,7 @@ function timeAgo(iso: string): string {
 export default async function QuestionsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string>;
+  searchParams: SearchParams;
 }) {
   const [{ questions, total }, boatTypes, tags] = await Promise.all([
     getQuestions(searchParams),
@@ -50,7 +58,7 @@ export default async function QuestionsPage({
   ]);
 
   const solvedCount = questions.filter((q) => q.answers.some((a) => a.isAccepted)).length;
-  const currentFilter = searchParams.filter ?? "latest";
+  const currentFilter = getString(searchParams.filter) ?? "latest";
 
   return (
     <div className="container">
@@ -84,7 +92,7 @@ export default async function QuestionsPage({
               {questions.map((q) => {
                 const hasAccepted = q.answers.some((a) => a.isAccepted);
                 return (
-                  <Link key={q.id} href={`/questions/${q.id}`} className="question-card" style={{ display: "grid" }}>
+                  <Link key={q.id} href={`/questions/${q.id}`} className={`question-card ${hasAccepted ? "solved" : ""}`} style={{ display: "grid" }}>
                     <div className="question-metrics">
                       <div className="q-metric">
                         <div className={`q-metric-value ${hasAccepted ? "accepted" : q._count.answers > 0 ? "has-answers" : ""}`}>
@@ -130,6 +138,15 @@ export default async function QuestionsPage({
               艇種・タグを指定して質問するほど、回答が集まりやすくなります。
             </p>
             <Link href="/questions/new" className="btn btn-primary" style={{ width: "100%" }}>+ New Question</Link>
+          </div>
+
+          <div className="module">
+            <h3 className="sidebar-title">質問のコツ</h3>
+            <ul style={{ fontSize: "0.82rem", color: "var(--fg-mute)", lineHeight: 1.8, paddingLeft: "1.2rem" }}>
+              <li>艇種を明記する</li>
+              <li>風速・コンディションを書く</li>
+              <li>試したことをリストアップ</li>
+            </ul>
           </div>
 
           {boatTypes.length > 0 && (

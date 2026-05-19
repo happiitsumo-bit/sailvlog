@@ -6,11 +6,21 @@ import { getAvatarColor } from "@/lib/utils";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
 
-async function getArticles(): Promise<ArticleSummary[]> {
+async function getArticles(): Promise<{ articles: ArticleSummary[]; total: number }> {
   const res = await fetch(`${API_URL}/api/articles?limit=5`, { cache: "no-store" });
-  if (!res.ok) return [];
+  if (!res.ok) return { articles: [], total: 0 };
   const data = await res.json();
-  return data.articles ?? [];
+  return { articles: data.articles ?? [], total: data.total ?? 0 };
+}
+
+async function getStats(): Promise<{ questions: number; posts: number }> {
+  const [qRes, pRes] = await Promise.all([
+    fetch(`${API_URL}/api/questions?limit=1`, { cache: "no-store" }),
+    fetch(`${API_URL}/api/posts?limit=1`, { cache: "no-store" }),
+  ]);
+  const qData = qRes.ok ? await qRes.json() : { total: 0 };
+  const pData = pRes.ok ? await pRes.json() : { total: 0 };
+  return { questions: qData.total ?? 0, posts: pData.total ?? 0 };
 }
 
 async function getBoatTypes(): Promise<BoatType[]> {
@@ -46,11 +56,12 @@ function timeAgo(iso: string): string {
 }
 
 export default async function HomePage() {
-  const [articles, boatTypes, trendingQuestions, recentPosts] = await Promise.all([
+  const [{ articles, total: articleTotal }, boatTypes, trendingQuestions, recentPosts, stats] = await Promise.all([
     getArticles(),
     getBoatTypes(),
     getTrendingQuestions(),
     getRecentPosts(),
+    getStats(),
   ]);
 
   return (
@@ -86,15 +97,15 @@ export default async function HomePage() {
           <div className="hero-stats">
             <div className="hero-stat">
               <div className="hero-stat-label">Articles</div>
-              <div className="hero-stat-value">{articles.length > 0 ? articles.length : "—"}</div>
+              <div className="hero-stat-value">{articleTotal > 0 ? articleTotal : "—"}</div>
             </div>
             <div className="hero-stat">
               <div className="hero-stat-label">Questions</div>
-              <div className="hero-stat-value">{trendingQuestions.length > 0 ? trendingQuestions.length : "—"}</div>
+              <div className="hero-stat-value">{stats.questions > 0 ? stats.questions : "—"}</div>
             </div>
             <div className="hero-stat">
               <div className="hero-stat-label">Posts</div>
-              <div className="hero-stat-value">{recentPosts.length > 0 ? recentPosts.length : "—"}</div>
+              <div className="hero-stat-value">{stats.posts > 0 ? stats.posts : "—"}</div>
             </div>
           </div>
         </div>
@@ -120,8 +131,10 @@ export default async function HomePage() {
               )}
             </div>
 
+            <div className="wave-divider" aria-hidden="true" />
+
             {/* Trending Questions */}
-            <div className="section-head" style={{ marginTop: "3rem" }}>
+            <div className="section-head">
               <h2 className="section-head-title">Trending Questions</h2>
               <Link href="/questions" className="section-head-action">All Q&amp;A</Link>
             </div>
@@ -166,7 +179,7 @@ export default async function HomePage() {
             </div>
 
             {/* Live Feed */}
-            <div className="section-head" style={{ marginTop: "3rem" }}>
+            <div className="section-head">
               <h2 className="section-head-title">Live Feed</h2>
               <Link href="/feed" className="section-head-action">Open Timeline</Link>
             </div>
@@ -219,12 +232,11 @@ export default async function HomePage() {
             </div>
 
             <div className="module">
-              <h3 className="sidebar-title">Explore</h3>
-              <ul className="sidebar-list">
-                <li><Link href="/questions">Q&amp;A スレッド</Link></li>
-                <li><Link href="/feed">タイムライン</Link></li>
-                <li><Link href="/learn">学習コース</Link></li>
-                <li><Link href="/sailors">セーラーを探す</Link></li>
+              <h3 className="sidebar-title">Sailing Tips</h3>
+              <ul className="sidebar-list" style={{ fontSize: "0.85rem", color: "var(--fg-mute)", lineHeight: 1.8 }}>
+                <li>艇種・風速を記事に書こう</li>
+                <li>Q&Aで仲間に聞いてみよう</li>
+                <li>Feedで今日の練習を共有</li>
               </ul>
             </div>
           </aside>

@@ -61,7 +61,14 @@ export default async function ArticleDetailPage({ params }: { params: { slug: st
           </div>
 
           <div className="markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              urlTransform={(url) => {
+                // javascript: スキームのリンクを無効化して XSS を防ぐ
+                if (/^javascript:/i.test(url)) return "";
+                return url;
+              }}
+            >
               {article.contentMd}
             </ReactMarkdown>
           </div>

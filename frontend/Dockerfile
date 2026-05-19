@@ -1,19 +1,30 @@
-FROM node:20-slim
-
+FROM node:20-slim AS base
 WORKDIR /app
-
-# 依存関係だけ先にインストール（キャッシュを活かす）
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# 設定ファイル類をコピー（srcはボリュームでマウントされる）
-COPY next.config.* ./
-COPY tsconfig.json ./
-
-# ホットリロードをDockerボリューム越しでも動かすためのポーリング設定
+# ---- 開発モード（docker compose up で使用） ----
+FROM base AS development
+COPY next.config.* tsconfig.json ./
 ENV WATCHPACK_POLLING=true
 ENV CHOKIDAR_USEPOLLING=true
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+# ---- 本番ビルド（Vercel へのデプロイ用） ----
+FROM base AS builder
+COPY . .
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN npm run build
+
+FROM node:20-slim AS production
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
-
-CMD ["npm", "run", "dev"]
+CMD ["node", "server.js"]

@@ -32,6 +32,14 @@ export default function NewQuestionPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
+    if (title.trim().length > 200) {
+      alert("タイトルは200文字以内で入力してください");
+      return;
+    }
+    if (body.trim().length > 20000) {
+      alert("本文は20,000文字以内で入力してください");
+      return;
+    }
     setSubmitting(true);
     try {
       const q = await api.post<{ id: number }>("/api/questions", {

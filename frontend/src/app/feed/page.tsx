@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { isLoggedIn } from "@/lib/auth";
 import { Post } from "@/types";
 import { getAvatarColor } from "@/lib/utils";
 
@@ -27,7 +28,13 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [likeError, setLikeError] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
   const max = 300;
+
+  useEffect(() => {
+    setLoggedIn(isLoggedIn());
+  }, []);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -60,11 +67,12 @@ export default function FeedPage() {
   }
 
   async function handleLike(postId: number, idx: number) {
+    setLikeError(null);
     try {
       const result = await api.post<{ liked: boolean; likeCount: number }>(`/api/posts/${postId}/like`, {});
       setPosts((prev) => prev.map((p, i) => i === idx ? { ...p, _count: { likes: result.likeCount } } : p));
     } catch (e) {
-      alert(e instanceof Error ? e.message : "エラーが発生しました");
+      setLikeError(e instanceof Error ? e.message : "いいねに失敗しました");
     }
   }
 
@@ -78,29 +86,38 @@ export default function FeedPage() {
 
       <div className="layout-two-col">
         <div>
-          <div className="composer">
-            <textarea
-              placeholder="今日の気付きを共有 — 風向き、セッティング、練習のメモ..."
-              maxLength={max}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-            <div className="composer-footer">
-              <span className="composer-counter" style={{ color: draft.length > max - 30 ? "var(--terra)" : undefined }}>
-                {draft.length} / {max}
-              </span>
-              <button
-                className="btn btn-primary"
-                disabled={draft.trim().length === 0 || submitting}
-                onClick={handlePost}
-              >
-                {submitting ? "Posting…" : "Post"}
-              </button>
+          {likeError && (
+            <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginBottom: "0.75rem" }}>{likeError}</p>
+          )}
+          {loggedIn ? (
+            <div className="composer">
+              <textarea
+                placeholder="今日の気付きを共有 — 風向き、セッティング、練習のメモ..."
+                maxLength={max}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <div className="composer-footer">
+                <span className="composer-counter" style={{ color: draft.length > max - 20 ? "var(--terra)" : draft.length > max - 50 ? "var(--dijon)" : undefined }}>
+                  {draft.length} / {max}
+                </span>
+                <button
+                  className="btn btn-primary"
+                  disabled={draft.trim().length === 0 || submitting}
+                  onClick={handlePost}
+                >
+                  {submitting ? "Posting…" : "Post"}
+                </button>
+              </div>
+              {postError && (
+                <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginTop: "0.5rem" }}>{postError}</p>
+              )}
             </div>
-            {postError && (
-              <p style={{ fontSize: "0.82rem", color: "var(--terra)", marginTop: "0.5rem" }}>{postError}</p>
-            )}
-          </div>
+          ) : (
+            <div className="composer" style={{ textAlign: "center", color: "var(--fg-mute)", padding: "1.5rem" }}>
+              <p>投稿するには <Link href="/login" className="form-link">ログイン</Link> が必要です。</p>
+            </div>
+          )}
 
           {loading ? (
             <div className="empty-state">
@@ -138,9 +155,16 @@ export default function FeedPage() {
 
         <aside className="sidebar">
           <div className="module">
-            <h3 className="sidebar-title">Stats</h3>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-2)" }}>
-              {total} posts total
+            <h3 className="sidebar-title">Feed Stats</h3>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem", color: "var(--fg-mute)" }}>
+              <span className="live-dot" />{total} posts total
+            </p>
+          </div>
+          <div className="module">
+            <h3 className="sidebar-title">Post Tips</h3>
+            <p style={{ fontSize: "0.82rem", color: "var(--fg-mute)", lineHeight: 1.7 }}>
+              風向き・艇種・場所を添えると仲間に伝わりやすい。<br />
+              練習メモ・セッティングの記録にも使おう。
             </p>
           </div>
         </aside>
