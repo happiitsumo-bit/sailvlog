@@ -1,30 +1,11 @@
-import ArticleCard from "@/components/ArticleCard";
-import ClassFlag from "@/components/ClassFlag";
 import Link from "next/link";
-import { ArticleSummary, BoatType, Question, Post } from "@/types";
-import { getAvatarColor, timeAgo } from "@/lib/utils";
-
-const YACHT_ORDER = ["op", "420", "470", "snipe", "49er", "cruiser"];
-const YACHT_EXCLUDE = new Set(["ilca"]);
+import ClassFlag from "@/components/ClassFlag";
+import ClassFocusTile from "@/components/ClassFocusTile";
+import PickUpReference from "@/components/PickUpReference";
+import IntelligenceFeed from "@/components/IntelligenceFeed";
+import { BoatType, Question, TeamSummary } from "@/types";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
-
-async function getArticles(): Promise<{ articles: ArticleSummary[]; total: number }> {
-  const res = await fetch(`${API_URL}/api/articles?limit=5`, { cache: "no-store" });
-  if (!res.ok) return { articles: [], total: 0 };
-  const data = await res.json();
-  return { articles: data.articles ?? [], total: data.total ?? 0 };
-}
-
-async function getStats(): Promise<{ questions: number; posts: number }> {
-  const [qRes, pRes] = await Promise.all([
-    fetch(`${API_URL}/api/questions?limit=1`, { cache: "no-store" }),
-    fetch(`${API_URL}/api/posts?limit=1`, { cache: "no-store" }),
-  ]);
-  const qData = qRes.ok ? await qRes.json() : { total: 0 };
-  const pData = pRes.ok ? await pRes.json() : { total: 0 };
-  return { questions: qData.total ?? 0, posts: pData.total ?? 0 };
-}
 
 async function getBoatTypes(): Promise<BoatType[]> {
   const res = await fetch(`${API_URL}/api/boat-types`, { cache: "no-store" });
@@ -32,167 +13,182 @@ async function getBoatTypes(): Promise<BoatType[]> {
   return res.json();
 }
 
-async function getTrendingQuestions(): Promise<Question[]> {
-  const res = await fetch(`${API_URL}/api/questions?filter=top&limit=3`, { cache: "no-store" });
+async function getUnsolvedQuestions(): Promise<Question[]> {
+  const res = await fetch(`${API_URL}/api/questions?limit=10`, { cache: "no-store" });
   if (!res.ok) return [];
   const data = await res.json();
-  return data.questions ?? [];
+  const all: Question[] = data.questions ?? [];
+  return all.filter((q) => !q.answers.some((a) => a.isAccepted)).slice(0, 4);
 }
 
-async function getRecentPosts(): Promise<Post[]> {
-  const res = await fetch(`${API_URL}/api/posts?limit=3`, { cache: "no-store" });
+async function getTeams(): Promise<TeamSummary[]> {
+  const res = await fetch(`${API_URL}/api/teams`, { cache: "no-store" });
   if (!res.ok) return [];
   const data = await res.json();
-  return data.posts ?? [];
+  return data.teams ?? [];
 }
+
+async function getQAStats(): Promise<{ total: number; solved: number }> {
+  const res = await fetch(`${API_URL}/api/questions?limit=100`, { cache: "no-store" });
+  if (!res.ok) return { total: 0, solved: 0 };
+  const data = await res.json();
+  const all: Question[] = data.questions ?? [];
+  const solved = all.filter((q) => q.answers.some((a) => a.isAccepted)).length;
+  return { total: data.total ?? 0, solved };
+}
+
+const YACHT_ORDER = ["op", "420", "470", "snipe", "49er", "cruiser"];
+const YACHT_EXCLUDE = new Set(["ilca"]);
 
 export default async function HomePage() {
-  const [{ articles, total: articleTotal }, boatTypes, trendingQuestions, recentPosts, stats] = await Promise.all([
-    getArticles(),
+  const [boatTypes, unsolvedQuestions, teams, qaStats] = await Promise.all([
     getBoatTypes(),
-    getTrendingQuestions(),
-    getRecentPosts(),
-    getStats(),
+    getUnsolvedQuestions(),
+    getTeams(),
+    getQAStats(),
   ]);
+
+  const rankedTeams = [...teams]
+    .sort((a, b) => (b._count.articles + b._count.questions) - (a._count.articles + a._count.questions))
+    .slice(0, 5);
 
   return (
     <div className="container">
-      {/* Welcome Header */}
-      <div style={{ marginBottom: "2rem", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
-            Welcome to sailvlog
-          </h1>
-          <p style={{ color: "var(--fg-mute)", fontSize: "0.9rem" }}>
-            The knowledge exchange for sailors. Articles · Q&amp;A · Feed · Courses.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
-          <span style={{ padding: "0.3rem 0.6rem", background: "var(--paper-2, rgba(0,0,0,0.04))", borderRadius: 6 }}>
-            {articleTotal > 0 ? articleTotal : "—"} articles
-          </span>
-          <span style={{ padding: "0.3rem 0.6rem", background: "var(--paper-2, rgba(0,0,0,0.04))", borderRadius: 6 }}>
-            {stats.questions > 0 ? stats.questions : "—"} Q&amp;A
-          </span>
-          <span style={{ padding: "0.3rem 0.6rem", background: "var(--paper-2, rgba(0,0,0,0.04))", borderRadius: 6 }}>
-            {stats.posts > 0 ? stats.posts : "—"} posts
-          </span>
-        </div>
-      </div>
-
       <div className="layout-two-col">
+        {/* ===== メインカラム ===== */}
         <div>
-          {/* Latest Articles */}
-          <div className="section-head">
-            <h2 className="section-head-title">Latest Articles</h2>
-            <Link href="/articles" className="section-head-action">View All</Link>
-          </div>
-          <div className="stagger">
-            {articles.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">▲</div>
-                <p className="empty-state-text">NO ARTICLES YET // 最初の一本を投稿しよう</p>
-              </div>
-            ) : (
-              articles.map((a) => <ArticleCard key={a.id} article={a} />)
-            )}
-          </div>
+          <div className="bento-grid">
 
-          <div className="wave-divider" aria-hidden="true" />
+            {/* Row 1: Class Focus (2col × 2u = 400px) */}
+            <ClassFocusTile />
 
-          {/* Trending Questions */}
-          <div className="section-head">
-            <h2 className="section-head-title">Trending Questions</h2>
-            <Link href="/questions" className="section-head-action">All Q&amp;A</Link>
-          </div>
-          <div className="stagger">
-            {trendingQuestions.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">○</div>
-                <p className="empty-state-text">NO QUESTIONS YET // 最初の質問者になろう</p>
+            {/* Row 2: Pick Up Reference (1col × 1u) */}
+            <PickUpReference />
+
+            {/* Row 2: Unsolved Q&A (1col × 1u) */}
+            <div className="bento-tile bento-tile-h1" style={{ borderLeft: "3px solid var(--sage)" }}>
+              <div className="bento-tile-label">
+                <span className="bento-tile-label-dot" style={{ background: "var(--sage)" }} />
+                UNSOLVED Q&amp;A
               </div>
-            ) : (
-              trendingQuestions.map((q) => {
-                const hasAccepted = q.answers.some((a) => a.isAccepted);
-                return (
+              {unsolvedQuestions.length === 0 ? (
+                <p style={{ fontSize: "0.82rem", color: "var(--fg-mute)" }}>未解決の質問はありません</p>
+              ) : (
+                <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0", flex: 1, overflow: "hidden" }}>
+                  {unsolvedQuestions.map((q, i) => (
+                    <li key={q.id}>
+                      <Link
+                        href={`/questions/${q.id}`}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "0.6rem",
+                          padding: "0.5rem 0",
+                          borderBottom: i < unsolvedQuestions.length - 1 ? "1px solid var(--border)" : "none",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--sage)", fontWeight: 700, flexShrink: 0, marginTop: "0.15rem" }}>?</span>
+                        <span style={{ fontSize: "0.82rem", color: "var(--fg-2)", fontWeight: 500, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {q.title}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link href="/questions" style={{ marginTop: "auto", paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--fg-dim)", flexShrink: 0 }}>
+                All Q&amp;A →
+              </Link>
+            </div>
+
+            {/* Row 3: Intelligence Feed (2col — 内容に合わせた高さ、min 1u) */}
+            <div className="bento-tile bento-tile-span2" style={{ padding: 0, minHeight: "var(--bento-unit)" }}>
+              <IntelligenceFeed />
+            </div>
+
+            {/* Row 4: Team Highlights (1col × 1u) */}
+            <div className="bento-tile bento-tile-h1" style={{ borderLeft: "3px solid var(--dijon)" }}>
+              <div className="bento-tile-label">
+                <span className="bento-tile-label-dot" style={{ background: "var(--dijon)" }} />
+                TEAM HIGHLIGHTS
+              </div>
+              {rankedTeams.slice(0, 3).length === 0 ? (
+                <p style={{ fontSize: "0.82rem", color: "var(--fg-mute)" }}>チーム情報がありません</p>
+              ) : (
+                <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0", flex: 1, overflow: "hidden" }}>
+                  {rankedTeams.slice(0, 3).map((t, i) => (
+                    <li key={t.id}>
+                      <Link
+                        href={`/teams/${t.slug}`}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "0.5rem 0",
+                          borderBottom: i < 2 ? "1px solid var(--border)" : "none",
+                          textDecoration: "none",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <span style={{ fontSize: "0.82rem", color: "var(--fg-2)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                          {t.university ?? t.name}
+                        </span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.68rem", color: "var(--fg-dim)", flexShrink: 0 }}>
+                          {t._count.articles + t._count.questions}pts
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link href="/teams" style={{ marginTop: "auto", paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--fg-dim)", flexShrink: 0 }}>
+                All Teams →
+              </Link>
+            </div>
+
+            {/* Row 4: Quick Links (1col × 1u) */}
+            <div className="bento-tile bento-tile-h1">
+              <div className="bento-tile-label">
+                <span className="bento-tile-label-dot" />
+                NAVIGATE
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", flex: 1 }}>
+                {[
+                  { href: "/reference", icon: "◇", label: "Reference", color: "var(--terra)" },
+                  { href: "/questions", icon: "?", label: "Q&A", color: "var(--sage)" },
+                  { href: "/learn", icon: "▶", label: "Learn", color: "var(--dijon)" },
+                  { href: "/sailors", icon: "◉", label: "Sailors", color: "var(--fg-mute)" },
+                ].map(({ href, icon, label, color }) => (
                   <Link
-                    key={q.id}
-                    href={`/questions/${q.id}`}
-                    className="question-card"
+                    key={href}
+                    href={href}
                     style={{
-                      display: "grid",
-                      borderLeft: hasAccepted ? "3px solid var(--sage)" : undefined,
-                      paddingLeft: hasAccepted ? "calc(1.5rem - 3px)" : undefined,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.4rem",
+                      padding: "0.75rem",
+                      background: "var(--paper-2)",
+                      borderRadius: "var(--radius-sm)",
+                      textDecoration: "none",
+                      transition: "background 0.15s",
                     }}
                   >
-                    <div className="question-metrics">
-                      <div className="q-metric">
-                        <div className={`q-metric-value ${hasAccepted ? "accepted" : q._count.answers > 0 ? "has-answers" : ""}`}>
-                          {q._count.answers}
-                        </div>
-                        <div className="q-metric-label">Ans</div>
-                      </div>
-                      <div className="q-metric">
-                        <div className="q-metric-value">{q._count.votes}</div>
-                        <div className="q-metric-label">Votes</div>
-                      </div>
-                    </div>
-                    <div className="question-main">
-                      <h3 className="question-title">{q.title}</h3>
-                      <p className="question-body">{q.body.slice(0, 100)}{q.body.length > 100 ? "…" : ""}</p>
-                      <div className="question-meta">
-                        {q.boatType && <span style={{ color: "var(--terra)" }}>● {q.boatType.name}</span>}
-                        <span>@{q.author.username}</span>
-                        <span>{timeAgo(q.createdAt)}</span>
-                        <span>{q.viewCount} views</span>
-                        {hasAccepted && <span className="accepted-pill">Solved</span>}
-                      </div>
-                    </div>
+                    <span style={{ fontSize: "1rem", color }}>{icon}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.68rem", fontWeight: 600, color: "var(--fg-mute)" }}>{label}</span>
                   </Link>
-                );
-              })
-            )}
-          </div>
-
-          {/* Live Feed */}
-          <div className="section-head">
-            <h2 className="section-head-title">Live Feed</h2>
-            <Link href="/feed" className="section-head-action">Open Timeline</Link>
-          </div>
-          <div className="stagger">
-            {recentPosts.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">○</div>
-                <p className="empty-state-text">NO POSTS YET // タイムラインに投稿しよう</p>
+                ))}
               </div>
-            ) : (
-              recentPosts.map((p) => {
-                const color = getAvatarColor(p.author.username);
-                return (
-                  <article key={p.id} className="post-card">
-                    <div className="post-avatar" style={{ color }}>
-                      {p.author.username[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="post-header">
-                        <Link href={`/users/${p.author.username}`} className="post-author">{p.author.username}</Link>
-                        <span className="post-handle">@{p.author.username}</span>
-                        <span className="post-time">{timeAgo(p.createdAt)}</span>
-                      </div>
-                      <div className="post-body">{p.body}</div>
-                      <div className="post-actions">
-                        <span>♥ {p._count.likes}</span>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            )}
+            </div>
+
           </div>
         </div>
 
-        {/* Right Sidebar */}
+        {/* ===== 右サイドバー (統計特化) ===== */}
         <aside className="sidebar">
+          {/* Yachts */}
           <div className="module">
             <h3 className="sidebar-title">Yachts</h3>
             <ul className="sidebar-list">
@@ -214,13 +210,37 @@ export default async function HomePage() {
             </ul>
           </div>
 
-          <div className="module">
-            <h3 className="sidebar-title">Sailing Tips</h3>
-            <ul className="sidebar-list" style={{ fontSize: "0.85rem", color: "var(--fg-mute)", lineHeight: 1.8 }}>
-              <li>艇種・風速を記事に書こう</li>
-              <li>Q&amp;Aで仲間に聞いてみよう</li>
-              <li>Feedで今日の練習を共有</li>
-            </ul>
+          {/* Team Power Ranking */}
+          <div className="stat-widget">
+            <div className="stat-widget-title">Team Power Ranking</div>
+            {rankedTeams.length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "var(--fg-mute)" }}>データなし</p>
+            ) : rankedTeams.map((t, i) => (
+              <Link key={t.id} href={`/teams/${t.slug}`} style={{ textDecoration: "none" }}>
+                <div className="rank-item">
+                  <span className="rank-num">{i + 1}</span>
+                  <span className="rank-name">{t.university ?? t.name}</span>
+                  <span className="rank-pts">{t._count.articles + t._count.questions}pts</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {/* Q&A Stats */}
+          <div className="stat-widget">
+            <div className="stat-widget-title">Q&amp;A Status</div>
+            <div className="qa-stat-row">
+              <span className="qa-stat-label">Total</span>
+              <span className="qa-stat-value">{qaStats.total}</span>
+            </div>
+            <div className="qa-stat-row">
+              <span className="qa-stat-label">Solved</span>
+              <span className="qa-stat-value solved">{qaStats.solved}</span>
+            </div>
+            <div className="qa-stat-row">
+              <span className="qa-stat-label">Unsolved</span>
+              <span className="qa-stat-value unsolved">{qaStats.total - qaStats.solved}</span>
+            </div>
           </div>
         </aside>
       </div>

@@ -3172,3 +3172,220 @@ button { font-family: inherit; cursor: pointer; }
   max-width: 360px;
   line-height: 1.6;
 }
+
+/* ===== Bento Grid (Home Dashboard) ===== */
+
+/* 基準単位: 1u = 200px、タイルは 1u / 2u で高さを統一 */
+:root { --bento-unit: 200px; }
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* row sizing は各タイルが min-height で制御 */
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* 高さ固定バリアント — min/max 両方で挟んで精密固定 */
+.bento-tile-h1 {
+  min-height: var(--bento-unit);
+  max-height: var(--bento-unit);
+  overflow: hidden;
+}
+.bento-tile-h2 {
+  min-height: calc(var(--bento-unit) * 2 + 0.75rem);
+  max-height: calc(var(--bento-unit) * 2 + 0.75rem);
+  overflow: hidden;
+}
+
+.bento-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  transition: box-shadow 0.18s var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.bento-tile:hover {
+  box-shadow: var(--shadow-sm);
+}
+.bento-tile-span2 { grid-column: 1 / -1; }
+
+.bento-tile-label {
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.bento-tile-label-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--terra);
+  flex-shrink: 0;
+}
+
+/* ===== Intelligence Feed ===== */
+/* bento-tile の子として使うため背景・border・radius は親に委ねる */
+.intel-feed {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.intel-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.intel-feed-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.intel-feed-list {
+  list-style: none;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.intel-feed-item {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  transition: background 0.12s var(--ease-out);
+}
+.intel-feed-item:last-child { border-bottom: none; }
+.intel-feed-item:hover { background: var(--card-warm); }
+
+.intel-tag {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.intel-tag-art  { background: rgba(201,100,66,0.10); color: var(--terra); }
+.intel-tag-qa   { background: rgba(107,142,90,0.10); color: var(--sage); }
+.intel-tag-post { background: rgba(154,150,140,0.10); color: var(--fg-mute); }
+.intel-tag-team { background: rgba(195,154,63,0.10); color: var(--dijon); }
+
+.intel-feed-text {
+  font-size: 0.855rem;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.intel-feed-meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ===== Stat Widget (右サイドバー) ===== */
+.stat-widget {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.75rem;
+}
+.stat-widget-title {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+/* Team Ranking */
+.rank-item {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.rank-item:last-child { border-bottom: none; }
+.rank-num {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--fg-dim);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-align: right;
+}
+.rank-item:nth-child(1) .rank-num { color: var(--terra); }
+.rank-item:nth-child(2) .rank-num { color: var(--dijon); }
+.rank-item:nth-child(3) .rank-num { color: var(--sage); }
+.rank-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rank-pts {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+/* Q&A Stats */
+.qa-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  font-size: 0.82rem;
+}
+.qa-stat-label { color: var(--fg-mute); }
+.qa-stat-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--fg);
+}
+.qa-stat-value.unsolved { color: var(--terra); }
+.qa-stat-value.solved   { color: var(--sage); }
+
+/* レスポンシブ */
+@media (max-width: 768px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+  .bento-tile-span2 { grid-column: 1; }
+  .bento-tile-h2 { min-height: var(--bento-unit); }
+}
