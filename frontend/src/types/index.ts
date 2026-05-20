@@ -111,6 +111,55 @@ export interface Course {
   courseArticles: CourseLesson[];
 }
 
+export type TeamRole = "member" | "ob" | "admin";
+export type TeamCategory = "university" | "club" | "professional";
+
+export const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
+  member: "現役",
+  ob: "OB/OG",
+  admin: "管理者",
+};
+
+export const TEAM_CATEGORY_LABEL: Record<TeamCategory, string> = {
+  university: "大学",
+  club: "クラブ",
+  professional: "実業団",
+};
+
+export interface TeamMemberUser {
+  id: number;
+  username: string;
+  avatarUrl?: string;
+  specialty?: string;
+  experienceYears?: number;
+  boatType?: { name: string; slug: string };
+}
+
+export interface TeamMember {
+  id: number;
+  role: TeamRole;
+  joinedAt: string;
+  user: TeamMemberUser;
+}
+
+export interface TeamSummary {
+  id: number;
+  slug: string;
+  name: string;
+  university?: string;
+  region?: string;
+  bio?: string;
+  category: TeamCategory;
+  logoUrl?: string;
+  createdAt: string;
+  _count: { members: number; articles: number; questions: number };
+}
+
+export interface TeamDetail extends Omit<TeamSummary, "_count"> {
+  members: TeamMember[];
+  _count: { articles: number; questions: number };
+}
+
 export interface Sailor {
   id: number;
   username: string;

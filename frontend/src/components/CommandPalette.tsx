@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCommandPalette } from "./CommandPaletteProvider";
 import { REFERENCES, CATEGORY_LABEL, LEVEL_LABEL } from "@/lib/mock-references";
 
-type ResultType = "reference" | "article" | "question" | "user";
+type ResultType = "reference" | "article" | "question" | "user" | "team";
 
 interface SearchResult {
   type: ResultType;
@@ -26,10 +26,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 async function searchAPI(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
-  const [artRes, qRes, userRes] = await Promise.allSettled([
+  const [artRes, qRes, userRes, teamRes] = await Promise.allSettled([
     fetch(`${API_URL}/api/articles?search=${encodeURIComponent(query)}&limit=3`),
     fetch(`${API_URL}/api/questions?search=${encodeURIComponent(query)}&limit=3`),
     fetch(`${API_URL}/api/users?search=${encodeURIComponent(query)}&limit=2`),
+    fetch(`${API_URL}/api/teams?search=${encodeURIComponent(query)}&limit=3`),
   ]);
 
   const results: SearchResult[] = [];
@@ -52,6 +53,12 @@ async function searchAPI(query: string): Promise<SearchResult[]> {
       results.push({ type: "user", id: u.id, title: u.username, sub: u.bio ?? "", href: `/users/${u.username}` });
     }
   }
+  if (teamRes.status === "fulfilled" && teamRes.value.ok) {
+    const data = await teamRes.value.json();
+    for (const t of data.teams ?? []) {
+      results.push({ type: "team", id: t.id, title: t.name, sub: `${t.university ?? t.category} · ${t._count?.members ?? 0} members`, href: `/teams/${t.slug}` });
+    }
+  }
 
   return results;
 }
@@ -61,9 +68,10 @@ const SECTION_META: Record<ResultType, { label: string; icon: string }> = {
   article:   { label: "Articles",  icon: "▲" },
   question:  { label: "Q&A",       icon: "?" },
   user:      { label: "Sailors",   icon: "◉" },
+  team:      { label: "Teams",     icon: "◈" },
 };
 
-const SECTION_ORDER: ResultType[] = ["reference", "article", "question", "user"];
+const SECTION_ORDER: ResultType[] = ["team", "reference", "article", "question", "user"];
 
 export default function CommandPalette() {
   const { isOpen, close } = useCommandPalette();

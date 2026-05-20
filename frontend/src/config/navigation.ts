@@ -5,6 +5,7 @@ export const NAV_ITEMS = [
   { href: "/questions", icon: "?", label: "Q&A" },
   { href: "/learn",     icon: "▶", label: "Learn" },
   { href: "/sailors",   icon: "◉", label: "Sailors" },
+  { href: "/teams",     icon: "◈", label: "Teams" },
 ] as const;
 
 // ILCAはOlympic Laser の新名称。ホーム等での表示はレース志向クラスとして省略。

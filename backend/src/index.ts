@@ -15,6 +15,7 @@ import questionsRouter from "./routes/questions";
 import postsRouter from "./routes/posts";
 import coursesRouter from "./routes/courses";
 import sailorsRouter from "./routes/sailors";
+import teamsRouter from "./routes/teams";
 
 const app = express();
 const PORT = process.env.PORT ?? 8000;
@@ -43,6 +44,7 @@ app.use("/api/questions", questionsRouter);
 app.use("/api/posts", postsRouter);
 app.use("/api/courses", coursesRouter);
 app.use("/api/sailors", sailorsRouter);
+app.use("/api/teams", teamsRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 sailvlog backend running on http://localhost:${PORT}`);
