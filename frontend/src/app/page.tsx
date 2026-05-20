@@ -4,6 +4,9 @@ import Link from "next/link";
 import { ArticleSummary, BoatType, Question, Post } from "@/types";
 import { getAvatarColor, timeAgo } from "@/lib/utils";
 
+const YACHT_ORDER = ["op", "420", "470", "snipe", "49er", "cruiser"];
+const YACHT_EXCLUDE = new Set(["ilca"]);
+
 const API_URL = process.env.API_URL ?? "http://backend:8000";
 
 async function getArticles(): Promise<{ articles: ArticleSummary[]; total: number }> {
@@ -193,14 +196,21 @@ export default async function HomePage() {
           <div className="module">
             <h3 className="sidebar-title">Yachts</h3>
             <ul className="sidebar-list">
-              {boatTypes.map((bt) => (
-                <li key={bt.slug}>
-                  <Link href={`/boat/${bt.slug}`} className="yacht-row">
-                    <ClassFlag slug={bt.slug} />
-                    <span>{bt.name}</span>
-                  </Link>
-                </li>
-              ))}
+              {[...boatTypes]
+                .filter((bt) => !YACHT_EXCLUDE.has(bt.slug))
+                .sort((a, b) => {
+                  const ai = YACHT_ORDER.indexOf(a.slug);
+                  const bi = YACHT_ORDER.indexOf(b.slug);
+                  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                })
+                .map((bt) => (
+                  <li key={bt.slug}>
+                    <Link href={`/boat/${bt.slug}`} className="yacht-row">
+                      <ClassFlag slug={bt.slug} />
+                      <span>{bt.name}</span>
+                    </Link>
+                  </li>
+                ))}
             </ul>
           </div>
 

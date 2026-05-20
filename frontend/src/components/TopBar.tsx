@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { getUser } from "@/lib/auth";
 import { useEffect, useState } from "react";
+import { useCommandPalette } from "./CommandPaletteProvider";
 
 export default function TopBar() {
   const [username, setUsername] = useState<string | null>(null);
+  const { open } = useCommandPalette();
 
   useEffect(() => {
     const user = getUser();
@@ -23,14 +25,18 @@ export default function TopBar() {
         <span>sailvlog</span>
       </Link>
 
-      <div className="topbar-search">
+      <button
+        className="topbar-search"
+        onClick={open}
+        aria-label="検索 (Ctrl+K)"
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+      >
         <span className="topbar-search-icon">⌕</span>
-        <input
-          type="search"
-          placeholder="記事・質問・セーラーを検索..."
-          aria-label="サイト内検索"
-        />
-      </div>
+        <span className="topbar-search-placeholder">
+          記事・質問・セーラーを検索...
+        </span>
+        <kbd className="topbar-search-kbd">Ctrl K</kbd>
+      </button>
 
       <div className="topbar-actions">
         {username ? (

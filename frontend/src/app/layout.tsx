@@ -3,6 +3,8 @@ import "./globals.css";
 import TopBar from "@/components/TopBar";
 import ClassSidebar from "@/components/ClassSidebar";
 import BottomTabBar from "@/components/BottomTabBar";
+import CommandPaletteProvider from "@/components/CommandPaletteProvider";
+import CommandPalette from "@/components/CommandPalette";
 
 export const metadata: Metadata = {
   title: "sailvlog — Knowledge that sails.",
@@ -13,14 +15,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <div className="app-shell">
-          <TopBar />
-          <ClassSidebar />
-          <main className="app-main">
-            {children}
-          </main>
-        </div>
-        <BottomTabBar />
+        <CommandPaletteProvider>
+          <div className="app-shell">
+            <TopBar />
+            <ClassSidebar />
+            <main className="app-main">
+              {children}
+            </main>
+          </div>
+          <BottomTabBar />
+          <CommandPalette />
+        </CommandPaletteProvider>
       </body>
     </html>
   );
