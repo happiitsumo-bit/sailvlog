@@ -2896,6 +2896,30 @@ button { font-family: inherit; cursor: pointer; }
 .ref-related-dot[data-category="rule"]        { background: var(--ref-rule); }
 .ref-related-dot[data-category="gear"]        { background: var(--ref-gear); }
 
+.ref-related-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.ref-related-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+.ref-related-meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--fg-dim);
+}
+.ref-sidebar-more {
+  display: block;
+  margin-top: 0.65rem;
+  font-size: 0.8rem;
+  color: var(--fg-mute);
+  transition: color 0.15s;
+}
+.ref-sidebar-more:hover { color: var(--terra); }
+
 .ref-sidebar-contribute {
   background: var(--paper-2);
 }
@@ -3069,6 +3093,27 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 4px;
   padding: 0.1rem 0.45rem;
   flex-shrink: 0;
+}
+
+/* セクション区切り */
+.cmd-section + .cmd-section {
+  border-top: 1px solid var(--border);
+}
+.cmd-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cmd-section-icon {
+  font-size: 0.7rem;
+  color: var(--terra);
 }
 
 .cmd-footer {

@@ -1,25 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCommandPalette } from "./CommandPaletteProvider";
+import { REFERENCES, CATEGORY_LABEL, LEVEL_LABEL } from "@/lib/mock-references";
+
+type ResultType = "reference" | "article" | "question" | "user";
 
 interface SearchResult {
-  type: "article" | "question" | "user";
+  type: ResultType;
   id: string | number;
   title: string;
   sub: string;
   href: string;
 }
 
+interface Section {
+  type: ResultType;
+  label: string;
+  icon: string;
+  items: SearchResult[];
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-async function search(query: string): Promise<SearchResult[]> {
+async function searchAPI(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
   const [artRes, qRes, userRes] = await Promise.allSettled([
-    fetch(`${API_URL}/api/articles?search=${encodeURIComponent(query)}&limit=4`),
-    fetch(`${API_URL}/api/questions?search=${encodeURIComponent(query)}&limit=4`),
-    fetch(`${API_URL}/api/users?search=${encodeURIComponent(query)}&limit=3`),
+    fetch(`${API_URL}/api/articles?search=${encodeURIComponent(query)}&limit=3`),
+    fetch(`${API_URL}/api/questions?search=${encodeURIComponent(query)}&limit=3`),
+    fetch(`${API_URL}/api/users?search=${encodeURIComponent(query)}&limit=2`),
   ]);
 
   const results: SearchResult[] = [];
@@ -46,52 +56,92 @@ async function search(query: string): Promise<SearchResult[]> {
   return results;
 }
 
-const TYPE_ICON: Record<SearchResult["type"], string> = {
-  article: "▲",
-  question: "?",
-  user: "◉",
+const SECTION_META: Record<ResultType, { label: string; icon: string }> = {
+  reference: { label: "Reference", icon: "◇" },
+  article:   { label: "Articles",  icon: "▲" },
+  question:  { label: "Q&A",       icon: "?" },
+  user:      { label: "Sailors",   icon: "◉" },
 };
 
-const TYPE_LABEL: Record<SearchResult["type"], string> = {
-  article: "Article",
-  question: "Q&A",
-  user: "Sailor",
-};
+const SECTION_ORDER: ResultType[] = ["reference", "article", "question", "user"];
 
 export default function CommandPalette() {
   const { isOpen, close } = useCommandPalette();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [cursor, setCursor] = useState(0);
+  const [apiResults, setApiResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cursor, setCursor] = useState(0);
+
+  // Referenceはローカル検索（API不要・即時）
+  const localRefResults = useMemo<SearchResult[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return REFERENCES
+      .filter((r) =>
+        r.title.toLowerCase().includes(q) ||
+        (r.titleEn ?? "").toLowerCase().includes(q) ||
+        r.summary.toLowerCase().includes(q)
+      )
+      .slice(0, 4)
+      .map((r) => ({
+        type: "reference" as const,
+        id: r.slug,
+        title: r.title,
+        sub: `${CATEGORY_LABEL[r.category]}・${LEVEL_LABEL[r.level]}`,
+        href: `/reference/${r.slug}`,
+      }));
+  }, [query]);
+
+  // APIへのデバウンス検索
+  useEffect(() => {
+    if (!query.trim()) {
+      setApiResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      const r = await searchAPI(query);
+      setApiResults(r);
+      setLoading(false);
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // セクション別に整理（Reference → Articles → Q&A → Sailors）
+  const sections = useMemo<Section[]>(() => {
+    const all = [...localRefResults, ...apiResults];
+    const grouped: Partial<Record<ResultType, SearchResult[]>> = {};
+    for (const r of all) {
+      if (!grouped[r.type]) grouped[r.type] = [];
+      grouped[r.type]!.push(r);
+    }
+    return SECTION_ORDER
+      .filter((t) => grouped[t]?.length)
+      .map((t) => ({
+        type: t,
+        label: SECTION_META[t].label,
+        icon: SECTION_META[t].icon,
+        items: grouped[t]!,
+      }));
+  }, [localRefResults, apiResults]);
+
+  // カーソル操作用にフラットなリストも持つ
+  const flatItems = useMemo(() => sections.flatMap((s) => s.items), [sections]);
 
   useEffect(() => {
     if (isOpen) {
       setQuery("");
-      setResults([]);
+      setApiResults([]);
       setCursor(0);
       setTimeout(() => inputRef.current?.focus(), 30);
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    const timer = setTimeout(async () => {
-      const r = await search(query);
-      setResults(r);
-      setCursor(0);
-      setLoading(false);
-    }, 220);
-    return () => clearTimeout(timer);
-  }, [query]);
+  useEffect(() => { setCursor(0); }, [flatItems.length]);
 
   function navigate(href: string) {
     close();
@@ -101,21 +151,22 @@ export default function CommandPalette() {
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setCursor((c) => Math.min(c + 1, results.length - 1));
+      setCursor((c) => Math.min(c + 1, flatItems.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setCursor((c) => Math.max(c - 1, 0));
-    } else if (e.key === "Enter" && results[cursor]) {
-      navigate(results[cursor].href);
+    } else if (e.key === "Enter" && flatItems[cursor]) {
+      navigate(flatItems[cursor].href);
     }
   }
 
-  useEffect(() => {
-    const item = listRef.current?.children[cursor] as HTMLElement | undefined;
-    item?.scrollIntoView({ block: "nearest" });
-  }, [cursor]);
+  const hasResults = flatItems.length > 0;
+  const showEmpty = !loading && query.trim() && !hasResults;
 
   if (!isOpen) return null;
+
+  // セクション内でのフラットインデックスを計算するヘルパー
+  let globalIdx = 0;
 
   return (
     <div className="cmd-overlay" onClick={close} aria-modal="true" role="dialog" aria-label="コマンドパレット">
@@ -126,7 +177,7 @@ export default function CommandPalette() {
             ref={inputRef}
             className="cmd-input"
             type="text"
-            placeholder="記事・質問・セーラーを検索..."
+            placeholder="記事・Reference・質問を検索..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -136,34 +187,45 @@ export default function CommandPalette() {
           <kbd className="cmd-esc-hint" onClick={close}>Esc</kbd>
         </div>
 
-        {(results.length > 0 || loading || query.trim()) && (
+        {(hasResults || loading || query.trim()) && (
           <div className="cmd-results">
-            {loading && (
+            {loading && !hasResults && (
               <div className="cmd-status">検索中...</div>
             )}
-            {!loading && query.trim() && results.length === 0 && (
+            {showEmpty && (
               <div className="cmd-status">「{query}」に一致する結果がありません</div>
             )}
-            {!loading && results.length > 0 && (
-              <ul ref={listRef} className="cmd-list" role="listbox">
-                {results.map((r, i) => (
-                  <li
-                    key={`${r.type}-${r.id}`}
-                    className={`cmd-item ${i === cursor ? "active" : ""}`}
-                    role="option"
-                    aria-selected={i === cursor}
-                    onMouseEnter={() => setCursor(i)}
-                    onClick={() => navigate(r.href)}
-                  >
-                    <span className="cmd-item-icon" aria-hidden="true">{TYPE_ICON[r.type]}</span>
-                    <span className="cmd-item-body">
-                      <span className="cmd-item-title">{r.title}</span>
-                      <span className="cmd-item-sub">{r.sub}</span>
-                    </span>
-                    <span className="cmd-item-type">{TYPE_LABEL[r.type]}</span>
-                  </li>
+            {hasResults && (
+              <div role="listbox">
+                {sections.map((section) => (
+                  <div key={section.type} className="cmd-section">
+                    <div className="cmd-section-header">
+                      <span className="cmd-section-icon">{section.icon}</span>
+                      {section.label}
+                    </div>
+                    <ul className="cmd-list">
+                      {section.items.map((item) => {
+                        const idx = globalIdx++;
+                        return (
+                          <li
+                            key={`${item.type}-${item.id}`}
+                            className={`cmd-item ${idx === cursor ? "active" : ""}`}
+                            role="option"
+                            aria-selected={idx === cursor}
+                            onMouseEnter={() => setCursor(idx)}
+                            onClick={() => navigate(item.href)}
+                          >
+                            <span className="cmd-item-body">
+                              <span className="cmd-item-title">{item.title}</span>
+                              <span className="cmd-item-sub">{item.sub}</span>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
         )}
