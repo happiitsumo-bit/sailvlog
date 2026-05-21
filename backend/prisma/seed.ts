@@ -156,7 +156,59 @@ async function main() {
     }
   }
 
-  console.log("✅ Seed 完了: 艇種・タグ・コースを投入しました");
+  // チームデータ
+  const teams = [
+    {
+      slug: "todai-yacht",
+      name: "東京大学運動会ヨット部",
+      university: "東京大学",
+      region: "関東",
+      bio: "470・スナイプの2艇種で活動。全日本学生ヨット選手権を目標に日々練習中。",
+      category: "university" as const,
+    },
+    {
+      slug: "keio-yacht",
+      name: "慶應義塾大学体育会ヨット部",
+      university: "慶應義塾大学",
+      region: "関東",
+      bio: "470・49erを中心に活動するヨット部。OBネットワークが充実しており、社会人セーラーとの交流も活発。",
+      category: "university" as const,
+    },
+    {
+      slug: "waseda-yacht",
+      name: "早稲田大学ヨット部",
+      university: "早稲田大学",
+      region: "関東",
+      bio: "スナイプ・クルーザーを主に活動。江ノ島海洋公園をホームとする。",
+      category: "university" as const,
+    },
+    {
+      slug: "kyodai-yacht",
+      name: "京都大学ヨット部",
+      university: "京都大学",
+      region: "関西",
+      bio: "470・ILCAで活動する伝統校。琵琶湖と大阪湾で練習。",
+      category: "university" as const,
+    },
+    {
+      slug: "enoshima-sc",
+      name: "江ノ島セーリングクラブ",
+      university: null,
+      region: "関東",
+      bio: "470・クルーザーを中心とした社会人クラブ。江ノ島ヨットハーバーを拠点とする。",
+      category: "club" as const,
+    },
+  ];
+
+  for (const team of teams) {
+    await prisma.team.upsert({
+      where: { slug: team.slug },
+      update: {},
+      create: team,
+    });
+  }
+
+  console.log("✅ Seed 完了: 艇種・タグ・コース・チームを投入しました");
 }
 
 main()

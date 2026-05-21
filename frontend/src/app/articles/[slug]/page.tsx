@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import Link from "next/link";
 import LikeButton from "@/components/LikeButton";
 import BookmarkButton from "@/components/BookmarkButton";
+import RelatedReferences from "@/components/RelatedReferences";
 import { Article, Comment } from "@/types";
 import CommentSection from "./CommentSection";
 
@@ -96,6 +97,10 @@ export default async function ArticleDetailPage({ params }: { params: { slug: st
             <p className="sidebar-title">艇種</p>
             <Link href={`/boat/${article.boatType.slug}`}>{article.boatType.name}</Link>
           </div>
+          <RelatedReferences
+            boatTypeSlug={article.boatType.slug}
+            tagSlugs={article.tags.map(({ tag }) => tag.slug)}
+          />
         </aside>
       </div>
     </div>

@@ -34,6 +34,7 @@ model User {
   postLikes    PostLike[]
   questionVotes QuestionVote[]
   answerVotes   AnswerVote[]
+  teamMembers   TeamMember[]
 }
 
 model BoatType {
@@ -72,6 +73,9 @@ model Article {
 
   boatTypeId Int
   boatType   BoatType @relation(fields: [boatTypeId], references: [id])
+
+  teamId Int?
+  team   Team? @relation(fields: [teamId], references: [id])
 
   tags           ArticleTag[]
   likes          Like[]
@@ -155,6 +159,9 @@ model Question {
   boatTypeId  Int?
   boatType    BoatType? @relation(fields: [boatTypeId], references: [id])
 
+  teamId Int?
+  team   Team? @relation(fields: [teamId], references: [id])
+
   tags        QuestionTag[]
   answers     Answer[]
   votes       QuestionVote[]
@@ -236,6 +243,48 @@ model PostLike {
   post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+}
+
+enum TeamRole {
+  member
+  ob
+  admin
+}
+
+enum TeamCategory {
+  university
+  club
+  professional
+}
+
+model Team {
+  id          Int          @id @default(autoincrement())
+  slug        String       @unique @db.VarChar(100)
+  name        String       @db.VarChar(100)
+  university  String?      @db.VarChar(100)
+  region      String?      @db.VarChar(50)
+  bio         String?      @db.Text
+  category    TeamCategory @default(university)
+  logoUrl     String?
+  createdAt   DateTime     @default(now())
+
+  members   TeamMember[]
+  articles  Article[]
+  questions Question[]
+}
+
+model TeamMember {
+  id       Int      @id @default(autoincrement())
+  role     TeamRole @default(member)
+  joinedAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  teamId Int
+  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
 }
 
 model Course {
