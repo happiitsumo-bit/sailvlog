@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Demo 3: SWISS SAILING</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #F2F2F2;
+            --surface: #FFFFFF;
+            --fg: #000000;
+            --primary: #BC2026; /* Swiss Red */
+            --font-body: 'Inter', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            font-family: var(--font-body);
+            color: var(--fg);
+            padding: 60px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header { grid-column: span 12; border-bottom: 2px solid var(--fg); padding-bottom: 20px; margin-bottom: 40px; }
+        .logo { font-weight: 900; font-size: 24px; text-transform: uppercase; }
+        .sidebar { grid-column: span 3; }
+        .main { grid-column: span 9; }
+        h1 { font-size: 64px; font-weight: 900; line-height: 1; letter-spacing: -0.05em; margin-bottom: 40px; text-transform: uppercase; }
+        .module { background: var(--surface); padding: 30px; border-radius: 0; margin-bottom: 20px; }
+        .label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary); margin-bottom: 10px; display: block; }
+        .title { font-size: 24px; font-weight: 700; margin-bottom: 15px; }
+        .nav-link { display: block; font-size: 14px; font-weight: 600; padding: 10px 0; border-top: 1px solid #EEE; text-decoration: none; color: inherit; }
+        .nav-link:hover { color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="grid">
+        <div class="header">
+            <div class="logo">Sailvlog / Infrastructure</div>
+        </div>
+        <div class="sidebar">
+            <div class="module">
+                <span class="label">Categories</span>
+                <a href="#" class="nav-link">Technique</a>
+                <a href="#" class="nav-link">Maintenance</a>
+                <a href="#" class="nav-link">Strategy</a>
+                <a href="#" class="nav-link">Rules</a>
+            </div>
+        </div>
+        <div class="main">
+            <h1>Technical_Exchange</h1>
+            <div class="module">
+                <span class="label">Article 001</span>
+                <div class="title">Optimal Jib Tension for 470 Class in 15kts</div>
+                <p style="font-size: 14px; line-height: 1.6;">A comprehensive guide to static and dynamic tension management.</p>
+            </div>
+            <div class="module">
+                <span class="label">Question 442</span>
+                <div class="title">How to handle heavy oscillations in ILCA?</div>
+                <p style="font-size: 14px; line-height: 1.6;">Expert analysis on body weight distribution and tiller movement.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
