@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import TopBar from "@/components/TopBar";
 import ClassSidebar from "@/components/ClassSidebar";
+import RightSidebar from "@/components/RightSidebar";
 import BottomTabBar from "@/components/BottomTabBar";
 import CommandPaletteProvider from "@/components/CommandPaletteProvider";
 import CommandPalette from "@/components/CommandPalette";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="app-main">
               {children}
             </main>
+            <RightSidebar />
           </div>
           <BottomTabBar />
           <CommandPalette />
