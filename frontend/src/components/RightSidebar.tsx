@@ -4,24 +4,31 @@ import { BoatType, Question, TeamSummary } from "@/types";
 
 const API_URL = process.env.API_URL ?? "http://backend:8000";
 
+async function safeFetch<T>(path: string, fallback: T): Promise<T> {
+  try {
+    const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+    if (!res.ok) return fallback;
+    return (await res.json()) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 async function getBoatTypes(): Promise<BoatType[]> {
-  const res = await fetch(`${API_URL}/api/boat-types`, { cache: "no-store" });
-  if (!res.ok) return [];
-  return res.json();
+  return safeFetch<BoatType[]>("/api/boat-types", []);
 }
 
 async function getTeams(): Promise<TeamSummary[]> {
-  const res = await fetch(`${API_URL}/api/teams`, { cache: "no-store" });
-  if (!res.ok) return [];
-  const data = await res.json();
+  const data = await safeFetch<{ teams?: TeamSummary[] }>("/api/teams", {});
   return data.teams ?? [];
 }
 
 async function getQAStats(): Promise<{ total: number; solved: number }> {
-  const res = await fetch(`${API_URL}/api/questions?limit=100`, { cache: "no-store" });
-  if (!res.ok) return { total: 0, solved: 0 };
-  const data = await res.json();
-  const all: Question[] = data.questions ?? [];
+  const data = await safeFetch<{ total?: number; questions?: Question[] }>(
+    "/api/questions?limit=100",
+    {}
+  );
+  const all = data.questions ?? [];
   const solved = all.filter((q) => q.answers.some((a) => a.isAccepted)).length;
   return { total: data.total ?? 0, solved };
 }
