@@ -1,5 +1,7 @@
+import Link from "next/link";
 import ReferenceCard from "@/components/ReferenceCard";
 import { REFERENCES, ReferenceCategory, CATEGORY_LABEL } from "@/lib/mock-references";
+import { GLOSSARY } from "@/lib/glossary";
 
 const CATEGORIES: { value: ReferenceCategory | "all"; label: string }[] = [
   { value: "all", label: "すべて" },
@@ -41,6 +43,17 @@ export default async function ReferencePage({ searchParams }: Props) {
           <span className="ref-stat-pill">{rules.length} ルール</span>
         </div>
       </div>
+
+      {/* Glossary 導線（v2: 判断の共通言語） */}
+      <Link href="/reference/glossary" className="ref-glossary-entry">
+        <div className="ref-glossary-entry-eyebrow">v2 / まずこの 5 語</div>
+        <div className="ref-glossary-entry-title">
+          判断の共通言語：パワー・ツイスト・ドラフト位置・迎角・海面状態
+        </div>
+        <div className="ref-glossary-entry-sub">
+          全てのトリム項目が参照する横串の語彙。{GLOSSARY.length} 変数 →
+        </div>
+      </Link>
 
       {/* カテゴリフィルター */}
       <div className="ref-filter-row">
