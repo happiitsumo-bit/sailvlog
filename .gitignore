@@ -4,3 +4,9 @@ node_modules/
 dist/
 *.log
 postgres_data/
+
+# Tooling / AI agent dirs (not part of the app)
+skills/
+.codex/
+.claude/
+design_extracted.json
