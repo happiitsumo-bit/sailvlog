@@ -10,3 +10,4 @@ skills/
 .codex/
 .claude/
 design_extracted.json
+.DS_Store
