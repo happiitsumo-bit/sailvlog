@@ -116,7 +116,7 @@ PRD rev.3 §0 が「本環境でgit show不可のため未読」としていたv
 
 | 日付 | 契機(Gate FAIL/UX監査/実装で判明/スパイク結果) | 追記・再開したRQ | 再判断結果 | ARCH.md改訂 |
 |---|---|---|---|---|
-| | | | | |
+| 2026-07-24 | スパイク結果(SPIKE-01) | RQ-01, RQ-02, RQ-03 | 案(a) Canvas 2D直描き＋RQ-03(a)事前1Hzグリッド化+indexアクセスで全PASS基準(fps/シーク/初期ロード/メモリ/テールON)を余裕で達成（6艇x2時間x1Hz=43,200点、renderFrame実行時間p95=0.2ms、シーク応答p95=0.3ms）。縮退策は不要。案(b) MapLibreは未実施(案aで十分なため優先度低)。σ=8mノイズ下ではタック頂点の精密位置特定にスムージングが要検討(将来課題)。スマホ実機は未計測(オーナー実施待ち、手順は spike/README.md に記載)。詳細: `docs/dev-org/research/spike-replay.md` | RQ-01→(a)採用、RQ-03→(a)採用でARCH.mdへ反映（次工程） |
 
 ## 5. knowledge 還流候補
 

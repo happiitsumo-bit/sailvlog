@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "chromeVersion": "Chrome/150.0.7871.24",
+    "platform": "darwin",
+    "node": "v26.5.0",
+    "timestamp": "2026-07-23T22:54:56.821Z"
+  },
+  "initialLoad": {
+    "wallClockMs": 749,
+    "internalLoadMs": 165.5
+  },
+  "playback": {
+    "1x_tailOn": {
+      "samples": 299,
+      "rafDeltaP50Ms": 16.699999999999818,
+      "rafDeltaP95Ms": 16.799999999999727,
+      "avgFps": 60.00040134047719,
+      "renderDurationP50Ms": 0.09999999403953552,
+      "renderDurationP95Ms": 0.20000001788139343,
+      "pctRenders_le16ms": 1
+    },
+    "4x_tailOn": {
+      "samples": 299,
+      "rafDeltaP50Ms": 16.69999999999891,
+      "rafDeltaP95Ms": 16.700000000000728,
+      "avgFps": 60.000401340477175,
+      "renderDurationP50Ms": 0.09999999403953552,
+      "renderDurationP95Ms": 0.20000001788139343,
+      "pctRenders_le16ms": 1
+    },
+    "8x_tailOn": {
+      "samples": 299,
+      "rafDeltaP50Ms": 16.69999999999891,
+      "rafDeltaP95Ms": 16.700000000000728,
+      "avgFps": 59.999197335152715,
+      "renderDurationP50Ms": 0.10000002384185791,
+      "renderDurationP95Ms": 0.20000001788139343,
+      "pctRenders_le16ms": 1
+    },
+    "4x_tailOff": {
+      "samples": 299,
+      "rafDeltaP50Ms": 16.700000000000728,
+      "rafDeltaP95Ms": 16.799999999999272,
+      "avgFps": 59.99919733515269,
+      "renderDurationP50Ms": 0.09999999403953552,
+      "renderDurationP95Ms": 0.20000001788139343
+    }
+  },
+  "seek": {
+    "targets": [
+      100,
+      1800,
+      3600,
+      5400,
+      7100
+    ],
+    "responseMs": [
+      0.09999999403953552,
+      0.29999998211860657,
+      0.10000002384185791,
+      0.19999998807907104,
+      0.09999999403953552
+    ],
+    "maxMs": 0.29999998211860657
+  },
+  "memory": {
+    "samplesBytes": [
+      4080787,
+      4717962,
+      4549357,
+      3477583,
+      4153671,
+      4964047,
+      2383007
+    ],
+    "supported": true,
+    "deltaMB": -1.6191291809082031
+  },
+  "screenshots": {
+    "clean": "screenshots/noise-clean.png",
+    "sigma3": "screenshots/noise-sigma3.png",
+    "sigma8": "screenshots/noise-sigma8.png",
+    "gap": "screenshots/gap-interpolation.png"
+  }
+}

@@ -11,3 +11,5 @@ skills/
 .claude/
 design_extracted.json
 .DS_Store
+spike/node_modules/
+spike/*.log

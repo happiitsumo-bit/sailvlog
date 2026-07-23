@@ -26,7 +26,11 @@
   - [ ] 一番危ない技術リスクに検証プラン（または検証済み）がある
   - [ ] TASKS.md の Phase 1 が「動く最小版」に最短到達する並びになっている
   - [ ] 過剰設計チェック: 「まだ無い問題」のための構造が入っていない（YAGNI）
-- 通過記録: {日付} / researcher起動一覧: {観点・担当RQ・起動日時} / Codexレビュー: {実施日・指摘対応} / 備考:
+- 通過記録: {日付} / researcher起動一覧: 下記 / Codexレビュー: {実施日・指摘対応} / 備考:
+  - researcher① 観点=再生エンジン/フロント（OSS実例・技術ブログ）担当RQ=01,02,04,12 → research/replay-engine.md（起動 2026-07-24）
+  - researcher② 観点=データモデル/GPX処理（公式Doc・OSS）担当RQ=03,05,06,09,10 → research/data-model.md（起動 2026-07-24）
+  - researcher③ 観点=基盤統合/ホスティング/収録（公式Doc・事例）担当RQ=07,08,11 → research/infra-recording.md（起動 2026-07-24）
+  - SPIKE-01 実施: implementer起動（起動 2026-07-24、spike/ 隔離、RQ-01/02/03の実測材料）→ research/spike-replay.md
 
 ## ③ Quality Gate — 「出荷できる品質か」
 

@@ -1,0 +1,4 @@
+node_modules/
+gpx/
+serve.log
+.DS_Store
