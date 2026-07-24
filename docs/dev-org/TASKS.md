@@ -45,13 +45,15 @@
 
 ### S1: 〔E2〕縦貫通 — 「GPX取込→複数艇再生→注釈→部内共有」の動く最小版（着手条件: B-1サブゲートでE2確定）
 
-- [ ] T-10: Prismaスキーマ追加（Session/Track/Annotation）
+- [x] T-10: Prismaスキーマ追加（Session/Track/Annotation）
   - 成果物: ARCH.md §3どおりのmigration（純追加）。User/Teamへのリレーション追記
   - 検証: `prisma migrate dev` 成功＋既存テーブルに変更が出ないことをmigration SQL目視確認＋seedスクリプトで3モデルのcreate/read
+  - **検証結果（2026-07-24）**: `docker compose exec backend npx prisma migrate dev --name add_session_track_annotation` 成功。migration.sql目視確認=CREATE TABLE/CreateIndex/AddForeignKeyのみでALTER/DROPなし（既存15モデル無変更）。`Session.visibility String @default("team")`をTeam Lead指示どおり追加（Annotationには追加せず）。jestテスト`t10-session-track-annotation.test.ts`で3モデルcreate/read+visibilityデフォルト値をPASS確認
   - 依存: なし（T-01/02と並行可）
-- [ ] T-11: GPXパース＋1Hzグリッド正規化モジュール（`frontend/src/lib/gpx/`）
+- [x] T-11: GPXパース＋1Hzグリッド正規化モジュール（`frontend/src/lib/gpx/`）
   - 成果物: DOMParserでtrkpt/time抽出→共通1Hzグリッドへ線形補間リサンプリング→gaps検出、の純関数群。SPIKE-01の合成GPX（`spike/gpx/`）をテストフィクスチャに流用
   - 検証: ユニットテスト（正常系6艇・欠測ギャップ・時刻逆転/属性欠落GPXの拒否・startSecオフセット計算）が通る
+  - **検証結果（2026-07-24）**: `parseGpx`/`normalizeToGrid`/`computeSessionStart`を`frontend/src/lib/gpx/parse.ts`に実装（qa-engineer用意のfixture `__fixtures__/*.gpx` を流用）。Vitest（jsdom環境）10件全PASS: 正常系6艇・startSecオフセット5s/10s・欠測ギャップgaps=[[4,6]]検出＋補間・時刻逆転拒否・属性欠落拒否・壊れたXML拒否・エッジケース(trkpt0件拒否/1点のみ)・gridJson長一致。実行: `docker compose exec frontend npx vitest run src/lib/gpx`
   - 依存: なし
 - [ ] T-12: セッションAPI（Express）
   - 成果物: ARCH.md §4のうち**セッション/トラック系エンドポイント**（POST/GET/PATCH/DELETE sessions、POST tracks、GET tracks/:id/gpx）＋`requireTeamMember`ミドルウェア＋サーバ側構造検証。GET /:id はrawGpx除外・gzip。**注釈エンドポイント（annotations系）は本タスクの対象外＝T-15の担当**
@@ -146,4 +148,6 @@
 
 ## 発見事項（実装中に見つけたスコープ外の課題）
 
-- （なし）
+- （実装者 2026-07-24・qa-engineer TEST-PLAN.md §6への回答）`Session.visibility`はARCH.md §3には無いが、Team Lead本人からの本セッション追加指示（知の共有層rev.4前方互換。`docs/dev-org/PRD-rev4-sharing-layer.md`参照・Annotationには追加しない）に基づく実装。ARCH.md §3への追補が必要ならarchitect側でADR/ARCH更新をお願いします
+- （実装者 2026-07-24）フロントのdocker-compose volumesは`frontend/src`と`frontend/public`のみマウントで、`package.json`/`vitest.config.ts`はイメージビルド時の内容のまま更新されない。ホストでpackage.jsonを編集した後は `docker compose cp frontend/package.json frontend:/app/package.json && docker compose exec frontend npm install`、`docker compose cp frontend/vitest.config.ts frontend:/app/vitest.config.ts` が必要（container再ビルドまたはvolume追加で恒久化を検討。今回はスコープ外につき対症のみ）
+- （実装者 2026-07-24）T-90のテストDB分離（`.env.test`＋`setup/env.ts`）は、`docker compose exec backend npx jest`（コンテナ内実行）だとdocker-compose.ymlが先にDATABASE_URLを開発DB向けに注入済みのため、`dotenv.config()`のデフォルト（既存env上書きしない）で`.env.test`の値が無視され、**開発DB(sailvlog_db)に対してテストが実行される**（テストDB分離が効かない）。ホスト実行・CI実行では発生しない可能性が高いが未確認。qa-engineer(T-90)へ確認・対応要否の判断を委ねる

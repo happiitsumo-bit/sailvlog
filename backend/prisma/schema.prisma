@@ -35,6 +35,9 @@ model User {
   questionVotes QuestionVote[]
   answerVotes   AnswerVote[]
   teamMembers   TeamMember[]
+
+  uploadedSessions    Session[]    @relation("SessionUploader")
+  authoredAnnotations Annotation[] @relation("AnnotationAuthor")
 }
 
 model BoatType {
@@ -271,6 +274,7 @@ model Team {
   members   TeamMember[]
   articles  Article[]
   questions Question[]
+  sessions  Session[]
 }
 
 model TeamMember {
@@ -316,4 +320,71 @@ model CourseArticle {
 
   articleId Int?
   article   Article? @relation(fields: [articleId], references: [id])
+}
+
+// ===== v3: レースリプレイ・デバッガ（ARCH.md §3） =====
+
+enum SessionType {
+  practice
+  race
+}
+
+model Session {
+  id          Int         @id @default(autoincrement())
+  title       String      @db.VarChar(255)
+  type        SessionType @default(practice)
+  startedAt   DateTime    // セッション基準時刻 t=0（UTC）。全Trackのオフセット基準
+  durationSec Int         // タイムライン全長（秒）。上限14400(4h)をAPIで検証
+  venue       String?     @db.VarChar(100)
+  notes       String?     @db.Text
+  marks       Json?       // [{ label: "上", lat: number, lon: number }, ...] レグ頭出し用（RQ-10）
+  legs        Json?       // [{ label: "L1", startSec: number }, ...] セッション共通レグ境界（算出結果＋手動補正後）
+  // 部内共有の可視範囲。今回は"team"のみ実装(知の共有層rev.4の前方互換要件。将来"unlisted"/"public"を追加予定)。
+  visibility  String      @default("team")
+  createdAt   DateTime    @default(now())
+
+  teamId     Int
+  team       Team @relation(fields: [teamId], references: [id])
+  uploaderId Int
+  uploader   User @relation("SessionUploader", fields: [uploaderId], references: [id])
+
+  tracks      Track[]
+  annotations Annotation[]
+
+  @@index([teamId, startedAt])
+}
+
+model Track {
+  id        Int    @id @default(autoincrement())
+  sessionId Int
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  boatLabel  String  @db.VarChar(50)  // "4423 田中/佐藤" 自由記入。Userに紐づけない（YAGNI）
+  // 色カラムは持たない: 表示色はフロントがtrack indexから自動割当（ユーザー指定機能がないのに永続化しない）
+  startSec   Int     // Session.startedAt からのオフセット（このグリッドの先頭時刻）
+  pointCount Int     // グリッド点数。gridJson配列長と一致（サーバ検証）
+  gridJson   Json    // { lat: number[], lon: number[], gaps: [number, number][] }
+                     //   1Hz列指向。t[i] = startSec + i。欠測は線形補間で埋め、gapsに[開始i,終了i]を記録（UIは破線表示）
+  rawGpx     String  @db.Text         // 原本GPX（無損失の正。gridは表示用キャッシュで再生成可能）
+  sourceApp  String? @db.VarChar(50)  // "Geo Tracker" 等
+  createdAt  DateTime @default(now())
+
+  annotations Annotation[]
+}
+
+model Annotation {
+  id        Int @id @default(autoincrement())
+  sessionId Int
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User @relation("AnnotationAuthor", fields: [authorId], references: [id])
+
+  tSec     Int     // セッション相対秒（必須アンカー。再生位置から自動キャプチャ）
+  trackId  Int?    // 対象艇（任意）
+  track    Track?  @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  legIndex Int?    // 対象レグ（任意。Session.legs のindex参照）
+  body     String  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, tSec])
 }

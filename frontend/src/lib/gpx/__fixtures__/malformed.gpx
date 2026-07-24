@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="qa-fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>malformed</name>
+    <trkseg>
+      <trkpt lat="35.3020000" lon="139.4790000"><time>2026-07-24T05:00:00.000Z</time></trkpt>
+      <trkpt lat="35.3020200" lon="139.4790200"><time>2026-07-24T05:00:01.000Z</time>
+    </trkseg>
+</gpx>

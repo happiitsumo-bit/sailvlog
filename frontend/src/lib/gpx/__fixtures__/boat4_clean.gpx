@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="qa-fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>boat4_clean</name>
+    <trkseg>
+      <trkpt lat="35.3010000" lon="139.4780000"><time>2026-07-24T05:00:00.000Z</time></trkpt>
+      <trkpt lat="35.3010200" lon="139.4780200"><time>2026-07-24T05:00:01.000Z</time></trkpt>
+      <trkpt lat="35.3010400" lon="139.4780400"><time>2026-07-24T05:00:02.000Z</time></trkpt>
+      <trkpt lat="35.3010600" lon="139.4780600"><time>2026-07-24T05:00:03.000Z</time></trkpt>
+      <trkpt lat="35.3010800" lon="139.4780800"><time>2026-07-24T05:00:04.000Z</time></trkpt>
+      <trkpt lat="35.3011000" lon="139.4781000"><time>2026-07-24T05:00:05.000Z</time></trkpt>
+      <trkpt lat="35.3011200" lon="139.4781200"><time>2026-07-24T05:00:06.000Z</time></trkpt>
+      <trkpt lat="35.3011400" lon="139.4781400"><time>2026-07-24T05:00:07.000Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
