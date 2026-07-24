@@ -151,5 +151,6 @@
 ## 発見事項（実装中に見つけたスコープ外の課題）
 
 - （実装者 2026-07-24・qa-engineer TEST-PLAN.md §6への回答）`Session.visibility`はARCH.md §3には無いが、Team Lead本人からの本セッション追加指示（知の共有層rev.4前方互換。`docs/dev-org/PRD-rev4-sharing-layer.md`参照・Annotationには追加しない）に基づく実装。ARCH.md §3への追補が必要ならarchitect側でADR/ARCH更新をお願いします
+- （実装者 2026-07-24）`docker compose exec backend npx jest`（デフォルト＝複数ワーカー並列実行）で、qa-engineerのグローバルフック`resetDbHook.ts`（各testの前にDB全体をTRUNCATE）と複数テストファイルの並列実行が競合し、まれに「ユーザーが存在しない」等のFK違反で失敗することを確認（t12-sessions-api.test.ts等では再現・非再現があり、`--runInBand`（直列実行）では常に全PASS）。ロジックバグではなく共有テストDB×並列ワーカーのレース。CI/ローカルで`jest --runInBand`をデフォルトにするか、テストDBをワーカーごとに分離するかの対応要否をqa-engineer(T-90)に判断を委ねる
 - （実装者 2026-07-24）フロントのdocker-compose volumesは`frontend/src`と`frontend/public`のみマウントで、`package.json`/`vitest.config.ts`はイメージビルド時の内容のまま更新されない。ホストでpackage.jsonを編集した後は `docker compose cp frontend/package.json frontend:/app/package.json && docker compose exec frontend npm install`、`docker compose cp frontend/vitest.config.ts frontend:/app/vitest.config.ts` が必要（container再ビルドまたはvolume追加で恒久化を検討。今回はスコープ外につき対症のみ）
 - （実装者 2026-07-24）T-90のテストDB分離（`.env.test`＋`setup/env.ts`）は、`docker compose exec backend npx jest`（コンテナ内実行）だとdocker-compose.ymlが先にDATABASE_URLを開発DB向けに注入済みのため、`dotenv.config()`のデフォルト（既存env上書きしない）で`.env.test`の値が無視され、**開発DB(sailvlog_db)に対してテストが実行される**（テストDB分離が効かない）。ホスト実行・CI実行では発生しない可能性が高いが未確認。qa-engineer(T-90)へ確認・対応要否の判断を委ねる
