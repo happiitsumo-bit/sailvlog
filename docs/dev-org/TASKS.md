@@ -81,11 +81,18 @@
   - **検証結果（2026-07-24）**: `backend/src/lib/validateAnnotationPayload.ts`（tSec∈[0,durationSec]・body≦2000字の構造検証）＋`backend/src/routes/sessions.ts`に`POST /:id/annotations`追加＋新規`backend/src/routes/annotations.ts`（`PATCH/DELETE /api/annotations/:id`、author本人 or Team adminのみ＝`requireTeamMember.ts`に追加した`isAuthorOrTeamAdmin`で判定）。フロントは`frontend/src/app/sessions/[id]/page.tsx`にタイムラインピン（シークバー直下、`tSec/durationSec`の位置にクリック可能な丸ボタン、クリックでシーク）・現在時刻に注釈追加するフォーム（艇の任意紐付けはタップ操作ではなくプルダウン選択に簡略化＝UI実装上の裁定で、ARCH変更ではない）・注釈一覧サイドパネル（クリックでシーク）を追加。
     - **この環境に実はPostgreSQLがローカルインストール済み（apt: postgresql-16、Docker不要）と判明** — サービス起動（`service postgresql start`）→`sailvlog_user`ロール作成→`.env.test`のDATABASE_URLをポート5432に向けて`npm test`を実行し、**モックなしの実DB統合テスト**でT-12〜T-15を再検証: `backend/src/__tests__/t15-annotations-api.test.ts`（新規12件: 正常系201・tSec範囲外400・body超過400・非TeamMember403・未認証401・他セッションtrackId400・author本人PATCH200・Team adminPATCH200・非author非adminPATCH403・author本人DELETE204(カスケード確認)・非author非adminDELETE403・存在しないID404）を含むbackend全体`npm test -- --runInBand`が **6 suites / 48 passed(todoの27件を除く全件)/ 0 failed** で通ることを確認（実行ログはこのコミット時点で確認済み。再現手順は発見事項に記録）
     - フロント側は`npx tsc --noEmit`エラー0・`npm run build`成功（`/sessions/[id]`にピン/フォーム/一覧の分だけバンドルサイズ増加を確認、機能追加以外の異常なし）
-    - **手動UIの実ブラウザE2E（注釈追加→リロード後も表示→ピンからシーク）は、検証中にセッションのワーカープロセスが再起動されPlaywright実行分の記録が失われたため未完了**。実DB統合テスト（上記）でAPI契約・認可・永続化（DELETEでの実削除確認込み）は担保済みだが、UIの「リロード後も表示」を実ブラウザで目視確認する工程は次回以降に持ち越し（下記発見事項に再現手順を記録済みなので日次で再実施可能）
+    - 手動UIの実ブラウザE2E（注釈追加→リロード後も表示→ピンからシーク）は、検証中にセッションのワーカープロセスが再起動され一度中断したが、**T-16の検証時に同じ手順で再実施し完了**（`annotationVisibleAfterReload=true`。詳細はT-16の検証結果欄）
   - 依存: T-12, T-14
-- [ ] T-16: 部内共有の仕上げ（URLクエリ最小＋認可確認）
+- [x] T-16: 部内共有の仕上げ（URLクエリ最小＋認可確認）
   - 成果物: `?t=&boats=` の読み書き（一時停止/シーク確定時のみreplaceState）。共有ボタン（現URLコピー）
   - 検証: 別ユーザー（同Team）でURLを開くと同じ時刻・同じ艇選択で再現。非メンバーは403画面
+  - **検証結果（2026-07-24）**: `/sessions/[id]`に`?t=&boats=`の読み書きを実装。書き込みは一時停止時（togglePlay内）とシーク確定時（シークバーのmouseup/touchend/keyup、および注釈ピン・注釈一覧クリックのような単発シーク）のみ`history.replaceState`する（再生中のrAFループでは書かない）。読み込みは初回データ取得時に1回だけ`useSearchParams()`から`t`/`boats`を読み、ReplayClockの初期シーク位置と艇の初期表示集合に反映（値が無い/不正なら全艇表示・t=0にフォールバック）。共有ボタンは`navigator.clipboard.writeText`で現在URLをコピーし「URLをコピーしました」を2秒表示。非メンバーのアクセスは既存のGET /api/sessions/:idの403（`requireSessionTeamMember`）をそのままエラーメッセージ付きの専用画面（「閲覧できません」＋理由文＋Sessionsへ戻る）として表示するよう改善。
+    - **発見事項に記録した手順で実backend(Postgres実DB)+実frontendを起動し、Playwrightで3ユーザー(uploader/同Teamの別メンバー/非メンバー)を使い分けた実ブラウザE2Eを完走**（前回セッション再起動で中断した分の埋め合わせも兼ねる）。確認できた結果:
+      - T-13: 壊れたGPXを混在させると取り込むボタンが無効化（`submitDisabledWithBadFile=true`）、除去すると有効化・保存後`/sessions`一覧に表示
+      - T-14: 再生ボタンクリックで一時停止/再生ラベルが切り替わる（実際に再生ループが動作）
+      - T-15: 注釈追加→即座に表示→**ページリロード後も表示**（`annotationVisibleAfterReload=true`）→タイムラインピンクリックでシーク動作
+      - T-16: 艇を1つ非表示にしてシークバーをドラッグ確定 → URLが`?t=5&boats=35,36`のように更新 → 共有ボタンでクリップボードにも同じURLがコピーされる(`clipboardMatchesUrl=true`) → **同Teamの別ユーザーが同じURLを開くと`00:00:05 / 00:00:18`・チェック済み艇2/3で完全再現**（`user2_timeLabel`/`user2_checkedBoats`で確認） → **非メンバーが同じURLを開くと「閲覧できません / このチームのメンバーではありません」画面が出る**（`outsiderSeesAccessDenied=true`、スクリーンショットで目視確認も実施）
+    - フロントは`npx tsc --noEmit`エラー0・`npm run build`成功
   - 依存: T-15
 - [ ] T-17: S1 E2Eスモーク＋デプロイ反映 — **ここで「動く最小版」完成**
   - 成果物: 本番URL上で「取込→複数艇再生→注釈→URL共有→別ユーザー閲覧」を通しで実施した記録（スクリーンショット付きでこのファイルに追記）

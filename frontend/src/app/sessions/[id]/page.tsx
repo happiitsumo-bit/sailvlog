@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { Annotation, SessionDetail } from "@/types";
@@ -23,8 +23,17 @@ function formatTime(totalSec: number): string {
 }
 
 export default function SessionReplayPage() {
+  return (
+    <Suspense fallback={null}>
+      <SessionReplayPageContent />
+    </Suspense>
+  );
+}
+
+function SessionReplayPageContent() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const sessionId = params.id;
 
   const [detail, setDetail] = useState<SessionDetail | null>(null);
@@ -38,6 +47,7 @@ export default function SessionReplayPage() {
   const [newAnnotationTrackId, setNewAnnotationTrackId] = useState<number | "">("");
   const [addingAnnotation, setAddingAnnotation] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clockRef = useRef<ReplayClock | null>(null);
@@ -53,9 +63,23 @@ export default function SessionReplayPage() {
       .get<SessionDetail>(`/api/sessions/${sessionId}`)
       .then((d) => {
         setDetail(d);
-        setVisibleTrackIds(new Set(d.tracks.map((t) => t.id)));
         setAnnotations(d.annotations);
-        clockRef.current = new ReplayClock(d.session.durationSec);
+
+        // 部内共有URL(?t=&boats=)の読み込み（T-16, ARCH.md §4）。値が無い/不正なら全艇表示・t=0にフォールバック。
+        const trackIds = d.tracks.map((t) => t.id);
+        const boatsParam = searchParams.get("boats");
+        const boatsFromUrl = boatsParam
+          ? boatsParam.split(",").map(Number).filter((id) => trackIds.includes(id))
+          : [];
+        setVisibleTrackIds(new Set(boatsFromUrl.length > 0 ? boatsFromUrl : trackIds));
+
+        const clock = new ReplayClock(d.session.durationSec);
+        const tParam = Number(searchParams.get("t"));
+        if (Number.isFinite(tParam) && tParam > 0) {
+          clock.seekTo(tParam);
+          setSimTimeDisplay(clock.simTimeSec);
+        }
+        clockRef.current = clock;
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "セッションの取得に失敗しました"));
   }, [sessionId, router]);
@@ -116,17 +140,54 @@ export default function SessionReplayPage() {
     };
   }, [renderTracks]);
 
+  // 部内共有URL(?t=&boats=)の書き込み（T-16）。一時停止/シーク確定時のみ history.replaceState する
+  // （再生中は毎フレーム書き換えない。ARCH.md §4）。
+  function syncUrl(tSec: number, boatIds: Set<number>) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", String(Math.floor(tSec)));
+    if (boatIds.size > 0) url.searchParams.set("boats", [...boatIds].join(","));
+    else url.searchParams.delete("boats");
+    window.history.replaceState(null, "", url);
+  }
+
   function togglePlay() {
     const clock = clockRef.current;
     if (!clock) return;
-    if (clock.playing) clock.pause();
-    else clock.play();
+    if (clock.playing) {
+      clock.pause();
+      syncUrl(clock.simTimeSec, visibleTrackIdsRef.current);
+    } else {
+      clock.play();
+    }
     setPlaying(clock.playing);
   }
 
   function handleSeek(sec: number) {
     clockRef.current?.seekTo(sec);
     setSimTimeDisplay(sec);
+  }
+
+  /** シークバーのドラッグ/クリック確定時（mouseup/touchend）に呼ぶ。ARCH.md §4「シーク確定時のみ」 */
+  function handleSeekCommit() {
+    if (!clockRef.current) return;
+    syncUrl(clockRef.current.simTimeSec, visibleTrackIdsRef.current);
+  }
+
+  /** ピン/注釈一覧クリックのように一発で確定するシーク */
+  function seekAndSync(sec: number) {
+    handleSeek(sec);
+    syncUrl(sec, visibleTrackIdsRef.current);
+  }
+
+  async function copyShareUrl() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard APIが使えない環境ではボタン自体を無効化していないため、フォールバックのアラートで代替
+      window.prompt("このURLをコピーしてください:", window.location.href);
+    }
   }
 
   async function addAnnotation() {
@@ -159,10 +220,17 @@ export default function SessionReplayPage() {
   }
 
   if (loadError) {
+    // 非TeamMember等の403もここに到達する（api.tsが本文のerrorメッセージ付きでthrowする。ARCH.md §4）。
     return (
       <div className="container">
-        <p style={{ color: "var(--terra)" }}>{loadError}</p>
-        <Link href="/sessions" className="btn btn-ghost">Sessionsへ戻る</Link>
+        <div className="empty-state">
+          <div className="empty-state-icon">×</div>
+          <p className="empty-state-text">閲覧できません</p>
+          <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem", marginTop: "0.5rem" }}>{loadError}</p>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <Link href="/sessions" className="btn btn-ghost">Sessionsへ戻る</Link>
+        </div>
       </div>
     );
   }
@@ -214,6 +282,9 @@ export default function SessionReplayPage() {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-mute)" }}>
               {formatTime(simTimeDisplay)} / {formatTime(session.durationSec)}
             </span>
+            <button type="button" onClick={copyShareUrl} className="btn btn-ghost" style={{ marginLeft: "auto" }}>
+              {copied ? "URLをコピーしました" : "共有URLをコピー"}
+            </button>
           </div>
 
           <div style={{ position: "relative", marginTop: "0.6rem" }}>
@@ -224,6 +295,9 @@ export default function SessionReplayPage() {
               step={1}
               value={Math.floor(simTimeDisplay)}
               onChange={(e) => handleSeek(Number(e.target.value))}
+              onMouseUp={handleSeekCommit}
+              onTouchEnd={handleSeekCommit}
+              onKeyUp={handleSeekCommit}
               style={{ width: "100%", display: "block" }}
               aria-label="シークバー"
             />
@@ -233,7 +307,7 @@ export default function SessionReplayPage() {
                 <button
                   key={a.id}
                   type="button"
-                  onClick={() => handleSeek(a.tSec)}
+                  onClick={() => seekAndSync(a.tSec)}
                   title={`${formatTime(a.tSec)} — ${a.body}`}
                   style={{
                     position: "absolute",
@@ -304,7 +378,7 @@ export default function SessionReplayPage() {
                   <button
                     key={a.id}
                     type="button"
-                    onClick={() => handleSeek(a.tSec)}
+                    onClick={() => seekAndSync(a.tSec)}
                     style={{
                       textAlign: "left",
                       background: "var(--card)",
