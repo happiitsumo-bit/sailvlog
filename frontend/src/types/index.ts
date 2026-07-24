@@ -160,6 +160,21 @@ export interface TeamDetail extends Omit<TeamSummary, "_count"> {
   _count: { articles: number; questions: number };
 }
 
+export type SessionType = "practice" | "race";
+
+export interface SessionSummary {
+  id: number;
+  title: string;
+  type: SessionType;
+  startedAt: string;
+  durationSec: number;
+  venue?: string;
+  createdAt: string;
+  teamId: number;
+  uploaderId: number;
+  _count: { tracks: number; annotations: number };
+}
+
 export interface Sailor {
   id: number;
   username: string;

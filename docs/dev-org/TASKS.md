@@ -61,9 +61,10 @@
   - **検証結果（2026-07-24）**: `backend/src/routes/sessions.ts`（POST/GET一覧/GET詳細/PATCH/DELETE/POST tracks）＋`backend/src/routes/tracks.ts`（GET :id/gpx）＋`middleware/requireTeamMember.ts`＋`lib/validateTrackPayload.ts`を実装。express.jsonのlimitを`/api/sessions`・`/api/tracks`のみ8mbに拡張（他ルートは変更なし）。qa-engineer用意の`fixtures/trackPayloads.ts`をそのまま使い`t12-sessions-api.test.ts`で25件全PASS（作成/一覧/詳細/更新/削除の認可、lat・lon範囲外、length不一致、gaps境界（start負・end超過・start>end・境界ぎりぎり201）、duration超過、gridJson2MB超/rawGpx5MB超→413、非TeamMember403、未認証401）。バックエンド全体`docker compose exec backend npx jest`= 5 suites / 36 passed + 27 todo（qa側todo）。追加でcurl手動確認: register→session作成→track投稿→GET詳細(gridJson込み・rawGpx除外)→GPXダウンロード→DELETE(204)の一連が通ることを確認（テスト後にデータはクリーンアップ済み）
   - **仕様上の補足**: `type`はPrismaで`@default(practice)`のため必須項目リストから除外（省略可）。gridJson/rawGpxのサイズ超過は`durationSec超過`より優先して413を返すよう順序を決定（両方に該当する場合の判定を一意にするため）
   - 依存: T-10
-- [ ] T-13: 取込ウィザードUI（`/sessions/new`）
+- [x] T-13: 取込ウィザードUI（`/sessions/new`）
   - 成果物: 複数GPXファイル選択→lib/gpxで正規化→重ね描き簡易プレビュー（Canvas静止画で可）→艇ラベル入力→Session+Tracks保存
   - 検証: 手動: 合成GPX6本を取り込み、DB保存後 `/sessions` 一覧に出る。壊れたGPXでエラーメッセージが出て保存されない
+  - **検証結果（2026-07-24）**: `frontend/src/app/sessions/new/page.tsx`（ウィザード本体）＋`SessionPreviewCanvas.tsx`（重ね描き静止画プレビュー、lib/replayとは別実装）を実装。lib/gpx（T-11）の`parseGpx`/`computeSessionStart`/`normalizeToGrid`をそのまま利用し、ファイル単位でパース失敗を検知してエラー表示（該当ファイルのみエラー表示・保存ボタンは全体を無効化＝壊れたGPXが1本でもあれば保存されない）。T-12のAPI契約どおり`POST /api/sessions`→各艇`POST /api/sessions/:id/tracks`の順で保存し、成功後`/sessions?teamId=`へ遷移。T-13検証で要求される一覧確認のため、範囲内の最小ページとして`/sessions`（一覧）も同時に実装（ARCH.md §4のフロント主要ページ一覧に記載済みのページ）。teamIdはGET /api/teams（既存公開エンドポイント）から選択する方式（「自分のチーム」を返す専用APIが存在しないため。questions/newのboatType選択と同じパターン）。**この環境にDocker/PostgreSQLが無くbackendコンテナ（DNS名`backend`）に到達できないため、ブラウザでの実POST（DB書き込み込み）のE2E手動確認は実施不可**。実施した検証: ①`npx tsc --noEmit`エラー0 ②`npm run build`成功（`/sessions`, `/sessions/new`とも生成される動的ルートとして出力を確認） ③既存`npx vitest run`（lib/gpx T-11テスト10件）全PASS＝回帰なし ④一時テスト（コミット対象外・実行後削除）でqa-engineer用意の6艇fixture（`__fixtures__/boat1〜6_clean*.gpx`）を実際に`parseGpx`→`computeSessionStart`→`normalizeToGrid`に通し、ウィザードと同じ計算（durationSec=18、6グリッドとも`lat.length===lon.length===pointCount`）が成立することを確認。**DB書き込みを伴うE2E（GPX取込→`/sessions`一覧表示→壊れたGPXでの保存拒否の実ブラウザ確認）はCIで検証**（GitHub ActionsでのDocker+Postgres環境が前提。T-90でCI構築時にこのシナリオのE2Eテストを含めることを推奨）
   - 依存: T-11, T-12
 - [ ] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
   - 成果物: `lib/replay/`（ReplayClock: rAF+ref／CanvasRenderer: ローカル平面投影・艇マーカー・テール・スケールバー）＋再生/一時停止/1x/4x/8x/シークバー/艇の表示切替UI（UI同期≦10Hz）。SPIKE-01は参照のみ・コピー禁止
@@ -150,6 +151,9 @@
 6. 新規npm依存の追加はTeam Lead承認制（本設計は依存ゼロで成立する。ARCH.md §1「新技術予算温存」）
 
 ## 発見事項（実装中に見つけたスコープ外の課題）
+
+- （実装者 2026-07-24・T-13）ログインユーザーが「自分の所属チーム」を取得するAPI（例: `GET /api/users/me`にteamMembers含める）が存在しない。ARCH.md §4はteamId選択の実装方法まで規定していないため、`/sessions/new`・`/sessions`一覧とも`GET /api/teams`（既存公開エンドポイント・全チーム一覧）から選択する方式で実装（questions/newのboatType選択と同じパターン）。非メンバーのチームを選んでもPOST /api/sessionsが403を返すため実害はないが、UXとしては「自分のチームだけ出す」方が親切。ARCH変更が必要な提案のため実装者判断では追加せず記録のみ（対応要否はarchitect/Team Lead判断）
+- （実装者 2026-07-24・T-13）取込ウィザードで複数艇のtracks投稿が途中失敗した場合（例: 3艇目のPOSTがネットワークエラー）、Sessionは作成済みのまま一部Trackのみ保存された不完全な状態が残る（トランザクション/ロールバックの仕組みがAPI契約にない）。頻度は低いと見積もるが、発生時はユーザーがそのSessionを手動削除して再取込する以外の回復手段がない。API側にトランザクション化や「tracks一括投稿」エンドポイントを足すのはARCH.md §4のI/F変更にあたるため実装者判断では行わず記録のみ
 
 - （実装者 2026-07-24・qa-engineer TEST-PLAN.md §6への回答）`Session.visibility`はARCH.md §3には無いが、Team Lead本人からの本セッション追加指示（知の共有層rev.4前方互換。`docs/dev-org/PRD-rev4-sharing-layer.md`参照・Annotationには追加しない）に基づく実装。ARCH.md §3への追補が必要ならarchitect側でADR/ARCH更新をお願いします
 - （実装者 2026-07-24）`docker compose exec backend npx jest`（デフォルト＝複数ワーカー並列実行）で、qa-engineerのグローバルフック`resetDbHook.ts`（各testの前にDB全体をTRUNCATE）と複数テストファイルの並列実行が競合し、まれに「ユーザーが存在しない」等のFK違反で失敗することを確認（t12-sessions-api.test.ts等では再現・非再現があり、`--runInBand`（直列実行）では常に全PASS）。ロジックバグではなく共有テストDB×並列ワーカーのレース。CI/ローカルで`jest --runInBand`をデフォルトにするか、テストDBをワーカーごとに分離するかの対応要否をqa-engineer(T-90)に判断を委ねる
