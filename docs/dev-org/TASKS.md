@@ -32,10 +32,11 @@
 
 ### S0（実装スライス0）: 〔共通〕基盤整理（B-1の検証待ち期間に消化する。主役がどちらでも無駄にならない）
 
-- [ ] T-01: 凍結ルートの無効化〔共通〕
+- [x] T-01: 凍結ルートの無効化〔共通〕
   - 成果物: `backend/src/index.ts` で凍結対象（articles/likes/bookmarks/comments/follows/tags/questions/posts/courses/reference系）のルータ登録を410 Goneハンドラに置換。auth/users/boat-types/teams/sailorsは存続。フロントの凍結ページ（articles/questions/feed/learn/reference等）へのナビリンクを除去
   - **可逆な準備作業に限定**（Team Lead着手承認 2026-07-24。GATES ①通過前の製品変更であるため）: ルート登録の解除のみを行い、**DBスキーマ・データには一切触れない**。変更は**1コミット**にまとめ、`git revert`で完全に戻せること。**両FAIL時の復旧手順: 該当コミットを `git revert` して再デプロイ（これで凍結前の全ルートが復活する）**
   - 検証: 凍結エンドポイントがcurlで410を返し、`POST /api/auth/login`・`GET /api/teams` が200のまま。この2系統のsupertestスモークテストを新設して通す
+  - **検証結果（2026-07-24）**: curl実測 — `/api/articles`,`/api/tags`,`/api/bookmarks`,`/api/questions`,`/api/posts`,`/api/courses`,`POST /api/users/:u/follow` 全て410。`POST /api/auth/login`は既存ユーザーで401(想定どおり)・新規register→loginで200/201。`GET /api/teams`は200。supertest `backend/src/__tests__/t01-frozen-routes.test.ts` 9件全PASS（`docker compose exec backend npx jest t01-frozen-routes`）。フロントNavbar/TopBarの「Feed/Q&A/Learn」ナビリンクと「Write(→/articles/new)」ボタンを除去（凍結ページ自体は残置・res.ok判定で本文表示済みのコンポーネントはグレースフルデグレード確認のみで未改変）
   - 依存: なし
 - [ ] T-02: 0円ホスティング疎通〔共通〕
   - 成果物: Neon(DB)＋Render(Express/Docker)＋Vercel(Next.js)へ現行アプリをデプロイ。`.env.example` 整備、CORS_ORIGIN・JWT_EXPIRES_IN=2h 設定、migration実行

@@ -41,9 +41,6 @@ export default function TopBar() {
       <div className="topbar-actions">
         {username ? (
           <>
-            <Link href="/articles/new" className="btn btn-primary" style={{ fontSize: "0.85rem", padding: "0.45rem 1rem" }}>
-              + Write
-            </Link>
             <Link href={`/users/${username}`} style={{ fontSize: "0.85rem", color: "var(--fg-2)", fontFamily: "var(--font-mono)" }}>
               @{username}
             </Link>

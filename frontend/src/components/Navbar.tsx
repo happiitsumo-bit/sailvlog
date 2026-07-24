@@ -6,12 +6,8 @@ import { getUser, clearAuth } from "@/lib/auth";
 import { useRouter, usePathname } from "next/navigation";
 import ClassFlag from "./ClassFlag";
 
-const NAV_LINKS = [
-  { href: "/feed", label: "Feed" },
-  { href: "/questions", label: "Q&A" },
-  { href: "/learn", label: "Learn" },
-  { href: "/sailors", label: "Sailors" },
-];
+// v3ピボット（2026-07-24, T-01）: articles/questions/feed/learn/reference は凍結のためナビから除去
+const NAV_LINKS = [{ href: "/sailors", label: "Sailors" }];
 
 const CLASS_LINKS = [
   { slug: "470", label: "470" },
@@ -80,9 +76,6 @@ export default function Navbar() {
           <div className="navbar-actions">
             {username ? (
               <>
-                <Link href="/articles/new" className="btn btn-primary">
-                  Write
-                </Link>
                 <Link href={`/users/${username}`}>@{username}</Link>
                 <button onClick={logout} className="btn btn-ghost">
                   Logout
@@ -136,13 +129,6 @@ export default function Navbar() {
             <div className="navbar-mobile-actions">
               {username ? (
                 <>
-                  <Link
-                    href="/articles/new"
-                    className="btn btn-primary"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Write
-                  </Link>
                   <Link
                     href={`/users/${username}`}
                     className="btn btn-ghost"

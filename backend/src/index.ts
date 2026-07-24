@@ -1,21 +1,19 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 
 import authRouter from "./routes/auth";
-import articlesRouter from "./routes/articles";
 import usersRouter from "./routes/users";
 import boatTypesRouter from "./routes/boatTypes";
-import tagsRouter from "./routes/tags";
-import likesRouter from "./routes/likes";
-import bookmarksRouter, { myBookmarksRouter } from "./routes/bookmarks";
-import followsRouter from "./routes/follows";
-import commentsRouter from "./routes/comments";
-import questionsRouter from "./routes/questions";
-import postsRouter from "./routes/posts";
-import coursesRouter from "./routes/courses";
 import sailorsRouter from "./routes/sailors";
 import teamsRouter from "./routes/teams";
+
+// v3ピボット（2026-07-24, ADR-003）: 凍結対象ルート。
+// 実装は410 Goneの薄いハンドラに置換し、ルータ本体（articles等）はコードとして残置する
+// （expand&contract戦略。物理削除は BL-01 で実施条件成立後に行う）。
+const gone = (_req: Request, res: Response) => {
+  res.status(410).json({ error: "このエンドポイントはv3ピボットにより凍結されました" });
+};
 
 const app = express();
 const PORT = process.env.PORT ?? 8000;
@@ -31,21 +29,31 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRouter);
-app.use("/api/articles", articlesRouter);
-app.use("/api/articles/:slug/like", likesRouter);
-app.use("/api/articles/:slug/bookmark", bookmarksRouter);
-app.use("/api/articles/:slug/comments", commentsRouter);
 app.use("/api/users", usersRouter);
-app.use("/api/users/:username/follow", followsRouter);
 app.use("/api/boat-types", boatTypesRouter);
-app.use("/api/tags", tagsRouter);
-app.use("/api/bookmarks", myBookmarksRouter);
-app.use("/api/questions", questionsRouter);
-app.use("/api/posts", postsRouter);
-app.use("/api/courses", coursesRouter);
 app.use("/api/sailors", sailorsRouter);
 app.use("/api/teams", teamsRouter);
 
-app.listen(PORT, () => {
-  console.log(`🚀 sailvlog backend running on http://localhost:${PORT}`);
-});
+// 凍結ルート（410 Gone。ADR-003）
+app.all("/api/articles", gone);
+app.all("/api/articles/*", gone);
+app.all("/api/users/:username/follow", gone);
+app.all("/api/users/:username/follow/*", gone);
+app.all("/api/tags", gone);
+app.all("/api/tags/*", gone);
+app.all("/api/bookmarks", gone);
+app.all("/api/bookmarks/*", gone);
+app.all("/api/questions", gone);
+app.all("/api/questions/*", gone);
+app.all("/api/posts", gone);
+app.all("/api/posts/*", gone);
+app.all("/api/courses", gone);
+app.all("/api/courses/*", gone);
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 sailvlog backend running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
