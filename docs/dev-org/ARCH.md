@@ -66,6 +66,7 @@ model Session {
   notes       String?     @db.Text
   marks       Json?       // [{ label: "上", lat: number, lon: number }, ...] レグ頭出し用（RQ-10）
   legs        Json?       // [{ label: "L1", startSec: number }, ...] セッション共通レグ境界（算出結果＋手動補正後）
+  visibility  String      @default("team") // 追補2026-07-24(Team Lead承認): MVPでは"team"のみ。知の共有層rev.4の前方互換用（将来"unlisted"/"public"/チーム間フォロー承認を値追加で対応。PRD-rev4-sharing-layer.md参照）。APIは本値によらず部内限定のまま
   createdAt   DateTime    @default(now())
 
   teamId     Int
