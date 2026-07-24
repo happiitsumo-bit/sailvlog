@@ -1,6 +1,6 @@
 # ARCH — sailvlog v3（レースリプレイ・デバッガ E2本線）
 
-<!-- 契約: 作成者 architect / 入力: PRD.md rev.3 §5（E2主役スコープ）+ RESEARCH.md（12RQ decided）+ SPIKE-01実測 / 出力先: implementer, qa-engineer -->
+<!-- 契約: 作成者 architect / 入力: PRD.md rev.3 §5（E2主役スコープ）+ RESEARCH.md（12RQ中10件decided、RQ-09/10は方向decided・詳細は実装中確定=優先度「実装中可」の範囲内）+ SPIKE-01実測 / 出力先: implementer, qa-engineer -->
 <!-- 完了条件: 下部のDoDが全て✅、かつ Architecture Gate 通過 -->
 <!-- 前提: 主役体験は並行検証（GATES ①・〜2週間）で最終確定。本設計はE2本線だが、〔共通〕マークの判断はA主役に転んでも有効 -->
 
@@ -85,7 +85,7 @@ model Track {
   session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   boatLabel  String  @db.VarChar(50)  // "4423 田中/佐藤" 自由記入。Userに紐づけない（YAGNI）
-  color      String? @db.VarChar(20)  // 未指定ならフロントがindexから自動割当
+  // 色カラムは持たない: 表示色はフロントがtrack indexから自動割当（ユーザー指定機能がないのに永続化しない）
   startSec   Int     // Session.startedAt からのオフセット（このグリッドの先頭時刻）
   pointCount Int     // グリッド点数。gridJson配列長と一致（サーバ検証）
   gridJson   Json    // { lat: number[], lon: number[], gaps: [number, number][] }
@@ -136,7 +136,7 @@ model Annotation {
 | `POST /api/sessions/:id/annotations` | `{ tSec, body, trackId?, legIndex? }` | `201 { annotation }` | 400 / 403 |
 | `PATCH/DELETE /api/annotations/:id` | body更新 / 削除 | 200 / 204 | 403（author本人 or Team admin のみ） |
 
-**サーバ側再検証（フロントパースを信頼しない）**: lat∈[-90,90]・lon∈[-180,180]・配列3本の長さ一致＝pointCount・startSec+pointCount≦durationSec+誤差・tSec∈[0,durationSec]・rawGpx≦5MB・gridJson≦2MB・body≦2000字。`express.json({ limit: "8mb" })` は `/api/sessions` 配下のみに適用（既存ルートのlimitは変えない）。
+**サーバ側再検証（フロントパースを信頼しない）**: lat∈[-90,90]・lon∈[-180,180]・`gridJson.lat.length === gridJson.lon.length === pointCount`（gapsは点列と長さを揃えない別配列。各要素`[start,end]`が`0 ≦ start ≦ end < pointCount`であることを別途境界検証）・startSec+pointCount≦durationSec+誤差・tSec∈[0,durationSec]・rawGpx≦5MB・gridJson≦2MB・body≦2000字。`express.json({ limit: "8mb" })` は `/api/sessions` 配下のみに適用（既存ルートのlimitは変えない）。
 
 **フロント主要ページ**: `/sessions`（一覧）・`/sessions/new`（取込ウィザード: ファイル選択→DOMParserパース→1Hzグリッド正規化→重ね描きプレビュー→保存）・`/sessions/[id]`（再生ページ。URLクエリ `?t=秒&boats=trackId,...&leg=n` を初期化時に読み、一時停止/シーク確定時のみ `history.replaceState` で書く）。
 
@@ -170,7 +170,7 @@ model Annotation {
 - **状況:** v1のExpress/Prisma基盤（15モデル・14ルート）にv3をどう載せるか（RQ-07）〔共通: A主役でも同一判断〕
 - **決定:** 同一アプリにSession/Track/Annotationを追加（expand）。凍結対象ルート（articles/questions/posts/follows/courses/likes/bookmarks/comments/tags等）は `index.ts` の登録を410ハンドラに置換。DBスキーマは残置し、物理削除は新機能安定後の別migration（contract）
 - **理由:** Prisma公式expand&contract＋実務ブログの独立2ソースが「破壊的変更の段階分け」で一致。認証・Team・BoatTypeを共有するため別アプリ化は二重管理になる。本プロジェクト規模ではダウンタイム自体は問題でないが、**可逆性**（並行検証がA主役に転んだらArticle系を復活させる可能性）のために物理削除を遅延させる価値が高い
-- **結果として受け入れるデメリット:** 凍結コード・スキーマが当面リポジトリに残る（コードレビュー観点の「死んだコード」と緊張関係。contract完了=T-93で解消する期限付きの妥協と明記）
+- **結果として受け入れるデメリット:** 凍結コード・スキーマが当面リポジトリに残る（コードレビュー観点の「死んだコード」と緊張関係。contract=バックログBL-01の実施で解消する条件付きの妥協と明記）
 
 ### ADR-004: ホスティングは Vercel（フロント）＋ Render無料Web Service（Express/Docker）＋ Neon（Postgres）
 - **状況:** 反省会でURL共有するための公開ホスティング。0円目標（RQ-08）〔共通〕
@@ -179,11 +179,11 @@ model Annotation {
 - **選ばなかった側の最強の擁護論:** 「3サービス分割は環境変数・CORS・デプロイ手順が3倍になる。Render一式＋有料Postgres($7/月)なら1ダッシュボードで済み、学生でも月千円は払える」— 運用簡素化として正当。ただし本プロジェクトは8週間の検証段階であり、継続が証明される前に固定費を入れるのは順序が逆。検証通過後にコスト再評価（Fly.io実費$8-12/月の試算も記録済み）、が反駁
 - **結果として受け入れるデメリット:** Renderのcold start約1分（ハンドブックに「反省会前にURLを開いておく」を明記して運用で吸収）。Neonの5分スケールダウン（同様）。CORS設定の管理点が増える
 
-### ADR-005: v2「凍結」方針とPRD v3「削除候補」の差分裁定 — Post/PostLike/Followは「凍結→安定後に削除」
+### ADR-005: v2「凍結」方針とPRD v3「削除候補」の差分裁定 — Post/PostLike/Followは「凍結→実運用安定後・オーナー承認で削除」
 - **状況:** v2の04-inventoryは「削除はしない・凍結で運用」、PRD v3はPost/PostLike/Followを削除候補と、方針が食い違う（1回目起動時の宿題）
-- **決定:** 最終状態はPRD v3に従い**削除**（PRDが上位文書）。ただし削除の実行時点はv2の慎重論を取り込み、Phase 3のcontract migration（T-93）まで遅延。それまではArticle系等と同じ「ルート410・スキーマ残置」
-- **理由:** 両文書の対立は「消すか」ではなく「いつ消すか」の対立と整理できる。即時削除の利益（スキーマの見通し）は小さく、遅延削除の利益（A主役転向時の可逆性・expand&contract原則との整合）が大きい。v1ロードマップ自身がPost系を却下済みのため、Article系（凍結のみ・削除予定なし）とは終着点を区別する
-- **結果として受け入れるデメリット:** 「削除候補なのにまだある」期間が生じる。TASKS.mdのT-93に削除条件（Phase 1成功指標の計測開始後）を明記して曖昧化を防ぐ
+- **決定:** 最終状態はPRD v3に従い**削除**（PRDが上位文書）。ただし削除はMVP計画に含めず、**バックログ項目BL-01**に置く。実施条件は「PRDのPhase 1（MVP・8週間）実運用の安定後」＋「オーナーの明示承認」の両方。それまではArticle系等と同じ「ルート410・スキーマ残置」
+- **理由:** 両文書の対立は「消すか」ではなく「いつ消すか」の対立と整理できる。即時削除の利益（スキーマの見通し）は小さく、遅延削除の利益（A主役転向時の可逆性・expand&contract原則との整合）が大きい。削除はMVPの成功に寄与しないためMVP必須タスクにもしない（Codexレビュー2026-07-24のYAGNI指摘を採用）。v1ロードマップ自身がPost系を却下済みのため、Article系（凍結のみ・削除予定なし）とは終着点を区別する
+- **結果として受け入れるデメリット:** 「削除候補なのにまだある」期間が延びる（無期限化を防ぐ装置はBL-01の実施条件明記とオーナー承認）
 
 ### ADR-006: GPXパースはフロント（DOMParser）で実施し、サーバは構造再検証のみ
 - **状況:** パース＋正規化をフロント/バックエンドどちらでやるか（RQ-06の適用位置）
@@ -193,7 +193,7 @@ model Annotation {
 
 ## 7. リスクと縮退プラン
 
-- **一番危ない残リスク: スマホ実機性能が未計測のまま設計を確定していること。** PC実測（M5・Headless Chrome）はPASSしたが、PRD要件「スマホでも閲覧」の実機検証はオーナー待ち（B-2）。ただし①主利用文脈はプロジェクタ/PC（PRD§3）②PC側の余裕が極端（p95 0.2ms ≒ 予算16.7msの1/80）で、ミドルレンジスマホがPCの50倍遅くてもPASS圏内、の2点からFAIL確率は低いと見積もる。**検証プラン:** `spike/README.md` の手順でオーナーがPhase 1着手前〜並行に計測（基準: 30fps/シーク1s/ロード5s/クラッシュなし）。FAIL時はSPIKE-01計画の縮退策（①描画間引き→②Path2D差分→③テール上限→④OffscreenCanvas/WebGL=新技術枠を解放）を順に適用。本線（PC）は影響を受けない
+- **一番危ない残リスク: スマホ実機性能が未計測のまま設計を確定していること。** PC実測（M5・Headless Chrome）はPASSしたが、PRD要件「スマホでも閲覧」の実機検証はオーナー待ち（B-2）。ただし①主利用文脈はプロジェクタ/PC（PRD§3）②PC側の余裕が極端（p95 0.2ms ≒ 予算16.7msの1/80）で、ミドルレンジスマホがPCの50倍遅くてもPASS圏内、の2点からFAIL確率は低いと見積もる。**検証プラン:** `spike/README.md` の手順でオーナーがS1（TASKS.md 実装スライス1）着手前〜並行に計測（基準: 30fps/シーク1s/ロード5s/クラッシュなし）。FAIL時はSPIKE-01計画の縮退策（①描画間引き→②Path2D差分→③テール上限→④OffscreenCanvas/WebGL=新技術枠を解放）を順に適用。本線（PC）は影響を受けない
 - 第2: 主役体験が並行検証でAに転ぶ → 〔共通〕タスク（T-01/T-02）は無駄にならない設計。E2固有実装はGATES ①通過を着手条件にする（TASKS.md B-1）
 - 第3: JSONB応答が実データで遅い → T-24実測ガード（縮退はADR-002に記載）
 - 第4: 供給リスク（マネ艇が録らない）→ 設計の外。並行検証とハンドブック（T-22）が担当
