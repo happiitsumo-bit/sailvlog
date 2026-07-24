@@ -1,0 +1,86 @@
+<!-- @dsCard group="Cover" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sailvlog Design System</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: var(--space-2xl);
+  }
+  .cover {
+    width: 100%;
+    max-width: 560px;
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-sheet);
+    border: 0.5px solid var(--color-separator);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-3xl) var(--space-2xl);
+    text-align: center;
+  }
+  .mark {
+    width: 72px;
+    height: 72px;
+    border-radius: var(--radius-card);
+    background: var(--color-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-lg);
+    box-shadow: var(--shadow-md);
+  }
+  .mark svg { width: 36px; height: 36px; color: #fff; }
+  .swatch-row {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-2xl);
+  }
+  .swatch-dot { width: 28px; height: 28px; border-radius: 50%; box-shadow: var(--shadow-xs); }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
+    </div>
+    <h1 class="ds-text-title1">sailvlog Design System</h1>
+    <p class="ds-text-callout ds-text-secondary" style="margin-top: var(--space-sm);">v3 — インスタ・macOS・iOSのように、誰でも直感的に</p>
+    <div class="swatch-row">
+      <span class="swatch-dot" style="background: var(--color-accent);"></span>
+      <span class="swatch-dot" style="background: var(--color-success);"></span>
+      <span class="swatch-dot" style="background: var(--color-warning);"></span>
+      <span class="swatch-dot" style="background: var(--color-danger);"></span>
+      <span class="swatch-dot" style="background: var(--color-gray-900);"></span>
+    </div>
+    <p class="ds-text-caption1" style="margin-top: var(--space-xl);">Type · Colors · Layout · Icons · Components · sailvlog</p>
+    <div class="ds-row" style="justify-content:center; gap: var(--space-sm); margin-top: var(--space-lg);">
+      <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+    </div>
+  </div>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

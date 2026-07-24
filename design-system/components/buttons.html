@@ -1,0 +1,79 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buttons — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  section { margin-bottom: var(--space-2xl); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Buttons / ボタン</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container" style="padding-top: var(--space-lg);">
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">種類</h2>
+    <div class="ds-card row">
+      <button class="ds-btn ds-btn--primary">記録を開始</button>
+      <button class="ds-btn ds-btn--secondary">あとで</button>
+      <button class="ds-btn ds-btn--tertiary">詳細を見る</button>
+      <button class="ds-btn ds-btn--destructive">セッションを削除</button>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">サイズ</h2>
+    <div class="ds-card row">
+      <button class="ds-btn ds-btn--primary ds-btn--sm">共有</button>
+      <button class="ds-btn ds-btn--primary">記録を開始</button>
+      <button class="ds-btn ds-btn--primary ds-btn--lg">リプレイを見る</button>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">状態（hover / pressed はブラウザで直接操作して確認）</h2>
+    <div class="ds-card row">
+      <button class="ds-btn ds-btn--primary">通常</button>
+      <button class="ds-btn ds-btn--primary" disabled>disabled</button>
+      <button class="ds-btn ds-btn--secondary" disabled>disabled</button>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">アイコンボタン</h2>
+    <div class="ds-card row">
+      <button class="ds-btn ds-btn--primary ds-btn--icon" aria-label="再生">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+      </button>
+      <button class="ds-btn ds-btn--secondary ds-btn--icon" aria-label="共有">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
+      </button>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">全幅（モバイルCTA）</h2>
+    <div class="ds-card" style="max-width: 375px;">
+      <button class="ds-btn ds-btn--primary ds-btn--full ds-btn--lg">セッションを保存</button>
+    </div>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

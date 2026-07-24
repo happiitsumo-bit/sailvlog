@@ -1,0 +1,125 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forms — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  section { margin-bottom: var(--space-2xl); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+  @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Forms / フォーム</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container" style="padding-top: var(--space-lg);">
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">テキスト入力</h2>
+    <div class="ds-card form-grid">
+      <div class="ds-field">
+        <label class="ds-label" for="f-name">セッション名</label>
+        <input class="ds-input" id="f-name" type="text" value="江の島 定期練習">
+      </div>
+      <div class="ds-field">
+        <label class="ds-label" for="f-place">場所</label>
+        <input class="ds-input" id="f-place" type="text" placeholder="例: 江の島ヨットハーバー">
+      </div>
+      <div class="ds-field">
+        <label class="ds-label" for="f-note">メモ</label>
+        <textarea class="ds-textarea" id="f-note">スタート練習中心。風速12kt、SWの風でタック多め。</textarea>
+      </div>
+      <div class="ds-field">
+        <label class="ds-label" for="f-error">艇番号（エラー例）</label>
+        <input class="ds-input ds-input--error" id="f-error" type="text" value="JPN--">
+        <span class="ds-field-hint ds-field-hint--error">艇番号の形式が正しくありません（例: JPN1234）</span>
+      </div>
+      <div class="ds-field">
+        <label class="ds-label" for="f-disabled">クラス（自動判定・編集不可）</label>
+        <input class="ds-input" id="f-disabled" type="text" value="470級" disabled>
+      </div>
+      <div class="ds-field">
+        <label class="ds-label" for="f-select">セッション種別</label>
+        <select class="ds-select" id="f-select">
+          <option>練習</option>
+          <option>レース</option>
+        </select>
+      </div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">トグル・チェック・ラジオ</h2>
+    <div class="ds-card ds-stack ds-gap-lg">
+      <label class="ds-row ds-gap-md" style="justify-content: space-between; cursor: pointer;">
+        <span class="ds-text-callout">位置情報を記録する</span>
+        <span class="ds-toggle">
+          <input type="checkbox" checked>
+          <span class="ds-toggle-track"></span>
+          <span class="ds-toggle-thumb"></span>
+        </span>
+      </label>
+      <label class="ds-row ds-gap-md" style="justify-content: space-between; cursor: pointer;">
+        <span class="ds-text-callout">動画の自動アップロード</span>
+        <span class="ds-toggle">
+          <input type="checkbox">
+          <span class="ds-toggle-track"></span>
+          <span class="ds-toggle-thumb"></span>
+        </span>
+      </label>
+      <hr class="ds-hairline">
+      <label class="ds-row ds-gap-sm" style="cursor: pointer;">
+        <input class="ds-checkbox" type="checkbox" checked>
+        <span class="ds-text-callout">風況チップを表示する</span>
+      </label>
+      <label class="ds-row ds-gap-sm" style="cursor: pointer;">
+        <input class="ds-radio" type="radio" name="unit" checked>
+        <span class="ds-text-callout">風速の単位: kt（ノット）</span>
+      </label>
+      <label class="ds-row ds-gap-sm" style="cursor: pointer;">
+        <input class="ds-radio" type="radio" name="unit">
+        <span class="ds-text-callout">風速の単位: m/s</span>
+      </label>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">セグメントコントロール</h2>
+    <div class="ds-card">
+      <div class="ds-segmented">
+        <button class="is-active">練習</button>
+        <button>レース</button>
+        <button>すべて</button>
+      </div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin: var(--space-2xl) 0 var(--space-md);">チップ / タグ</h2>
+    <div class="ds-card row" style="display:flex; flex-wrap:wrap; gap: var(--space-sm);">
+      <span class="ds-chip ds-chip--wind">風速12kt</span>
+      <span class="ds-chip ds-chip--race">レース</span>
+      <span class="ds-chip ds-chip--practice">練習</span>
+      <span class="ds-chip ds-chip--neutral">470級</span>
+    </div>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

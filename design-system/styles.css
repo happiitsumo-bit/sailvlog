@@ -273,8 +273,11 @@ ol {
   }
 }
 
-/* data-theme属性による明示切替（プレビューのテーマ切替ボタン用） */
-:root[data-theme="dark"] {
+/* data-theme属性による明示切替（プレビューのテーマ切替ボタン用）
+   :root限定ではなく任意の要素に付けられるようにする。
+   これにより「常時ダーク」を意図するsailvlog固有のブロック（リプレイ画面等）を
+   ページ全体のテーマに関係なく部分的にダーク固定できる（CSS変数はスコープ内に継承される）。 */
+[data-theme="dark"] {
   color-scheme: dark;
 
   --color-gray-050: #1c1c1e;
@@ -346,8 +349,78 @@ ol {
   color: var(--color-label-primary);
 }
 
-:root[data-theme="light"] {
+/* [data-theme="light"]も同様に任意の要素へ付与可能にする。
+   ダークな祖先の中にライトを固定したブロックを置くケースに備え、値をフルで再定義する。 */
+[data-theme="light"] {
   color-scheme: light;
+
+  --color-gray-050: #f7f7f8;
+  --color-gray-100: #eeeef0;
+  --color-gray-200: #e2e2e6;
+  --color-gray-300: #d0d0d6;
+  --color-gray-400: #b6b6bf;
+  --color-gray-500: #97979f;
+  --color-gray-600: #77777f;
+  --color-gray-700: #58585f;
+  --color-gray-800: #3a3a3f;
+  --color-gray-900: #1c1c1f;
+
+  --color-bg-canvas: #f2f2f5;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f7f7f8;
+  --color-bg-elevated: #ffffff;
+  --color-fill: rgba(120, 120, 128, 0.12);
+  --color-fill-secondary: rgba(120, 120, 128, 0.08);
+  --color-fill-strong: rgba(120, 120, 128, 0.20);
+
+  --color-label-primary: #1c1c1f;
+  --color-label-secondary: rgba(28, 28, 31, 0.6);
+  --color-label-tertiary: rgba(28, 28, 31, 0.38);
+  --color-label-quaternary: rgba(28, 28, 31, 0.22);
+  --color-label-on-accent: #ffffff;
+
+  --color-separator: rgba(60, 60, 67, 0.29);
+  --color-separator-opaque: #dcdce1;
+
+  --color-accent: #0a6fd6;
+  --color-accent-hover: #0862bd;
+  --color-accent-pressed: #0757a6;
+  --color-accent-tint: rgba(10, 111, 214, 0.12);
+  --color-accent-tint-strong: rgba(10, 111, 214, 0.22);
+
+  --color-success: #1fa363;
+  --color-success-tint: rgba(31, 163, 99, 0.12);
+  --color-warning: #d98a12;
+  --color-warning-tint: rgba(217, 138, 18, 0.14);
+  --color-danger: #e0392f;
+  --color-danger-tint: rgba(224, 57, 47, 0.12);
+  --color-info: #0a6fd6;
+  --color-info-tint: rgba(10, 111, 214, 0.12);
+
+  --color-race: #e0392f;
+  --color-race-tint: rgba(224, 57, 47, 0.12);
+  --color-practice: #0a6fd6;
+  --color-practice-tint: rgba(10, 111, 214, 0.12);
+  --color-wind-chip-bg: rgba(10, 111, 214, 0.10);
+  --color-wind-chip-fg: #0a6fd6;
+
+  --color-boat-1: #0a6fd6;
+  --color-boat-2: #e0392f;
+  --color-boat-3: #d98a12;
+  --color-boat-4: #1fa363;
+
+  --shadow-xs: 0 1px 2px rgba(28, 28, 31, 0.06);
+  --shadow-sm: 0 1px 2px rgba(28, 28, 31, 0.05), 0 2px 8px rgba(28, 28, 31, 0.06);
+  --shadow-md: 0 2px 6px rgba(28, 28, 31, 0.06), 0 8px 24px rgba(28, 28, 31, 0.08);
+  --shadow-lg: 0 4px 12px rgba(28, 28, 31, 0.08), 0 16px 40px rgba(28, 28, 31, 0.12);
+  --shadow-float: 0 8px 20px rgba(28, 28, 31, 0.10), 0 2px 6px rgba(28, 28, 31, 0.08);
+
+  --material-bg: rgba(255, 255, 255, 0.72);
+  --material-blur: 20px;
+  --material-border: rgba(60, 60, 67, 0.18);
+
+  background: var(--color-bg-canvas);
+  color: var(--color-label-primary);
 }
 
 body {
