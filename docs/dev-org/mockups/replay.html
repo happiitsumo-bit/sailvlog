@@ -17,7 +17,7 @@
 /* ==========================================================================
    sailvlog Design System — styles.css
    単一ソースのスタイルシート。全プレビューはこれをlinkする。
-   方向性: 「インスタ・macOS・iOSのように誰でも使いやすく、直感的にわかる」
+   方向性: 土台はiOS/インスタ的な使いやすさを維持しつつ、視覚言語は「海図」「水面と光」の2本柱でセーリング文脈に固有化（rev.3）
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -158,11 +158,11 @@ ol {
   --color-separator-opaque: #dcdce1;
 
   /* --- Color: Marine Blue Accent（セーリング文脈） --- */
-  --color-accent: #0a6fd6;
-  --color-accent-hover: #0862bd;
-  --color-accent-pressed: #0757a6;
-  --color-accent-tint: rgba(10, 111, 214, 0.12);
-  --color-accent-tint-strong: rgba(10, 111, 214, 0.22);
+  --color-accent: #0b6a9e;
+  --color-accent-hover: #095778;
+  --color-accent-pressed: #074562;
+  --color-accent-tint: rgba(11, 106, 158, 0.12);
+  --color-accent-tint-strong: rgba(11, 106, 158, 0.22);
 
   /* --- Color: Semantic status --- */
   --color-success: #1fa363;
@@ -171,21 +171,26 @@ ol {
   --color-warning-tint: rgba(217, 138, 18, 0.14);
   --color-danger: #e0392f;
   --color-danger-tint: rgba(224, 57, 47, 0.12);
-  --color-info: #0a6fd6;
-  --color-info-tint: rgba(10, 111, 214, 0.12);
+  --color-info: #0b6a9e;
+  --color-info-tint: rgba(11, 106, 158, 0.12);
 
   /* --- Color: sailvlog固有（セッション種別・艇識別） --- */
   --color-race: #e0392f;
   --color-race-tint: rgba(224, 57, 47, 0.12);
-  --color-practice: #0a6fd6;
-  --color-practice-tint: rgba(10, 111, 214, 0.12);
-  --color-wind-chip-bg: rgba(10, 111, 214, 0.10);
-  --color-wind-chip-fg: #0a6fd6;
+  --color-practice: #0b6a9e;
+  --color-practice-tint: rgba(11, 106, 158, 0.12);
+  --color-wind-chip-bg: rgba(11, 106, 158, 0.10);
+  --color-wind-chip-fg: #0b6a9e;
 
-  --color-boat-1: #0a6fd6; /* 自艇 */
+  --color-boat-1: #0b6a9e; /* 自艇 */
   --color-boat-2: #e0392f; /* 相手艇 */
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
+
+  /* --- Color: Nautical Chart（海図の視覚言語。等深線・グリッド用の低彩度トーン） --- */
+  --color-chart-grid: rgba(11, 106, 158, 0.10);
+  --color-chart-line: rgba(28, 28, 31, 0.12);
+  --color-compass-ink: rgba(28, 28, 31, 0.16);
 
   /* --- Shadow（iOSの多層・柔らかい浮遊感） --- */
   --shadow-xs: 0 1px 2px rgba(28, 28, 31, 0.06);
@@ -205,6 +210,15 @@ ol {
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 320ms;
+
+  /* --- Water & Light（ヒーロー帯・リプレイ海面専用。海はテーマに関わらず常に「深い」ため
+       ライト/ダークで再定義せず :root で固定する。夜明けのレガッタ=dawn／深夜の海=deep） --- */
+  --gradient-water-dawn: linear-gradient(160deg, #0c2436 0%, #0c5678 42%, #1c7f96 68%, #e3924f 100%);
+  --gradient-water-deep: linear-gradient(165deg, #030d16 0%, #0a2f42 40%, #0b5372 72%, #12809e 100%);
+  --color-chart-grid-on-water: rgba(255, 255, 255, 0.10);
+  --color-chart-line-on-water: rgba(255, 255, 255, 0.16);
+  --color-hero-label-primary: rgba(255, 255, 255, 0.96);
+  --color-hero-label-secondary: rgba(255, 255, 255, 0.74);
 
   background: var(--color-bg-canvas);
   color: var(--color-label-primary);
@@ -247,11 +261,11 @@ ol {
     --color-separator: rgba(84, 84, 88, 0.6);
     --color-separator-opaque: #3a3a3c;
 
-    --color-accent: #3d93ff;
-    --color-accent-hover: #5aa4ff;
-    --color-accent-pressed: #6bb0ff;
-    --color-accent-tint: rgba(61, 147, 255, 0.16);
-    --color-accent-tint-strong: rgba(61, 147, 255, 0.28);
+    --color-accent: #2f9fd1;
+    --color-accent-hover: #49b0dd;
+    --color-accent-pressed: #63bce6;
+    --color-accent-tint: rgba(47, 159, 209, 0.16);
+    --color-accent-tint-strong: rgba(47, 159, 209, 0.28);
 
     --color-success: #34c07a;
     --color-success-tint: rgba(52, 192, 122, 0.16);
@@ -259,20 +273,24 @@ ol {
     --color-warning-tint: rgba(240, 167, 46, 0.18);
     --color-danger: #ff5b52;
     --color-danger-tint: rgba(255, 91, 82, 0.16);
-    --color-info: #3d93ff;
-    --color-info-tint: rgba(61, 147, 255, 0.16);
+    --color-info: #2f9fd1;
+    --color-info-tint: rgba(47, 159, 209, 0.16);
 
     --color-race: #ff5b52;
     --color-race-tint: rgba(255, 91, 82, 0.16);
-    --color-practice: #3d93ff;
-    --color-practice-tint: rgba(61, 147, 255, 0.16);
-    --color-wind-chip-bg: rgba(61, 147, 255, 0.16);
-    --color-wind-chip-fg: #6bb0ff;
+    --color-practice: #2f9fd1;
+    --color-practice-tint: rgba(47, 159, 209, 0.16);
+    --color-wind-chip-bg: rgba(47, 159, 209, 0.16);
+    --color-wind-chip-fg: #63bce6;
 
-    --color-boat-1: #3d93ff;
+    --color-boat-1: #2f9fd1;
     --color-boat-2: #ff5b52;
     --color-boat-3: #f0a72e;
     --color-boat-4: #34c07a;
+
+    --color-chart-grid: rgba(47, 159, 209, 0.16);
+    --color-chart-line: rgba(242, 242, 247, 0.10);
+    --color-compass-ink: rgba(242, 242, 247, 0.14);
 
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.4);
@@ -324,11 +342,11 @@ ol {
   --color-separator: rgba(84, 84, 88, 0.6);
   --color-separator-opaque: #3a3a3c;
 
-  --color-accent: #3d93ff;
-  --color-accent-hover: #5aa4ff;
-  --color-accent-pressed: #6bb0ff;
-  --color-accent-tint: rgba(61, 147, 255, 0.16);
-  --color-accent-tint-strong: rgba(61, 147, 255, 0.28);
+  --color-accent: #2f9fd1;
+  --color-accent-hover: #49b0dd;
+  --color-accent-pressed: #63bce6;
+  --color-accent-tint: rgba(47, 159, 209, 0.16);
+  --color-accent-tint-strong: rgba(47, 159, 209, 0.28);
 
   --color-success: #34c07a;
   --color-success-tint: rgba(52, 192, 122, 0.16);
@@ -336,20 +354,24 @@ ol {
   --color-warning-tint: rgba(240, 167, 46, 0.18);
   --color-danger: #ff5b52;
   --color-danger-tint: rgba(255, 91, 82, 0.16);
-  --color-info: #3d93ff;
-  --color-info-tint: rgba(61, 147, 255, 0.16);
+  --color-info: #2f9fd1;
+  --color-info-tint: rgba(47, 159, 209, 0.16);
 
   --color-race: #ff5b52;
   --color-race-tint: rgba(255, 91, 82, 0.16);
-  --color-practice: #3d93ff;
-  --color-practice-tint: rgba(61, 147, 255, 0.16);
-  --color-wind-chip-bg: rgba(61, 147, 255, 0.16);
-  --color-wind-chip-fg: #6bb0ff;
+  --color-practice: #2f9fd1;
+  --color-practice-tint: rgba(47, 159, 209, 0.16);
+  --color-wind-chip-bg: rgba(47, 159, 209, 0.16);
+  --color-wind-chip-fg: #63bce6;
 
-  --color-boat-1: #3d93ff;
+  --color-boat-1: #2f9fd1;
   --color-boat-2: #ff5b52;
   --color-boat-3: #f0a72e;
   --color-boat-4: #34c07a;
+
+  --color-chart-grid: rgba(47, 159, 209, 0.16);
+  --color-chart-line: rgba(242, 242, 247, 0.10);
+  --color-compass-ink: rgba(242, 242, 247, 0.14);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.4);
@@ -398,11 +420,11 @@ ol {
   --color-separator: rgba(60, 60, 67, 0.29);
   --color-separator-opaque: #dcdce1;
 
-  --color-accent: #0a6fd6;
-  --color-accent-hover: #0862bd;
-  --color-accent-pressed: #0757a6;
-  --color-accent-tint: rgba(10, 111, 214, 0.12);
-  --color-accent-tint-strong: rgba(10, 111, 214, 0.22);
+  --color-accent: #0b6a9e;
+  --color-accent-hover: #095778;
+  --color-accent-pressed: #074562;
+  --color-accent-tint: rgba(11, 106, 158, 0.12);
+  --color-accent-tint-strong: rgba(11, 106, 158, 0.22);
 
   --color-success: #1fa363;
   --color-success-tint: rgba(31, 163, 99, 0.12);
@@ -410,20 +432,24 @@ ol {
   --color-warning-tint: rgba(217, 138, 18, 0.14);
   --color-danger: #e0392f;
   --color-danger-tint: rgba(224, 57, 47, 0.12);
-  --color-info: #0a6fd6;
-  --color-info-tint: rgba(10, 111, 214, 0.12);
+  --color-info: #0b6a9e;
+  --color-info-tint: rgba(11, 106, 158, 0.12);
 
   --color-race: #e0392f;
   --color-race-tint: rgba(224, 57, 47, 0.12);
-  --color-practice: #0a6fd6;
-  --color-practice-tint: rgba(10, 111, 214, 0.12);
-  --color-wind-chip-bg: rgba(10, 111, 214, 0.10);
-  --color-wind-chip-fg: #0a6fd6;
+  --color-practice: #0b6a9e;
+  --color-practice-tint: rgba(11, 106, 158, 0.12);
+  --color-wind-chip-bg: rgba(11, 106, 158, 0.10);
+  --color-wind-chip-fg: #0b6a9e;
 
-  --color-boat-1: #0a6fd6;
+  --color-boat-1: #0b6a9e;
   --color-boat-2: #e0392f;
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
+
+  --color-chart-grid: rgba(11, 106, 158, 0.10);
+  --color-chart-line: rgba(28, 28, 31, 0.12);
+  --color-compass-ink: rgba(28, 28, 31, 0.16);
 
   --shadow-xs: 0 1px 2px rgba(28, 28, 31, 0.06);
   --shadow-sm: 0 1px 2px rgba(28, 28, 31, 0.05), 0 2px 8px rgba(28, 28, 31, 0.06);
@@ -1325,7 +1351,87 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   12. アクセシビリティユーティリティ
+   12b. Nautical / Water — 海図と水面の視覚言語
+   柱1: 海図（グリッド・等深線・コンパスローズ）を構造の語彙に。
+   柱2: 水面と光（ヒーロー帯・リプレイ海面の深いグラデーション）を雰囲気の語彙に。
+   どちらも装飾ではなく「読む」体験（進路・時刻・区画）を支えるために使う。
+   -------------------------------------------------------------------------- */
+
+/* ヒーロー帯: セッション一覧・アップロードの見出し部に使う「海」バンド。
+   テーマに関わらず常に深い水の表現を使う（--gradient-water-* はテーマ非依存）。 */
+.ds-hero-water {
+  position: relative;
+  overflow: hidden;
+  background-image: var(--gradient-water-dawn);
+  color: var(--color-hero-label-primary);
+  padding: var(--space-2xl) var(--space-lg);
+}
+.ds-hero-water--deep { background-image: var(--gradient-water-deep); }
+.ds-hero-water .ds-text-title1,
+.ds-hero-water .ds-text-headline { color: var(--color-hero-label-primary); }
+.ds-hero-water-sub { color: var(--color-hero-label-secondary); font-size: var(--font-size-footnote); margin-top: var(--space-xs); }
+
+/* 海図グリッド + 等深線オーバーレイ（疑似要素・pointer-events無効・装飾専用） */
+.ds-hero-water::before,
+.ds-chart-surface::before {
+  content: "";
+  position: absolute;
+  inset: -20% -20%;
+  background-image:
+    repeating-linear-gradient(0deg, var(--color-chart-grid-on-water) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(90deg, var(--color-chart-grid-on-water) 0 1px, transparent 1px 56px),
+    repeating-radial-gradient(ellipse at 28% 72%, transparent 0 78px, var(--color-chart-line-on-water) 79px 80px, transparent 81px 160px);
+  animation: ds-chart-drift 90s linear infinite;
+  pointer-events: none;
+}
+.ds-hero-water > * { position: relative; z-index: 1; }
+
+/* 汎用「海図面」ユーティリティ: リプレイCanvasの下敷きなど、常時ダークな面に使う */
+.ds-chart-surface {
+  position: relative;
+  overflow: hidden;
+  background-image: var(--gradient-water-deep);
+}
+.ds-chart-surface > * { position: relative; z-index: 1; }
+
+@keyframes ds-chart-drift {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-56px, -56px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-hero-water::before,
+  .ds-chart-surface::before {
+    animation: none;
+  }
+}
+
+/* コンパスローズ（装飾・空状態やヒーロー帯の隅に置く低不透明度の飾り。乱用しない=1画面1箇所まで） */
+.ds-compass-rose {
+  color: var(--color-compass-ink);
+  opacity: 0.5;
+}
+.ds-hero-water .ds-compass-rose,
+.ds-chart-surface .ds-compass-rose {
+  color: var(--color-chart-line-on-water);
+  opacity: 0.7;
+}
+
+/* 風向・風速チップのアイコン枠（風羽根/矢羽のインラインSVG用） */
+.ds-chip--wind svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* 緯度経度座標風のラベル（Canvas縁・スケールバー等に添える固有語彙） */
+.ds-chart-coord {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption2);
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   13. アクセシビリティユーティリティ
    -------------------------------------------------------------------------- */
 .ds-visually-hidden {
   position: absolute;
@@ -1380,9 +1486,17 @@ body { overflow-x: hidden; }
 .canvas-wrap {
   position: relative;
   min-height: 0;
-  background: var(--color-bg-canvas);
 }
 #raceCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+/* 海図座標風の縁ラベル（緯度経度の目安。装飾のみ・実測値ではない） */
+.chart-coord-edge {
+  position: absolute;
+  color: var(--color-hero-label-secondary);
+  pointer-events: none;
+}
+.chart-coord-edge.coord-tl { top: var(--space-sm); left: var(--space-sm); }
+.chart-coord-edge.coord-br { bottom: var(--space-lg); right: var(--space-lg); text-align: right; }
 
 .canvas-overlay-top {
   position: absolute; top: 0; left: 0; right: 0;
@@ -1513,11 +1627,23 @@ body { overflow-x: hidden; }
 
   <!-- ===== Main: canvas + sidebar ===== -->
   <div class="main-area">
-    <div class="canvas-wrap" id="canvasWrap">
+    <div class="canvas-wrap ds-chart-surface" id="canvasWrap">
       <canvas id="raceCanvas"></canvas>
 
       <div class="canvas-overlay-top">
         <div class="legend-inline" id="legendInline"></div>
+      </div>
+
+      <div class="ds-compass-rose chart-coord-edge coord-tl" style="width:36px;height:36px;" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polygon points="12 6 13.6 11 12 12 10.4 11" fill="currentColor" stroke="none"/>
+          <line x1="12" y1="2" x2="12" y2="4.2"/>
+        </svg>
+      </div>
+
+      <div class="chart-coord-edge coord-br ds-chart-coord">
+        35°18.6'N 139°28.9'E
       </div>
 
       <div class="scale-bar-wrap">

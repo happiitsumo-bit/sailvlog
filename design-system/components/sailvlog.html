@@ -25,7 +25,6 @@
     position: relative;
     flex: 1;
     min-height: 0;
-    background: var(--color-bg-canvas);
   }
   #raceCanvas { display: block; width: 100%; height: 100%; }
   .replay-legend {
@@ -61,7 +60,22 @@
       セーリング固有のUIパーツをまとめたページ。トークンはstyles.cssを共有し、
       リプレイ画面のみ「常時ダーク」を意図した実装例として <code class="ds-text-mono">color-scheme: dark</code> を明示している
       （反省会・プロジェクタ投影を想定し、ライト/ダークの自動切替に非連動にする設計判断）。
+      rev.3では「海図」（グリッド・等深線・コンパスローズ）と「水面と光」（深い海のグラデーション）の
+      2本柱を追加し、風況チップには風矢羽アイコンを添えた。
     </p>
+
+    <section>
+      <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">ヒーロー水面バンド（rev.3新規・柱2）</h2>
+      <div class="ds-hero-water" style="border-radius: var(--radius-card);">
+        <div class="ds-text-title2">セッション</div>
+        <div class="ds-hero-water-sub">部内の練習・レース記録。夜明けのレガッタをイメージした固定グラデーション</div>
+      </div>
+      <p class="ds-text-caption1" style="margin-top: var(--space-sm);">
+        <code class="ds-text-mono">.ds-hero-water</code>（一覧・アップロードのページ見出し用）と
+        <code class="ds-text-mono">.ds-hero-water--deep</code>（濃色バリエーション）。
+        背景のグリッド/等深線は<code class="ds-text-mono">prefers-reduced-motion</code>で静止する。
+      </p>
+    </section>
 
     <section>
       <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">セッションカード（練習/レース区分・風況チップ）</h2>
@@ -73,7 +87,7 @@
           </div>
           <div class="ds-session-card-meta">
             <span>2026-07-20（日）9:00</span>
-            <span class="ds-chip ds-chip--wind">風速12kt SW</span>
+            <span class="ds-chip ds-chip--wind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="21" x2="12" y2="4"/><path d="M12 4 8 9"/><path d="M12 9 8 14"/></svg>風速12kt SW</span>
           </div>
           <div class="ds-session-card-footer">
             <span class="ds-text-caption1">470級・全6艇</span>
@@ -87,7 +101,7 @@
           </div>
           <div class="ds-session-card-meta">
             <span>2026-07-18（金）13:30</span>
-            <span class="ds-chip ds-chip--wind">風速18kt NE</span>
+            <span class="ds-chip ds-chip--wind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="21" x2="12" y2="4"/><path d="M12 4 8 9"/><path d="M12 9 8 14"/><path d="M12 14 9 17.5"/></svg>風速18kt NE</span>
           </div>
           <div class="ds-session-card-footer">
             <span class="ds-text-caption1">470級・全24艇</span>
@@ -173,7 +187,7 @@
         </div>
 
         <div class="replay-main-row">
-          <div class="replay-canvas-wrap" id="canvasWrap">
+          <div class="replay-canvas-wrap ds-chart-surface" id="canvasWrap">
             <canvas id="raceCanvas"></canvas>
             <div class="replay-legend" id="legendInline"></div>
           </div>

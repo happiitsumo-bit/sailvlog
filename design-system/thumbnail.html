@@ -14,28 +14,24 @@
     min-height: 100vh;
     padding: var(--space-2xl);
   }
-  .cover {
+  /* ページ全体を「水面と光」の柱で包む。海はテーマ設定に非連動で常に深い。 */
+  .stage {
     width: 100%;
-    max-width: 560px;
-    background: var(--color-bg-elevated);
+    max-width: 640px;
     border-radius: var(--radius-sheet);
-    border: 0.5px solid var(--color-separator);
-    box-shadow: var(--shadow-lg);
-    padding: var(--space-3xl) var(--space-2xl);
-    text-align: center;
-  }
-  .mark {
-    width: 72px;
-    height: 72px;
-    border-radius: var(--radius-card);
-    background: var(--color-accent);
+    padding: var(--space-4xl) var(--space-2xl);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto var(--space-lg);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-lg);
   }
-  .mark svg { width: 36px; height: 36px; color: #fff; }
+  .compass-mark {
+    width: 88px;
+    height: 88px;
+    margin: 0 auto var(--space-lg);
+    position: relative;
+  }
+  .compass-mark svg { width: 100%; height: 100%; color: var(--color-hero-label-primary); }
   .swatch-row {
     display: flex;
     justify-content: center;
@@ -43,26 +39,54 @@
     margin-top: var(--space-2xl);
   }
   .swatch-dot { width: 28px; height: 28px; border-radius: 50%; box-shadow: var(--shadow-xs); }
+  .pillar-row {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+    flex-wrap: wrap;
+  }
+  .pillar-chip {
+    font-size: var(--font-size-caption1);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-label-secondary);
+    background: var(--color-fill);
+    border-radius: var(--radius-pill);
+    padding: var(--space-2xs) var(--space-md);
+  }
 </style>
 </head>
 <body>
-  <div class="cover">
-    <div class="mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
+  <div class="stage ds-hero-water ds-hero-water--deep">
+    <div style="text-align:center;">
+      <div class="compass-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>
+          <polygon points="12 6.5 13.6 11 12 12 10.4 11" fill="currentColor" stroke="none"/>
+          <polygon points="12 17.5 10.4 13 12 12 13.6 13" fill="currentColor" opacity="0.5" stroke="none"/>
+          <line x1="12" y1="2" x2="12" y2="4.2"/>
+          <line x1="12" y1="19.8" x2="12" y2="22"/>
+          <line x1="2" y1="12" x2="4.2" y2="12"/>
+          <line x1="19.8" y1="12" x2="22" y2="12"/>
+        </svg>
+      </div>
+      <h1 class="ds-text-title1" style="color: var(--color-hero-label-primary);">sailvlog Design System</h1>
+      <p class="ds-text-callout" style="margin-top: var(--space-sm); color: var(--color-hero-label-secondary);">rev.3 — 海図と水面の光で、セーリングの世界観を</p>
+      <div class="pillar-row">
+        <span class="pillar-chip" style="background: rgba(255,255,255,0.14); color: var(--color-hero-label-primary);">柱1: 海図</span>
+        <span class="pillar-chip" style="background: rgba(255,255,255,0.14); color: var(--color-hero-label-primary);">柱2: 水面と光</span>
+      </div>
     </div>
-    <h1 class="ds-text-title1">sailvlog Design System</h1>
-    <p class="ds-text-callout ds-text-secondary" style="margin-top: var(--space-sm);">v3 — インスタ・macOS・iOSのように、誰でも直感的に</p>
-    <div class="swatch-row">
-      <span class="swatch-dot" style="background: var(--color-accent);"></span>
-      <span class="swatch-dot" style="background: var(--color-success);"></span>
-      <span class="swatch-dot" style="background: var(--color-warning);"></span>
-      <span class="swatch-dot" style="background: var(--color-danger);"></span>
-      <span class="swatch-dot" style="background: var(--color-gray-900);"></span>
-    </div>
-    <p class="ds-text-caption1" style="margin-top: var(--space-xl);">Type · Colors · Layout · Icons · Components · sailvlog</p>
-    <div class="ds-row" style="justify-content:center; gap: var(--space-sm); margin-top: var(--space-lg);">
-      <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
-    </div>
+  </div>
+
+  <div style="position: fixed; bottom: var(--space-2xl); left: 0; right: 0; display:flex; justify-content:center; gap: var(--space-sm); align-items:center;">
+    <span class="swatch-dot" style="background: var(--color-accent);"></span>
+    <span class="swatch-dot" style="background: var(--color-success);"></span>
+    <span class="swatch-dot" style="background: var(--color-warning);"></span>
+    <span class="swatch-dot" style="background: var(--color-danger);"></span>
+    <span class="swatch-dot" style="background: var(--color-gray-900);"></span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn" style="margin-left: var(--space-md);">Auto</button>
   </div>
 
 <script>

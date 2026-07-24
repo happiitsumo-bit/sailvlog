@@ -1,7 +1,17 @@
 {
   "name": "sailvlog Design System",
-  "version": "3.0.0",
-  "direction": "インスタ・macOS・iOSのように誰でも使いやすく、直感的にわかる",
+  "version": "3.1.0",
+  "direction": "土台（iOS/インスタ的な使いやすさ・角丸・影・トークン駆動）は維持しつつ、視覚言語を「海図（nautical chart）」と「水面と光」の2本柱でセーリング文脈に固有化する",
+  "designPillars": {
+    "chart": "グリッド・等深線・コンパスローズ。構造を「読む」ための語彙（ヒーロー帯・リプレイ海面の背景テクスチャ、空状態の装飾）",
+    "waterAndLight": "深い海のグラデーション（夜明けのレガッタ/深夜の海）。ヒーロー帯とリプレイ画面の雰囲気の語彙。テーマ（ライト/ダーク）に非連動の固定トークンとして定義する",
+    "notAdopted": "国際信号旗の抽象化・風向風速の本格的なアイコン体系は今回見送り（1〜2本の柱に絞るため）。将来検討する場合は --color-wind-chip-* / .ds-chip--wind の拡張から着手する"
+  },
+  "accentHueShift": {
+    "note": "汎用iOSブルー(#0b6a9e/#2f9fd1)から、やや青緑寄りの「マリンチャート」トーンへ僅かにシフト。コントラスト比は同等以上を検証済み（light: white-on-accent ≈5.9:1 / dark: white-on-accent ≈3.0:1、旧トークンのdark ≈3.1:1と同水準）",
+    "light": { "accent": "#0b6a9e", "hover": "#095778", "pressed": "#074562" },
+    "dark": { "accent": "#2f9fd1", "hover": "#49b0dd", "pressed": "#63bce6" }
+  },
   "typography": {
     "fontFamily": {
       "sans": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Hiragino Sans\", \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", \"Segoe UI\", Roboto, sans-serif",
@@ -42,16 +52,16 @@
     "accent": {
       "note": "マリンブルー（セーリング文脈の単一アクセント）",
       "light": {
-        "accent": "#0a6fd6",
-        "hover": "#0862bd",
-        "pressed": "#0757a6",
-        "tint": "rgba(10, 111, 214, 0.12)"
+        "accent": "#0b6a9e",
+        "hover": "#095778",
+        "pressed": "#074562",
+        "tint": "rgba(11, 106, 158, 0.12)"
       },
       "dark": {
-        "accent": "#3d93ff",
-        "hover": "#5aa4ff",
-        "pressed": "#6bb0ff",
-        "tint": "rgba(61, 147, 255, 0.16)"
+        "accent": "#2f9fd1",
+        "hover": "#49b0dd",
+        "pressed": "#63bce6",
+        "tint": "rgba(47, 159, 209, 0.16)"
       }
     },
     "neutralRamp": {
@@ -93,15 +103,15 @@
       }
     },
     "semantic": {
-      "light": { "success": "#1fa363", "warning": "#d98a12", "danger": "#e0392f", "info": "#0a6fd6" },
-      "dark": { "success": "#34c07a", "warning": "#f0a72e", "danger": "#ff5b52", "info": "#3d93ff" }
+      "light": { "success": "#1fa363", "warning": "#d98a12", "danger": "#e0392f", "info": "#0b6a9e" },
+      "dark": { "success": "#34c07a", "warning": "#f0a72e", "danger": "#ff5b52", "info": "#2f9fd1" }
     },
     "sailvlog": {
       "race": { "light": "#e0392f", "dark": "#ff5b52" },
-      "practice": { "light": "#0a6fd6", "dark": "#3d93ff" },
+      "practice": { "light": "#0b6a9e", "dark": "#2f9fd1" },
       "boats": {
-        "light": ["#0a6fd6", "#e0392f", "#d98a12", "#1fa363"],
-        "dark": ["#3d93ff", "#ff5b52", "#f0a72e", "#34c07a"]
+        "light": ["#0b6a9e", "#e0392f", "#d98a12", "#1fa363"],
+        "dark": ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a"]
       }
     }
   },
@@ -109,6 +119,22 @@
     "note": "半透明+backdrop-filterのiOS的マテリアル。topbar/tabbar/playbarに使用。",
     "light": { "background": "rgba(255,255,255,0.72)", "blur": "20px", "border": "rgba(60,60,67,0.18)" },
     "dark": { "background": "rgba(28,28,30,0.72)", "blur": "20px", "border": "rgba(84,84,88,0.5)" }
+  },
+  "nautical": {
+    "note": "柱1「海図」用トークン。グリッド線・等深線・コンパスローズの低彩度インク。テーマごとに濃淡を再定義する。",
+    "chartGrid": { "light": "rgba(11, 106, 158, 0.10)", "dark": "rgba(47, 159, 209, 0.16)" },
+    "chartLine": { "light": "rgba(28, 28, 31, 0.12)", "dark": "rgba(242, 242, 247, 0.10)" },
+    "compassInk": { "light": "rgba(28, 28, 31, 0.16)", "dark": "rgba(242, 242, 247, 0.14)" }
+  },
+  "waterAndLight": {
+    "note": "柱2「水面と光」用トークン。ヒーロー帯・リプレイ海面に使う固定グラデーション（テーマ非依存・:root一箇所のみ定義）。",
+    "gradientWaterDawn": "linear-gradient(160deg, #0c2436 0%, #0c5678 42%, #1c7f96 68%, #e3924f 100%)",
+    "gradientWaterDeep": "linear-gradient(165deg, #030d16 0%, #0a2f42 40%, #0b5372 72%, #12809e 100%)",
+    "chartGridOnWater": "rgba(255, 255, 255, 0.10)",
+    "chartLineOnWater": "rgba(255, 255, 255, 0.16)",
+    "heroLabelPrimary": "rgba(255, 255, 255, 0.96)",
+    "heroLabelSecondary": "rgba(255, 255, 255, 0.74)",
+    "motion": "背景グリッド/等深線は.ds-chart-drift(90s linear infinite)でごく低速に流す。prefers-reduced-motion: reduceで停止（静止画として成立するデザイン）"
   },
   "darkModeStrategy": "iOSライクな面階調再定義。単純な色反転(invert)ではなく、canvas/primary/secondary/elevatedの4面を個別に定義し、アクセントとラベルは明度を落とすのではなくビビッドさを保つ方向に調整。",
   "themeSwitching": {
