@@ -9,6 +9,7 @@ import sailorsRouter from "./routes/sailors";
 import teamsRouter from "./routes/teams";
 import sessionsRouter from "./routes/sessions";
 import tracksRouter from "./routes/tracks";
+import annotationsRouter from "./routes/annotations";
 
 // v3ピボット（2026-07-24, ADR-003）: 凍結対象ルート。
 // 実装は410 Goneの薄いハンドラに置換し、ルータ本体（articles等）はコードとして残置する
@@ -41,6 +42,7 @@ app.use("/api/sailors", sailorsRouter);
 app.use("/api/teams", teamsRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/tracks", tracksRouter);
+app.use("/api/annotations", annotationsRouter);
 
 // 凍結ルート（410 Gone。ADR-003）
 app.all("/api/articles", gone);

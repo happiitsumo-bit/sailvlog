@@ -8,6 +8,7 @@ import {
   SessionScopedRequest,
 } from "../middleware/requireTeamMember";
 import { validateTrackPayload } from "../lib/validateTrackPayload";
+import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
 
 const router = Router();
 
@@ -189,6 +190,50 @@ router.post(
     // gridJson/rawGpxを除くメタのみ返す（ARCH.md §4）
     const { gridJson: _g, rawGpx: _r, ...meta } = track;
     res.status(201).json({ track: meta });
+  }
+);
+
+// POST /api/sessions/:id/annotations — 注釈追加（T-15, ARCH.md §4。本エンドポイントが唯一の作成担当）
+router.post(
+  "/:id/annotations",
+  authMiddleware,
+  requireSessionTeamMember(),
+  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+    const sessionId = req.sessionRecord!.id;
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) {
+      res.status(404).json({ error: "セッションが見つかりません" });
+      return;
+    }
+
+    const result = validateAnnotationPayload(req.body, session.durationSec);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    const { tSec, body, trackId, legIndex } = req.body;
+
+    if (trackId !== undefined && trackId !== null) {
+      const track = await prisma.track.findUnique({ where: { id: trackId } });
+      if (!track || track.sessionId !== sessionId) {
+        res.status(400).json({ error: "trackId がこのセッションに属していません" });
+        return;
+      }
+    }
+
+    const annotation = await prisma.annotation.create({
+      data: {
+        sessionId,
+        authorId: req.userId as number,
+        tSec,
+        body,
+        trackId: trackId ?? null,
+        legIndex: legIndex ?? null,
+      },
+    });
+
+    res.status(201).json({ annotation });
   }
 );
 

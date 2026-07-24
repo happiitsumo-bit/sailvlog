@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
-import { SessionDetail } from "@/types";
+import { Annotation, SessionDetail } from "@/types";
 import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
 
 const CANVAS_WIDTH = 960;
@@ -33,6 +33,11 @@ export default function SessionReplayPage() {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [simTimeDisplay, setSimTimeDisplay] = useState(0);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [newAnnotationBody, setNewAnnotationBody] = useState("");
+  const [newAnnotationTrackId, setNewAnnotationTrackId] = useState<number | "">("");
+  const [addingAnnotation, setAddingAnnotation] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clockRef = useRef<ReplayClock | null>(null);
@@ -49,6 +54,7 @@ export default function SessionReplayPage() {
       .then((d) => {
         setDetail(d);
         setVisibleTrackIds(new Set(d.tracks.map((t) => t.id)));
+        setAnnotations(d.annotations);
         clockRef.current = new ReplayClock(d.session.durationSec);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "セッションの取得に失敗しました"));
@@ -123,6 +129,26 @@ export default function SessionReplayPage() {
     setSimTimeDisplay(sec);
   }
 
+  async function addAnnotation() {
+    if (!newAnnotationBody.trim() || !clockRef.current) return;
+    setAddingAnnotation(true);
+    setAnnotationError(null);
+    try {
+      const { annotation } = await api.post<{ annotation: Annotation }>(`/api/sessions/${sessionId}/annotations`, {
+        tSec: Math.floor(clockRef.current.simTimeSec),
+        body: newAnnotationBody.trim(),
+        trackId: newAnnotationTrackId === "" ? undefined : newAnnotationTrackId,
+      });
+      setAnnotations((prev) => [...prev, annotation].sort((a, b) => a.tSec - b.tSec));
+      setNewAnnotationBody("");
+      setNewAnnotationTrackId("");
+    } catch (err) {
+      setAnnotationError(err instanceof Error ? err.message : "注釈の追加に失敗しました");
+    } finally {
+      setAddingAnnotation(false);
+    }
+  }
+
   function toggleBoat(trackId: number) {
     setVisibleTrackIds((prev) => {
       const next = new Set(prev);
@@ -190,21 +216,74 @@ export default function SessionReplayPage() {
             </span>
           </div>
 
-          <input
-            type="range"
-            min={0}
-            max={session.durationSec}
-            step={1}
-            value={Math.floor(simTimeDisplay)}
-            onChange={(e) => handleSeek(Number(e.target.value))}
-            style={{ width: "100%", marginTop: "0.6rem" }}
-            aria-label="シークバー"
-          />
+          <div style={{ position: "relative", marginTop: "0.6rem" }}>
+            <input
+              type="range"
+              min={0}
+              max={session.durationSec}
+              step={1}
+              value={Math.floor(simTimeDisplay)}
+              onChange={(e) => handleSeek(Number(e.target.value))}
+              style={{ width: "100%", display: "block" }}
+              aria-label="シークバー"
+            />
+            {/* タイムライン注釈ピン（T-15）。クリックでその時刻へシークする */}
+            <div style={{ position: "relative", height: 14, marginTop: 2 }}>
+              {annotations.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => handleSeek(a.tSec)}
+                  title={`${formatTime(a.tSec)} — ${a.body}`}
+                  style={{
+                    position: "absolute",
+                    left: `${(a.tSec / session.durationSec) * 100}%`,
+                    transform: "translateX(-50%)",
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: "var(--terra)",
+                    border: "1px solid var(--paper)",
+                    padding: 0,
+                    cursor: "pointer",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
+            <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に注釈を追加</h3>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                type="text"
+                value={newAnnotationBody}
+                onChange={(e) => setNewAnnotationBody(e.target.value)}
+                placeholder="例: ここでタック判断が遅れた"
+                maxLength={2000}
+                style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
+              />
+              <select
+                value={newAnnotationTrackId}
+                onChange={(e) => setNewAnnotationTrackId(e.target.value ? Number(e.target.value) : "")}
+                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
+              >
+                <option value="">対象艇（任意）</option>
+                {tracks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.boatLabel}</option>
+                ))}
+              </select>
+              <button type="button" onClick={addAnnotation} className="btn btn-primary" disabled={!newAnnotationBody.trim() || addingAnnotation}>
+                {addingAnnotation ? "追加中…" : "追加"}
+              </button>
+            </div>
+            {annotationError && <p style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>{annotationError}</p>}
+          </div>
         </div>
 
-        <aside style={{ flex: "0 0 220px", minWidth: 180 }}>
+        <aside style={{ flex: "0 0 240px", minWidth: 200 }}>
           <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>艇の表示</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
             {tracks.map((t, i) => (
               <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
                 <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
@@ -213,6 +292,37 @@ export default function SessionReplayPage() {
               </label>
             ))}
           </div>
+
+          <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>注釈（{annotations.length}）</h3>
+          {annotations.length === 0 ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--fg-mute)" }}>まだ注釈がありません</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {annotations.map((a) => {
+                const track = tracks.find((t) => t.id === a.trackId);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => handleSeek(a.tSec)}
+                    style={{
+                      textAlign: "left",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      padding: "0.5rem 0.65rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
+                      {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </aside>
       </div>
     </div>

@@ -74,3 +74,13 @@ export async function isUploaderOrTeamAdmin(
   if (session.uploaderId === userId) return true;
   return isTeamAdmin(userId, session.teamId);
 }
+
+/** 注釈のPATCH/DELETE等: author本人 または Team admin のみ許可（ARCH.md §4） */
+export async function isAuthorOrTeamAdmin(
+  userId: number,
+  teamId: number,
+  authorId: number
+): Promise<boolean> {
+  if (authorId === userId) return true;
+  return isTeamAdmin(userId, teamId);
+}
