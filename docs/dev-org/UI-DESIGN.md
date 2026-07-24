@@ -222,5 +222,17 @@ v1の認証画面をそのまま使う。新規デザイン投資はしない（
 | ファイル | 対応画面 | 忠実度 |
 |---|---|---|
 | `docs/dev-org/mockups/replay.html` | 4章 リプレイ画面 | 高（Canvas航跡描画・再生・タイムライン注釈・レグ・比較チェック・共有UIあり） |
-| `docs/dev-org/mockups/sessions-list.html` | 2章 セッション一覧 | 軽量（カード型静的リスト・フィルタの見た目のみ） |
-| ログイン・アップロード | 1章・3章 | モックアップなし（v1流用/低リスクのため本タスクでは静的HTML化しない） |
+| `docs/dev-org/mockups/sessions-list.html` | 2章 セッション一覧 | 高（カード型リスト・フィルタ・ロード中/空/エラー状態切替・PC/モバイル下部タブバー） |
+| `docs/dev-org/mockups/upload.html` | 3章 セッションアップロード | 高（3ステップウィザード・ドロップゾーン・ファイル行の解析OK/エラー表示・静止Canvasプレビュー） |
+| ログイン | 1章 | モックアップなし（v1流用/低リスクのため対象外。方針変更なし） |
+
+## 7. 変更履歴
+
+- **rev.2（2026-07-24・新デザインシステム適用）**: 旧モックアップ（Claude-paper風のエディトリアル配色・Source Serif 4等の外部フォント）を、`design-system/styles.css`（iOS/インスタ風の角丸・塗りプライマリ・柔らかい影・システムフォント）へ全面置換。
+  - 対象: `replay.html`（全面再構築）・`sessions-list.html`（全面再構築）・`upload.html`（新規追加）
+  - 主な差分:
+    1. 配色・タイポ・角丸・影をすべて `design-system/styles.css` のCSS変数（`--color-*`/`--font-*`/`--radius-*`/`--shadow-*`）に置換し、外部フォント読み込み（Google Fonts）を撤廃（オフライン耐性・CSP対策）
+    2. `sessions-list.html` にPC=トップバー／モバイル=下部タブバーの切替と、ロード中スケルトン・空状態・エラー帯の状態デモ操作を追加（UI-DESIGN.md §2の状態定義を可視化）
+    3. `upload.html` を新規作成し、UI-DESIGN.md §3のGPX取込ウィザード（基本情報→GPX取込→保存の3ステップ、ドロップゾーン、ファイル行の解析OK/エラー表示、静止Canvasプレビュー）を実装
+  - DSトークン不足への対応: `--color-boat-1..4`（4色）に対し実装例は6艇のため、5・6艇目は新規トークンを追加せず既存4色を再利用（`replay.html`内にコメントで明記。実運用のindex割当ロジックは実装時に確定）
+  - 検証: `python3 -m http.server` + claude-in-chromeで3ファイルを実描画確認。コンソールエラー0件、レイアウト崩れなし、play/シーク/レグジャンプ/2艇比較/メモ追加/URLコピートースト/ウィザード3ステップ通し保存の全インタラクション動作確認済み（実装過程で発見した`sessions-list.html`のエラー帯常時表示バグ＝インラインstyleの`display:none`が後続の`display:flex`で上書きされていた不具合も本rev内で修正）

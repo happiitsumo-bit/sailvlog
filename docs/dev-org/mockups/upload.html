@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="ja" data-theme="dark">
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>リプレイ — 江の島 定期練習 / sailvlog（モックアップ・新DS）</title>
+<title>セッションを登録 — sailvlog（モックアップ・新DS）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--
   トークンの正本は design-system/styles.css。手編集せずDS側を直して再生成すること。
   このファイルは styles.css の内容をそのままインライン埋め込みした自己完結HTML（外部参照・CDNなし）。
-  リプレイ画面は反省会プロジェクタ投影を前提に data-theme="dark" を html要素に固定し、
-  サイト全体のライト/ダーク自動切替に連動させない（design-system/readme.md Do/Don't・UI-DESIGN.md §0-1 準拠）。
+  GPX取込ウィザード（新規）: 複数ファイル選択→プレビュー（静止Canvas重ね描き）→艇ラベル入力→保存 の3ステップ構成。
+  UI-DESIGN.md §3準拠。ライト/ダーク両テーマに対応。
 -->
 <style>
 /* ============================================================
@@ -1346,330 +1346,228 @@ body {
 
 
 /* ============================================================
-   replay.html 固有スタイル（すべて上記トークンから派生。生hex/px追加なし）
+   upload.html 固有スタイル（すべて上記トークンから派生。生hex/px追加なし）
    ============================================================ */
-html, body { height: 100%; }
-body { overflow-x: hidden; }
+body { padding-bottom: var(--space-6xl); }
 
-.replay-shell {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  height: 100vh;
-  min-height: 640px;
+.wizard-steps {
+  display: flex; gap: var(--space-sm); margin-bottom: var(--space-2xl); flex-wrap: wrap;
 }
-
-.replay-topbar-title { flex: 1; min-width: 0; }
-.replay-topbar-title .name {
-  font-size: var(--font-size-headline);
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.wizard-step {
+  display: flex; align-items: center; gap: var(--space-xs);
+  font-size: var(--font-size-footnote); font-weight: var(--font-weight-medium);
+  color: var(--color-label-tertiary);
 }
-.replay-topbar-title .date {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption1);
+.wizard-step-num {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--color-fill); font-size: var(--font-size-caption1); font-weight: var(--font-weight-semibold);
   color: var(--color-label-secondary);
 }
+.wizard-step.is-done .wizard-step-num { background: var(--color-success); color: #fff; }
+.wizard-step.is-current { color: var(--color-label-primary); }
+.wizard-step.is-current .wizard-step-num { background: var(--color-accent); color: #fff; }
 
-.main-area {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  min-height: 0;
+.section-card { margin-bottom: var(--space-xl); }
+.section-title { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+.section-title-num {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--color-accent-tint); color: var(--color-accent);
+  font-size: var(--font-size-caption1); font-weight: var(--font-weight-bold);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.main-area > * { min-height: 0; }
 
-.canvas-wrap {
-  position: relative;
-  min-height: 0;
-  background: var(--color-bg-canvas);
-}
-#raceCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+@media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
 
-.canvas-overlay-top {
-  position: absolute; top: 0; left: 0; right: 0;
-  padding: var(--space-md) var(--space-lg);
-  display: flex; justify-content: space-between; align-items: flex-start;
-  pointer-events: none;
-}
-.legend-inline {
-  display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md);
-  font-size: var(--font-size-caption1); font-family: var(--font-mono); color: var(--color-label-secondary);
-}
-.legend-inline .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--space-2xs); vertical-align: middle; }
-.scale-bar-wrap {
-  position: absolute; bottom: var(--space-lg); left: var(--space-lg);
-  color: var(--color-label-secondary); font-family: var(--font-mono); font-size: var(--font-size-caption2);
-}
-.scale-bar { width: 90px; height: 2px; background: var(--color-label-secondary); margin-top: var(--space-xs); }
+.radio-group { display: flex; gap: var(--space-lg); }
+.radio-option { display: flex; align-items: center; gap: var(--space-xs); cursor: pointer; font-size: var(--font-size-callout); }
 
-.loading-state, .empty-state-replay {
-  position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
-  gap: var(--space-md); color: var(--color-label-secondary); font-size: var(--font-size-callout); text-align: center; padding: var(--space-2xl);
+.dropzone {
+  border: 1.5px dashed var(--color-separator-opaque);
+  border-radius: var(--radius-card);
+  padding: var(--space-3xl) var(--space-lg);
+  text-align: center;
+  color: var(--color-label-secondary);
+  transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
+  cursor: pointer;
 }
-.spinner {
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 3px solid var(--color-fill); border-top-color: var(--color-accent);
-  animation: ds-spin 0.8s linear infinite;
+.dropzone:hover, .dropzone.is-dragover { border-color: var(--color-accent); background: var(--color-accent-tint); }
+.dropzone-icon { font-size: 32px; margin-bottom: var(--space-sm); }
+
+/* タッチ環境ではDnDを想定せず「ファイルを選択」ボタンのみを主動線にする */
+.dropzone-dnd-hint { display: block; }
+@media (pointer: coarse) {
+  .dropzone-dnd-hint { display: none; }
 }
-@keyframes ds-spin { to { transform: rotate(360deg); } }
 
-.replay-sidebar {
-  border-left: 0.5px solid var(--color-separator);
-  background: var(--color-bg-primary);
-  display: flex; flex-direction: column; min-height: 0;
-  overflow-y: auto;
+.file-row {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-md); border-radius: var(--radius-input); background: var(--color-bg-secondary);
 }
-.replay-panel { padding: var(--space-lg); border-bottom: 0.5px solid var(--color-separator); }
-.replay-panel-grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.replay-panel-body-flex { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.replay-panel-hint { font-size: var(--font-size-caption1); color: var(--color-label-tertiary); margin-top: var(--space-sm); line-height: 1.5; }
+.file-row + .file-row { margin-top: var(--space-sm); }
+.file-status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.file-status-dot.ok { background: var(--color-success); }
+.file-status-dot.error { background: var(--color-danger); }
+.file-name { font-family: var(--font-mono); font-size: var(--font-size-caption1); color: var(--color-label-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.file-row-label-input { flex: 1; min-width: 120px; }
+.file-error-text { color: var(--color-danger); font-size: var(--font-size-footnote); flex: 1; }
 
-.boat-row {
-  display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-xs);
-  border-radius: var(--radius-sm); cursor: pointer; transition: background var(--duration-fast) var(--ease-standard);
-}
-.boat-row:hover { background: var(--color-fill-secondary); }
-.boat-row.dimmed .boat-label { color: var(--color-label-tertiary); }
+.preview-wrap { position: relative; height: 260px; border-radius: var(--radius-card); overflow: hidden; background: var(--color-bg-canvas); border: 0.5px solid var(--color-separator); }
+#previewCanvas { display: block; width: 100%; height: 100%; }
+.preview-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--color-label-tertiary); font-size: var(--font-size-footnote); text-align: center; padding: var(--space-lg); }
 
-/* 反省メモ */
-.annotation-list { display: flex; flex-direction: column; gap: var(--space-2xs); max-height: 260px; overflow-y: auto; margin: calc(var(--space-2xs) * -1) calc(var(--space-xs) * -1); }
-.annotation-item {
-  padding: var(--space-sm) var(--space-sm); border-radius: var(--radius-sm); cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-standard);
-  border-left: 2px solid transparent;
-}
-.annotation-item:hover, .annotation-item.active { background: var(--color-fill-secondary); border-left-color: var(--color-accent); }
-.annotation-time { font-family: var(--font-mono); font-size: var(--font-size-caption1); color: var(--color-accent); font-weight: var(--font-weight-semibold); }
-.annotation-body { font-size: var(--font-size-footnote); color: var(--color-label-primary); margin-top: var(--space-2xs); line-height: 1.4; }
-.annotation-author { font-size: var(--font-size-caption1); color: var(--color-label-tertiary); margin-top: var(--space-2xs); }
+.wizard-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-2xl); }
 
-.note-compose { margin-top: var(--space-sm); display: none; }
-.note-compose.open { display: block; }
-
-/* Bottom control bar */
-.replay-control-bar {
-  border-top: 0.5px solid var(--color-separator);
-  background: var(--color-bg-primary);
-  padding: var(--space-md) var(--space-lg) var(--space-lg);
-}
-.transport-row { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-sm); flex-wrap: wrap; }
-.tail-toggle { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--font-size-footnote); color: var(--color-label-secondary); white-space: nowrap; }
-.tail-toggle input { accent-color: var(--color-accent); cursor: pointer; }
-
-.timeline-row { position: relative; padding: 14px 0 var(--space-xs); }
-
-.annotation-pin {
-  /* ds-timeline-pin をベースに菱形へ変形（注釈=◆の意味区別。トークンのみ使用） */
-  transform: translate(-50%, -50%) rotate(45deg);
-  border-radius: 2px;
-}
-.annotation-pin:hover { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); }
-
-/* ---------- Toast ---------- */
 .toast {
   position: fixed; bottom: var(--space-2xl); left: 50%; transform: translateX(-50%) translateY(20px);
   background: var(--color-bg-elevated); border: 0.5px solid var(--color-separator-opaque); color: var(--color-label-primary);
   padding: var(--space-md) var(--space-xl); border-radius: var(--radius-input); font-size: var(--font-size-footnote);
-  display: flex; align-items: center; gap: var(--space-sm);
-  opacity: 0; pointer-events: none; transition: all var(--duration-slow) var(--ease-emphasized); z-index: 50; box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: all var(--duration-slow) var(--ease-emphasized); z-index: 50;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast code { font-family: var(--font-mono); font-size: var(--font-size-caption1); color: var(--color-accent); }
-
-/* ---------- Mobile (縦画面) ---------- */
-@media (max-width: 820px) {
-  html, body { height: auto; }
-  .replay-shell { height: auto; min-height: 100vh; }
-  .main-area { display: block; }
-  .canvas-wrap { height: 56vh; min-height: 320px; }
-  .replay-sidebar { border-left: none; border-top: 0.5px solid var(--color-separator); max-height: none; overflow-y: visible; }
-  .replay-panel-grow { flex: none; }
-  .replay-panel-body-flex { flex: none; }
-  .replay-topbar-title .name { font-size: var(--font-size-callout); }
-  .transport-row { gap: var(--space-sm); }
-  .canvas-overlay-top { flex-direction: column; gap: var(--space-sm); }
-  .legend-inline { display: none; } /* サイドバーの艇リストと重複するため縦画面では非表示 */
-  .replay-panel[data-collapsible] .replay-panel-body { display: none; }
-  .replay-panel[data-collapsible].open .replay-panel-body { display: block; }
-  .replay-panel[data-collapsible].open .replay-panel-body.replay-panel-body-flex { display: flex; }
-  .replay-panel[data-collapsible] .replay-panel-title { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-  .replay-panel[data-collapsible] .replay-panel-title::after { content: "▾"; color: var(--color-label-tertiary); }
-  .replay-panel[data-collapsible].open .replay-panel-title::after { content: "▴"; }
-}
 </style>
 </head>
 <body>
 
-<div class="replay-shell">
+<div class="ds-topbar">
+  <div class="ds-row ds-gap-sm">
+    <span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent);display:inline-block;"></span>
+    <span class="ds-topbar-title">sailvlog</span>
+  </div>
+  <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+</div>
 
-  <!-- ===== Top bar ===== -->
-  <div class="ds-topbar" style="position: static; height: auto; padding: var(--space-md) var(--space-lg); background: var(--color-bg-primary); backdrop-filter: none;">
-    <button class="ds-btn ds-btn--tertiary ds-btn--sm" id="backBtn">← 一覧へ</button>
-    <div class="replay-topbar-title">
-      <div class="name">江の島 定期練習</div>
-      <div class="date">2026-07-20（月）15:00〜17:03・練習・6艇</div>
-    </div>
-    <button class="ds-btn ds-btn--secondary ds-btn--sm" id="shareBtn">🔗 URLをコピー</button>
+<main class="ds-container" style="padding-top: var(--space-2xl); max-width: 720px;">
+  <div class="ds-text-title1" style="margin-bottom: var(--space-2xs);">セッションを登録</div>
+  <div class="ds-text-footnote ds-text-secondary" style="margin-bottom: var(--space-2xl);">GPXファイルを取り込んで、複数艇のリプレイセッションを作成します。</div>
+
+  <div class="wizard-steps">
+    <div class="wizard-step is-current" data-step-indicator="1"><span class="wizard-step-num">1</span>基本情報</div>
+    <div class="wizard-step" data-step-indicator="2"><span class="wizard-step-num">2</span>GPX取込</div>
+    <div class="wizard-step" data-step-indicator="3"><span class="wizard-step-num">3</span>保存</div>
   </div>
 
-  <!-- ===== Main: canvas + sidebar ===== -->
-  <div class="main-area">
-    <div class="canvas-wrap" id="canvasWrap">
-      <canvas id="raceCanvas"></canvas>
+  <!-- エラー帯（サーバ再検証失敗時。デフォルト非表示） -->
+  <div id="formError" style="display:none; background: var(--color-danger-tint); border: 0.5px solid var(--color-danger); border-radius: var(--radius-input); padding: var(--space-md) var(--space-lg); margin-bottom: var(--space-lg);">
+    <span class="ds-text-footnote" style="color: var(--color-danger);">保存に失敗しました。ファイルサイズまたは形式をご確認のうえ再度お試しください。</span>
+  </div>
 
-      <div class="canvas-overlay-top">
-        <div class="legend-inline" id="legendInline"></div>
-      </div>
-
-      <div class="scale-bar-wrap">
-        500 m
-        <div class="scale-bar"></div>
-      </div>
-
-      <div class="loading-state" id="loadingState">
-        <div class="spinner"></div>
-        <div>航跡を読み込み中…</div>
-      </div>
-      <div class="empty-state-replay" id="emptyStateReplay">
-        <div>このセッションには航跡データがありません</div>
-        <button class="ds-btn ds-btn--tertiary ds-btn--sm">← 一覧へ戻る</button>
-      </div>
+  <!-- ===== Step 1: 基本情報 ===== -->
+  <section class="ds-card section-card">
+    <div class="section-title">
+      <span class="section-title-num">1</span>
+      <span class="ds-text-headline">基本情報</span>
     </div>
-
-    <div class="replay-sidebar">
-      <div class="replay-panel" data-collapsible id="panelBoats">
-        <div class="ds-text-caption2 replay-panel-title" data-toggle style="margin-bottom: var(--space-sm);">比較する2艇まで</div>
-        <div class="replay-panel-body" id="boatList"></div>
-        <div class="replay-panel-hint">チェックした艇はCanvas上で強調表示されます（3件目をチェックすると最も古い選択が外れます）。</div>
+    <div class="ds-stack ds-gap-lg">
+      <div class="ds-field">
+        <label class="ds-label">タイトル</label>
+        <input type="text" class="ds-input" id="titleInput" placeholder="例: 江の島 定期練習" value="江の島 定期練習">
       </div>
-
-      <div class="replay-panel replay-panel-grow" data-collapsible id="panelNotes">
-        <div class="ds-text-caption2 replay-panel-title" data-toggle style="margin-bottom: var(--space-sm);">反省メモ</div>
-        <div class="replay-panel-body replay-panel-body-flex">
-          <div class="annotation-list" id="annotationList"></div>
-          <button class="ds-btn ds-btn--secondary ds-btn--sm ds-btn--full" id="addNoteBtn" style="margin-top: var(--space-md);">＋ 今の場面にメモを残す</button>
-          <div class="note-compose" id="noteCompose">
-            <textarea class="ds-textarea" placeholder="例: なんでここでタックした？" id="noteText" style="min-height: 64px;"></textarea>
-            <div class="ds-row ds-gap-sm" style="justify-content: flex-end; margin-top: var(--space-sm);">
-              <button class="ds-btn ds-btn--tertiary ds-btn--sm" id="noteCancel">キャンセル</button>
-              <button class="ds-btn ds-btn--primary ds-btn--sm" id="noteSave">保存</button>
-            </div>
+      <div class="form-grid">
+        <div class="ds-field">
+          <label class="ds-label">種別</label>
+          <div class="radio-group" style="padding-top: var(--space-xs);">
+            <label class="radio-option"><input type="radio" class="ds-radio" name="sessionType" value="practice" checked> 練習</label>
+            <label class="radio-option"><input type="radio" class="ds-radio" name="sessionType" value="race"> レース</label>
           </div>
+        </div>
+        <div class="ds-field">
+          <label class="ds-label">日時</label>
+          <input type="datetime-local" class="ds-input" id="dateInput" value="2026-07-20T15:00">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="ds-field">
+          <label class="ds-label">会場</label>
+          <input type="text" class="ds-input" placeholder="例: 江の島" value="江の島">
+        </div>
+        <div class="ds-field">
+          <label class="ds-label">風況メモ</label>
+          <input type="text" class="ds-input" placeholder="例: 南西8-12kt、うねりあり" value="南西8-12kt、うねりあり">
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- ===== Bottom control bar ===== -->
-  <div class="replay-control-bar">
-    <div class="transport-row">
-      <button class="ds-playbar-btn ds-playbar-btn--play" id="playBtn" aria-label="再生">
-        <svg id="playIcon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
-      </button>
-      <div class="ds-row ds-gap-xs">
-        <button class="ds-playbar-speed active" data-speed="1">1x</button>
-        <button class="ds-playbar-speed" data-speed="4">4x</button>
-        <button class="ds-playbar-speed" data-speed="8">8x</button>
-      </div>
-      <label class="tail-toggle"><input type="checkbox" id="tailToggle" checked> 航跡テール</label>
-      <span class="ds-playbar-time" style="margin-left:auto; font-size: var(--font-size-headline);" id="curTime">00:14:02</span>
-      <span class="ds-text-caption1 ds-text-tertiary">/ 02:03:11</span>
+  <!-- ===== Step 2: GPX取込 ===== -->
+  <section class="ds-card section-card">
+    <div class="section-title">
+      <span class="section-title-num">2</span>
+      <span class="ds-text-headline">GPXファイル（複数選択可・艇ごとにラベル付け）</span>
     </div>
 
-    <div class="timeline-row">
-      <div class="ds-timeline" id="timelineTrack">
-        <div class="ds-timeline-fill" id="timelineProgress" style="width: 20%;"></div>
-        <div class="ds-timeline-scrubber" id="timelinePlayhead" style="left: 20%;"></div>
-        <!-- 注釈ピン・レグ境界線はJSで挿入 -->
-      </div>
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon">📂</div>
+      <div class="ds-text-body"><span class="dropzone-dnd-hint">ここにGPXをドラッグ&ドロップ、または </span><span class="ds-text-accent" style="font-weight: var(--font-weight-semibold);">ファイルを選択</span></div>
+      <div class="ds-text-caption1" style="margin-top: var(--space-xs);">.gpx形式・複数選択可</div>
+      <input type="file" id="fileInput" accept=".gpx" multiple style="display:none;">
     </div>
 
-    <div class="ds-leg-jumps" id="legRow" style="margin-top: var(--space-sm);"></div>
+    <div class="ds-stack ds-gap-sm" id="fileList" style="margin-top: var(--space-lg);"></div>
+
+    <div class="ds-text-caption2" style="margin: var(--space-2xl) 0 var(--space-md);">プレビュー（全艇の航跡を重ね描き・時刻同期確認用）</div>
+    <div class="preview-wrap" id="previewWrap">
+      <canvas id="previewCanvas"></canvas>
+      <div class="preview-empty" id="previewEmpty">GPXファイルを取り込むと、ここに航跡プレビューが表示されます</div>
+    </div>
+  </section>
+
+  <div class="wizard-actions">
+    <button class="ds-btn ds-btn--secondary" id="backToListBtn">一覧に戻る</button>
+    <button class="ds-btn ds-btn--primary" id="saveBtn" disabled>保存してリプレイを開く</button>
   </div>
+</main>
 
-</div>
-
-<div class="toast" id="toast">📋 URLをコピーしました: <code id="toastUrl">…</code></div>
+<div class="toast" id="toast">保存しました。リプレイへ移動します…</div>
 
 <script>
 (function () {
   "use strict";
 
-  /* ================= データ（モック） ================= */
-  const TOTAL_SEC = 7391; // 02:03:11
-  // 派生トークンの明記: styles.cssの艇カラーは --color-boat-1..4 の4色のみ（DS上限）。
-  // UI-DESIGN.mdの実装例は最大6艇のため、5・6艇目はDSに新色を追加せず既存4色を
-  // 明度そのまま再利用する（実運用ではフロント側でindex % 4のような割当ロジックを想定）。
-  const boats = [
-    { id: "t1", label: "4423 田中/佐藤", varName: "--color-boat-1" },
-    { id: "t2", label: "マネ艇",          varName: "--color-boat-2" },
-    { id: "t3", label: "1102 鈴木/高橋", varName: "--color-boat-3" },
-    { id: "t4", label: "0091 山本/井上", varName: "--color-boat-4" },
-    { id: "t5", label: "2200 中村/木村", varName: "--color-boat-1" },
-    { id: "t6", label: "3311 小林/加藤", varName: "--color-boat-3" },
+  /* ---- サンプル艇データ（取り込み済みファイルのモック） ---- */
+  const sampleFiles = [
+    { name: "4423_track.gpx", boatLabel: "4423 田中/佐藤", status: "ok", seed: 11 },
+    { name: "manebtt.gpx", boatLabel: "マネ艇", status: "ok", seed: 23 },
+    { name: "1102_track.gpx", boatLabel: "1102 鈴木/高橋", status: "ok", seed: 37 },
   ];
-  const legs = [
-    { label: "スタート", t: 0 },
-    { label: "上マーク L1", t: 2100 },
-    { label: "下マーク L2", t: 4500 },
-    { label: "フィニッシュ", t: 7100 },
-  ];
-  const annotations = [
-    { t: 842,  boat: "t1", author: "主将",   body: "なんでここでタック？もう少し伸ばせたのでは" },
-    { t: 2260, boat: "t3", author: "田中",   body: "L1回航、良い加速。他艇も見習いたい" },
-    { t: 4610, boat: null, author: "コーチ", body: "この局面、風向が右に振れているのを見逃している艇が多い" },
-    { t: 6420, boat: "t6", author: "小林",   body: "接舷しかけて避航が遅れた。次回はここを注意" },
-  ];
+  let files = [];
 
-  function getVar(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
-  function boatColor(boat) { return getVar(boat.varName); }
+  const fileListEl = document.getElementById("fileList");
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const saveBtn = document.getElementById("saveBtn");
+  const previewEmpty = document.getElementById("previewEmpty");
+  const canvas = document.getElementById("previewCanvas");
+  const ctx = canvas.getContext("2d");
+  const wrap = document.getElementById("previewWrap");
 
-  /* ================= 航跡パス生成（ジグザグ・簡易生成） ================= */
+  const boatColorVars = ["--color-boat-1", "--color-boat-2", "--color-boat-3", "--color-boat-4"];
+  function getVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
   function seededRandom(seed) {
     let s = seed;
-    return function () {
-      s = (s * 9301 + 49297) % 233280;
-      return s / 233280;
-    };
+    return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; };
   }
-
-  function buildZigzagPath(seed, originX, originY, dirSign) {
+  function buildPath(seed, originX, originY, dirSign) {
     const rnd = seededRandom(seed);
     const pts = [];
     let x = originX, y = originY;
-    const legCount = 6, legLen = 620, steps = 26;
-    for (let i = 0; i < legCount; i++) {
+    for (let i = 0; i < 6; i++) {
       const angle = (dirSign * (i % 2 === 0 ? 1 : -1)) * (0.35 + rnd() * 0.15);
-      for (let s = 0; s < steps; s++) {
-        x += Math.sin(angle) * (legLen / steps) + (rnd() - 0.5) * 3;
-        y += -Math.cos(angle) * (legLen / steps) * 0.7 + (rnd() - 0.5) * 3;
+      for (let s = 0; s < 26; s++) {
+        x += Math.sin(angle) * (620 / 26) + (rnd() - 0.5) * 3;
+        y += -Math.cos(angle) * (620 / 26) * 0.7 + (rnd() - 0.5) * 3;
         pts.push({ x, y });
       }
     }
     return pts;
   }
 
-  const boatPaths = {
-    t1: buildZigzagPath(11, 620, 760, 1),
-    t2: buildZigzagPath(23, 520, 740, 1),
-    t3: buildZigzagPath(37, 700, 770, -1),
-    t4: buildZigzagPath(51, 800, 750, -1),
-    t5: buildZigzagPath(67, 900, 730, 1),
-    t6: buildZigzagPath(83, 780, 800, -1),
-  };
-
-  /* ================= 状態 ================= */
-  let progress = 0.19; // 0..1 = 00:14:02 / 02:03:11 相当
-  let playing = false;
-  let speed = 1;
-  let lastFrameTs = null;
-  const comparedBoats = new Set(["t1", "t3"]);
-
-  /* ================= Canvas描画 ================= */
-  const canvas = document.getElementById("raceCanvas");
-  const ctx = canvas.getContext("2d");
-  const wrap = document.getElementById("canvasWrap");
+  function project(pt, rect) {
+    const scale = Math.min(rect.width / 1500, rect.height / 900);
+    const offX = (rect.width - 1500 * scale) / 2;
+    const offY = (rect.height - 900 * scale) / 2;
+    return { x: pt.x * scale + offX, y: pt.y * scale + offY };
+  }
 
   function resizeCanvas() {
     const rect = wrap.getBoundingClientRect();
@@ -1680,326 +1578,138 @@ body { overflow-x: hidden; }
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   }
 
-  function project(pt, rect) {
-    const scale = Math.min(rect.width / 1500, rect.height / 900);
-    const offX = (rect.width - 1500 * scale) / 2;
-    const offY = (rect.height - 900 * scale) / 2 - 40;
-    return { x: pt.x * scale + offX, y: pt.y * scale + offY };
-  }
-
-  function hexAlpha(hex, alpha) {
-    const m = hex.replace("#", "");
-    if (m.length !== 6) return hex;
-    const r = parseInt(m.substring(0, 2), 16);
-    const g = parseInt(m.substring(2, 4), 16);
-    const b = parseInt(m.substring(4, 6), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-
-  function drawFrame() {
+  function drawPreview() {
     const rect = wrap.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
-
-    const showTail = document.getElementById("tailToggle").checked;
-    const fgPrimary = getVar("--color-label-primary");
-
-    boats.forEach((boat) => {
-      const color = boatColor(boat);
-      const path = boatPaths[boat.id];
-      const isCompared = comparedBoats.has(boat.id);
-      const anyCompared = comparedBoats.size > 0;
-      const dimmed = anyCompared && !isCompared;
-
+    const okFiles = files.filter((f) => f.status === "ok");
+    okFiles.forEach((f, i) => {
+      const color = getVar(boatColorVars[i % boatColorVars.length]);
+      const path = buildPath(f.seed, 500 + i * 100, 700 + i * 20, i % 2 === 0 ? 1 : -1);
       ctx.beginPath();
-      ctx.strokeStyle = dimmed ? hexAlpha(color, 0.18) : hexAlpha(color, 0.45);
-      ctx.lineWidth = isCompared ? 2 : 1.4;
-      path.forEach((pt, i) => {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = 1.6;
+      path.forEach((pt, j) => {
         const p = project(pt, rect);
-        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        if (j === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
       });
       ctx.stroke();
-
-      const idx = Math.min(path.length - 1, Math.floor(progress * (path.length - 1)));
-      const curPt = project(path[idx], rect);
-
-      if (showTail) {
-        const tailStart = Math.max(0, idx - 40);
-        ctx.beginPath();
-        ctx.strokeStyle = dimmed ? hexAlpha(color, 0.35) : color;
-        ctx.lineWidth = isCompared ? 3.5 : 2.2;
-        for (let i = tailStart; i <= idx; i++) {
-          const p = project(path[i], rect);
-          if (i === tailStart) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-        }
-        ctx.stroke();
-      }
-
-      const r = isCompared ? 8 : 5;
-      if (isCompared) {
-        ctx.beginPath();
-        ctx.arc(curPt.x, curPt.y, r + 5, 0, Math.PI * 2);
-        ctx.fillStyle = hexAlpha(color, 0.20);
-        ctx.fill();
-      }
-      ctx.beginPath();
-      ctx.arc(curPt.x, curPt.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = dimmed ? hexAlpha(color, 0.4) : color;
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = getVar("--color-bg-canvas");
-      ctx.stroke();
-
-      if (isCompared) {
-        ctx.font = "600 12px -apple-system, sans-serif";
-        ctx.fillStyle = fgPrimary;
-        ctx.fillText(boat.label, curPt.x + r + 8, curPt.y + 4);
-      }
+      ctx.globalAlpha = 1;
     });
   }
 
-  /* ================= サイドバー: 艇リスト ================= */
-  const boatListEl = document.getElementById("boatList");
-  const legendInlineEl = document.getElementById("legendInline");
-
-  function renderBoatList() {
-    boatListEl.innerHTML = "";
-    legendInlineEl.innerHTML = "";
-    boats.forEach((boat) => {
-      const color = boatColor(boat);
-      const compared = comparedBoats.has(boat.id);
-      const row = document.createElement("label");
-      row.className = "boat-row" + (comparedBoats.size > 0 && !compared ? " dimmed" : "");
-      row.innerHTML = `
-        <input type="checkbox" class="ds-checkbox" ${compared ? "checked" : ""} data-boat="${boat.id}" style="width:18px;height:18px;">
-        <span class="ds-boat-dot" style="background:${color}"></span>
-        <span class="boat-label ds-text-footnote">${boat.label}</span>
-      `;
-      boatListEl.appendChild(row);
-
-      const legendSpan = document.createElement("span");
-      legendSpan.innerHTML = `<span class="dot" style="background:${color}"></span>${boat.label}`;
-      legendInlineEl.appendChild(legendSpan);
+  function renderFileList() {
+    fileListEl.innerHTML = "";
+    files.forEach((f, idx) => {
+      const row = document.createElement("div");
+      row.className = "file-row";
+      if (f.status === "ok") {
+        row.innerHTML = `
+          <span class="file-status-dot ok"></span>
+          <span class="file-name">${f.name}</span>
+          <span class="ds-text-caption1">→ 艇名</span>
+          <input type="text" class="ds-input file-row-label-input" value="${f.boatLabel}" data-idx="${idx}">
+          <span class="ds-chip ds-chip--neutral" style="background: var(--color-success-tint); color: var(--color-success);">✓ 解析OK</span>
+          <button class="ds-btn ds-btn--tertiary ds-btn--sm" data-remove="${idx}">削除</button>
+        `;
+      } else {
+        row.innerHTML = `
+          <span class="file-status-dot error"></span>
+          <span class="file-name">${f.name}</span>
+          <span class="file-error-text">解析エラー: GPX形式が不正です</span>
+          <button class="ds-btn ds-btn--tertiary ds-btn--sm" data-remove="${idx}">削除</button>
+        `;
+      }
+      fileListEl.appendChild(row);
     });
 
-    boatListEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-      cb.addEventListener("change", (e) => {
-        const id = e.target.dataset.boat;
-        if (e.target.checked) {
-          comparedBoats.add(id);
-          if (comparedBoats.size > 2) {
-            const oldest = comparedBoats.values().next().value;
-            comparedBoats.delete(oldest);
-          }
-        } else {
-          comparedBoats.delete(id);
-        }
-        renderBoatList();
-        drawFrame();
+    fileListEl.querySelectorAll("[data-remove]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        files.splice(parseInt(btn.dataset.remove, 10), 1);
+        renderFileList();
+        drawPreview();
+        updateSaveState();
+      });
+    });
+    fileListEl.querySelectorAll(".file-row-label-input").forEach((input) => {
+      input.addEventListener("input", (e) => {
+        files[parseInt(e.target.dataset.idx, 10)].boatLabel = e.target.value;
       });
     });
   }
 
-  /* ================= 反省メモ ================= */
-  const annotationListEl = document.getElementById("annotationList");
-  function fmtTime(sec) {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = Math.floor(sec % 60);
-    return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+  function updateSaveState() {
+    const hasOkFile = files.some((f) => f.status === "ok");
+    saveBtn.disabled = !hasOkFile;
   }
 
-  function renderAnnotations() {
-    annotationListEl.innerHTML = "";
-    const curSec = Math.round(progress * TOTAL_SEC);
-    annotations.forEach((a) => {
-      const boatLabel = a.boat ? boats.find((b) => b.id === a.boat).label : null;
-      const item = document.createElement("div");
-      const active = Math.abs(a.t - curSec) < 30;
-      item.className = "annotation-item" + (active ? " active" : "");
-      item.innerHTML = `
-        <div class="annotation-time">${fmtTime(a.t)}${boatLabel ? " · " + boatLabel : ""}</div>
-        <div class="annotation-body">${a.body}</div>
-        <div class="annotation-author">— ${a.author}</div>
-      `;
-      item.addEventListener("click", () => seekTo(a.t / TOTAL_SEC));
-      annotationListEl.appendChild(item);
-    });
+  function addFiles(newFiles) {
+    files = files.concat(newFiles);
+    previewEmpty.style.display = files.length ? "none" : "flex";
+    renderFileList();
+    drawPreview();
+    updateSaveState();
   }
 
-  /* ================= タイムライン ================= */
-  const timelineTrack = document.getElementById("timelineTrack");
-  const timelineProgress = document.getElementById("timelineProgress");
-  const timelinePlayhead = document.getElementById("timelinePlayhead");
-
-  function renderTimelineMarkers() {
-    annotations.forEach((a) => {
-      const pin = document.createElement("div");
-      pin.className = "ds-timeline-pin ds-timeline-pin--mark annotation-pin";
-      pin.style.left = (a.t / TOTAL_SEC * 100) + "%";
-      pin.title = fmtTime(a.t) + " — " + a.body;
-      pin.addEventListener("click", (e) => { e.stopPropagation(); seekTo(a.t / TOTAL_SEC); });
-      timelineTrack.appendChild(pin);
-    });
-    legs.forEach((leg, i) => {
-      if (i === 0) return; // スタートはピン不要
-      const pin = document.createElement("div");
-      pin.className = "ds-timeline-pin ds-timeline-pin--tack";
-      pin.style.left = (leg.t / TOTAL_SEC * 100) + "%";
-      pin.title = leg.label;
-      pin.addEventListener("click", (e) => { e.stopPropagation(); seekTo(leg.t / TOTAL_SEC); });
-      timelineTrack.appendChild(pin);
-    });
-  }
-
-  function renderLegChips() {
-    const legRow = document.getElementById("legRow");
-    legRow.innerHTML = "";
-    const curSec = progress * TOTAL_SEC;
-    legs.forEach((leg, i) => {
-      const nextT = legs[i + 1] ? legs[i + 1].t : TOTAL_SEC;
-      const isCurrent = curSec >= leg.t && curSec < nextT;
-      const chip = document.createElement("button");
-      chip.className = "ds-leg-jump" + (isCurrent ? " is-active" : "");
-      chip.textContent = leg.label;
-      chip.addEventListener("click", () => seekTo(leg.t / TOTAL_SEC));
-      legRow.appendChild(chip);
-    });
-  }
-
-  function updateTimelineUI() {
-    timelineProgress.style.width = (progress * 100) + "%";
-    timelinePlayhead.style.left = (progress * 100) + "%";
-    document.getElementById("curTime").textContent = fmtTime(progress * TOTAL_SEC);
-    renderLegChips();
-    renderAnnotations();
-  }
-
-  function seekTo(p) {
-    progress = Math.max(0, Math.min(1, p));
-    updateTimelineUI();
-    drawFrame();
-  }
-
-  let draggingTimeline = false;
-  timelineTrack.addEventListener("pointerdown", (e) => {
-    draggingTimeline = true;
-    handleTimelineDrag(e);
+  /* ---- ドロップゾーン操作 ---- */
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("is-dragover"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("is-dragover");
+    // モックアップ: 実ファイル内容は解析せずサンプルデータで取込を模擬
+    simulateImport();
   });
-  window.addEventListener("pointermove", (e) => { if (draggingTimeline) handleTimelineDrag(e); });
-  window.addEventListener("pointerup", () => { draggingTimeline = false; });
-  function handleTimelineDrag(e) {
-    const rect = timelineTrack.getBoundingClientRect();
-    const p = (e.clientX - rect.left) / rect.width;
-    seekTo(p);
-  }
-
-  /* Canvas上の左右スワイプで±5秒シーク（スマホ操作） */
-  let swipeStartX = null;
-  canvas.addEventListener("pointerdown", (e) => { swipeStartX = e.clientX; });
-  canvas.addEventListener("pointerup", (e) => {
-    if (swipeStartX == null) return;
-    const dx = e.clientX - swipeStartX;
-    swipeStartX = null;
-    if (Math.abs(dx) < 30) return;
-    seekTo(progress + (dx > 0 ? 5 : -5) / TOTAL_SEC);
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length) simulateImport();
   });
 
-  /* ================= 再生コントロール ================= */
-  const playBtn = document.getElementById("playBtn");
-  const playIcon = document.getElementById("playIcon");
-  const ICON_PLAY = '<polygon points="6 3 20 12 6 21 6 3"></polygon>';
-  const ICON_PAUSE = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-  playBtn.addEventListener("click", () => {
-    playing = !playing;
-    playIcon.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
-    lastFrameTs = null;
-    if (playing) requestAnimationFrame(tick);
-  });
-
-  document.querySelectorAll(".ds-playbar-speed").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".ds-playbar-speed").forEach((b) => {
-        b.classList.remove("active");
-        b.style.background = ""; b.style.color = "";
-      });
-      btn.classList.add("active");
-      btn.style.background = "var(--color-accent)"; btn.style.color = "#fff";
-      speed = parseFloat(btn.dataset.speed);
-    });
-  });
-
-  document.getElementById("tailToggle").addEventListener("change", drawFrame);
-
-  function tick(ts) {
-    if (!playing) return;
-    if (lastFrameTs == null) lastFrameTs = ts;
-    const dtSec = (ts - lastFrameTs) / 1000;
-    lastFrameTs = ts;
-    progress += (dtSec * speed) / TOTAL_SEC;
-    if (progress >= 1) {
-      progress = 1;
-      playing = false;
-      playIcon.innerHTML = ICON_PLAY;
+  let importBatch = 0;
+  function simulateImport() {
+    // 1回目=正常6艇のうち未取込分、2回目以降は壊れたファイル1件を混ぜてエラー状態も確認できるようにする
+    if (importBatch === 0) {
+      addFiles(sampleFiles.map((f) => ({ ...f })));
+    } else {
+      addFiles([{ name: "corrupt.gpx", boatLabel: "", status: "error", seed: 0 }]);
     }
-    updateTimelineUI();
-    drawFrame();
-    if (playing) requestAnimationFrame(tick);
+    importBatch++;
   }
 
-  /* ================= メモ追加 ================= */
-  const addNoteBtn = document.getElementById("addNoteBtn");
-  const noteCompose = document.getElementById("noteCompose");
-  addNoteBtn.addEventListener("click", () => {
-    noteCompose.classList.toggle("open");
-  });
-  document.getElementById("noteCancel").addEventListener("click", () => {
-    noteCompose.classList.remove("open");
-    document.getElementById("noteText").value = "";
-  });
-  document.getElementById("noteSave").addEventListener("click", () => {
-    const text = document.getElementById("noteText").value.trim();
-    if (!text) return;
-    annotations.push({ t: Math.round(progress * TOTAL_SEC), boat: null, author: "あなた", body: text });
-    annotations.sort((a, b) => a.t - b.t);
-    document.getElementById("noteText").value = "";
-    noteCompose.classList.remove("open");
-    document.querySelectorAll(".annotation-pin, .ds-timeline-pin--tack").forEach((el) => el.remove());
-    renderTimelineMarkers();
-    renderAnnotations();
-  });
-
-  /* ================= 共有URL（トースト） ================= */
-  const shareBtn = document.getElementById("shareBtn");
+  /* ---- 保存 ---- */
   const toast = document.getElementById("toast");
-  shareBtn.addEventListener("click", () => {
-    const curSec = Math.round(progress * TOTAL_SEC);
-    const boatsParam = Array.from(comparedBoats).join(",");
-    const legIndex = legs.reduce((acc, leg, i) => (curSec >= leg.t ? i : acc), 0);
-    const url = `https://sailvlog.example/sessions/1?t=${curSec}&boats=${boatsParam}&leg=${legIndex}`;
-    document.getElementById("toastUrl").textContent = url;
-    if (navigator.clipboard) { navigator.clipboard.writeText(url).catch(() => {}); }
+  saveBtn.addEventListener("click", () => {
+    if (saveBtn.disabled) return;
     toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 2600);
+    setTimeout(() => {
+      window.location.href = "replay.html";
+    }, 900);
   });
 
-  /* ================= モバイル: アコーディオン ================= */
-  document.querySelectorAll("[data-collapsible] [data-toggle]").forEach((title) => {
-    title.addEventListener("click", () => {
-      title.closest("[data-collapsible]").classList.toggle("open");
-    });
+  document.getElementById("backToListBtn").addEventListener("click", () => {
+    window.location.href = "sessions-list.html";
   });
 
-  /* ================= 初期化 ================= */
-  function init() {
-    resizeCanvas();
-    renderBoatList();
-    renderTimelineMarkers();
-    updateTimelineUI();
-    drawFrame();
-  }
-  window.addEventListener("resize", () => { resizeCanvas(); drawFrame(); });
-  init();
+  window.addEventListener("resize", () => { resizeCanvas(); drawPreview(); });
+  resizeCanvas();
 })();
+
+/* テーマ切替（DS慣習） */
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
 </script>
 
 </body>
