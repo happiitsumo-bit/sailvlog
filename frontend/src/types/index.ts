@@ -175,6 +175,34 @@ export interface SessionSummary {
   _count: { tracks: number; annotations: number };
 }
 
+export interface Track {
+  id: number;
+  sessionId: number;
+  boatLabel: string;
+  startSec: number;
+  pointCount: number;
+  gridJson: { lat: number[]; lon: number[]; gaps: [number, number][] };
+  sourceApp?: string;
+  createdAt: string;
+}
+
+export interface Annotation {
+  id: number;
+  sessionId: number;
+  authorId: number;
+  tSec: number;
+  trackId?: number;
+  legIndex?: number;
+  body: string;
+  createdAt: string;
+}
+
+export interface SessionDetail {
+  session: SessionSummary & { notes?: string; marks?: { label: string; lat: number; lon: number }[]; legs?: { label: string; startSec: number }[] };
+  tracks: Track[];
+  annotations: Annotation[];
+}
+
 export interface Sailor {
   id: number;
   username: string;

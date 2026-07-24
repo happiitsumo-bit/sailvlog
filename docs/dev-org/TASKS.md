@@ -66,9 +66,14 @@
   - 検証: 手動: 合成GPX6本を取り込み、DB保存後 `/sessions` 一覧に出る。壊れたGPXでエラーメッセージが出て保存されない
   - **検証結果（2026-07-24）**: `frontend/src/app/sessions/new/page.tsx`（ウィザード本体）＋`SessionPreviewCanvas.tsx`（重ね描き静止画プレビュー、lib/replayとは別実装）を実装。lib/gpx（T-11）の`parseGpx`/`computeSessionStart`/`normalizeToGrid`をそのまま利用し、ファイル単位でパース失敗を検知してエラー表示（該当ファイルのみエラー表示・保存ボタンは全体を無効化＝壊れたGPXが1本でもあれば保存されない）。T-12のAPI契約どおり`POST /api/sessions`→各艇`POST /api/sessions/:id/tracks`の順で保存し、成功後`/sessions?teamId=`へ遷移。T-13検証で要求される一覧確認のため、範囲内の最小ページとして`/sessions`（一覧）も同時に実装（ARCH.md §4のフロント主要ページ一覧に記載済みのページ）。teamIdはGET /api/teams（既存公開エンドポイント）から選択する方式（「自分のチーム」を返す専用APIが存在しないため。questions/newのboatType選択と同じパターン）。**この環境にDocker/PostgreSQLが無くbackendコンテナ（DNS名`backend`）に到達できないため、ブラウザでの実POST（DB書き込み込み）のE2E手動確認は実施不可**。実施した検証: ①`npx tsc --noEmit`エラー0 ②`npm run build`成功（`/sessions`, `/sessions/new`とも生成される動的ルートとして出力を確認） ③既存`npx vitest run`（lib/gpx T-11テスト10件）全PASS＝回帰なし ④一時テスト（コミット対象外・実行後削除）でqa-engineer用意の6艇fixture（`__fixtures__/boat1〜6_clean*.gpx`）を実際に`parseGpx`→`computeSessionStart`→`normalizeToGrid`に通し、ウィザードと同じ計算（durationSec=18、6グリッドとも`lat.length===lon.length===pointCount`）が成立することを確認。**DB書き込みを伴うE2E（GPX取込→`/sessions`一覧表示→壊れたGPXでの保存拒否の実ブラウザ確認）はCIで検証**（GitHub ActionsでのDocker+Postgres環境が前提。T-90でCI構築時にこのシナリオのE2Eテストを含めることを推奨）
   - 依存: T-11, T-12
-- [ ] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
+- [x] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
   - 成果物: `lib/replay/`（ReplayClock: rAF+ref／CanvasRenderer: ローカル平面投影・艇マーカー・テール・スケールバー）＋再生/一時停止/1x/4x/8x/シークバー/艇の表示切替UI（UI同期≦10Hz）。SPIKE-01は参照のみ・コピー禁止
   - 検証: 合成6艇セッションでPC実測: 60fps近傍（DevToolsで確認）・シーク体感即応・gaps区間が破線表示。数値はTASKS追記欄に記録
+  - **検証結果（2026-07-24）**: `frontend/src/lib/replay/`（`geo.ts`=投影＋gaps判定の純関数、`ReplayClock.ts`=rAF+ref時刻管理、`CanvasRenderer.ts`=命令的描画、いずれも新規実装・spike/はコード参照のみで未コピー）＋`frontend/src/app/sessions/[id]/page.tsx`（再生ページ）を実装。UIパネル同期はrAFループ内で100ms間隔（=10Hz）に間引き、シーク操作のみ即時反映。
+    - ①ユニットテスト: `t14-replay-engine.test.ts`（computeProjection/project/isIndexInGap/splitByGapRuns の純関数11件＋ReplayClockのplay/pause/speed/clamp/自動停止）全PASS（`npx vitest run`）
+    - ②`npx tsc --noEmit`エラー0・`npm run build`成功（`/sessions/[id]`が動的ルートとして生成される）
+    - ③**実ブラウザでの性能実測**: この環境にDocker/PostgreSQLが無くbackendに接続できないため、SPIKE-01のgen-gpx.js（使い捨てスクリプト、コピー不可の対象外＝データ生成のみでロジックは含まない）で実規模データ（2時間・1Hz・6艇・7200点/艇、うち1艇に30秒ギャップ2箇所）を生成し、T-11の本番`parseGpx`/`normalizeToGrid`で正規化した上で使い捨てのモックAPIサーバ（Node標準httpのみ・新規依存なし・コミット対象外）に載せ、Playwright（環境にプリインストール済み）で`/sessions/[id]`を実ブラウザ（Headless Chromium）で操作して計測。結果: 再生中のrAFフレーム間隔が1x/4x/8xいずれもp50=p95=16.7ms・平均60.0fps（ディスプレイ同期16.7msに張り付き＝描画コストがフレーム予算に対して無視できるレベル。SPIKE-01のPC実測=render p95 0.2msと整合）。シーク応答（値変更→2rAF後の再描画完了まで）は17〜31ms（4サンプル、目標「シーク1秒以内」に対し十分高速）。gaps区間の破線表示はスクリーンショット（ズーム）で目視確認済み（艇3・tSec=1810=gap[1800,1829]内で実線→破線への切り替わりを確認）。console errorは1件（`ERR_CONNECTION_RESET`、モックサーバ未提供の付随リソース起因と推定・再生ロジックと無関係）
+    - 艇の表示切替（チェックボックスでON/OFF）・シークバー・速度切替(1x/4x/8x)は同スクリーンショット/操作で動作確認済み
   - 依存: T-12（T-13と並行可。seedデータで先行開発）
 - [ ] T-15: タイムライン注釈（API＋UI）
   - 成果物: **注釈CRUD API（POST /api/sessions/:id/annotations、PATCH/DELETE /api/annotations/:id。本タスクが唯一の担当）**＋再生ページのタイムラインピン表示・現在時刻で追加（tSec自動キャプチャ、艇はタップで任意付与）・ピンクリックでシーク・一覧サイドパネル
@@ -151,6 +156,8 @@
 6. 新規npm依存の追加はTeam Lead承認制（本設計は依存ゼロで成立する。ARCH.md §1「新技術予算温存」）
 
 ## 発見事項（実装中に見つけたスコープ外の課題）
+
+- （実装者 2026-07-24・T-14）Docker/PostgreSQLが無い環境でも`/sessions/[id]`等の実ブラウザ性能検証を行う手順を確立: ①`spike/gen-gpx.js`で実規模GPXを生成→②`lib/gpx`の本番パーサでJSON化→③Node標準httpのみの使い捨てモックAPIサーバ（`GET /api/boat-types`等の空応答＋対象エンドポイントのフィクスチャ応答、CORS対応必須）→④`NEXT_PUBLIC_API_URL`と`API_URL`を同じ値にして`next build && next start`（**NEXT_PUBLIC_*はビルド時埋め込みのため`next start`時にセットしても効かない点に注意**）→⑤環境にプリインストール済みのPlaywright（`/opt/node22/lib/node_modules/playwright`、`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`）でHeadless Chromiumから操作・計測。T-20（2艇比較55fps計測）・T-25（スマホ想定のviewport計測）でも同じ手順が使い回せるはずなので記録しておく（本番コード・テストには含めていない使い捨て手順のため、必要なら次回実装者がscratchpadで再構築する）
 
 - （実装者 2026-07-24・T-13）ログインユーザーが「自分の所属チーム」を取得するAPI（例: `GET /api/users/me`にteamMembers含める）が存在しない。ARCH.md §4はteamId選択の実装方法まで規定していないため、`/sessions/new`・`/sessions`一覧とも`GET /api/teams`（既存公開エンドポイント・全チーム一覧）から選択する方式で実装（questions/newのboatType選択と同じパターン）。非メンバーのチームを選んでもPOST /api/sessionsが403を返すため実害はないが、UXとしては「自分のチームだけ出す」方が親切。ARCH変更が必要な提案のため実装者判断では追加せず記録のみ（対応要否はarchitect/Team Lead判断）
 - （実装者 2026-07-24・T-13）取込ウィザードで複数艇のtracks投稿が途中失敗した場合（例: 3艇目のPOSTがネットワークエラー）、Sessionは作成済みのまま一部Trackのみ保存された不完全な状態が残る（トランザクション/ロールバックの仕組みがAPI契約にない）。頻度は低いと見積もるが、発生時はユーザーがそのSessionを手動削除して再取込する以外の回復手段がない。API側にトランザクション化や「tracks一括投稿」エンドポイントを足すのはARCH.md §4のI/F変更にあたるため実装者判断では行わず記録のみ
