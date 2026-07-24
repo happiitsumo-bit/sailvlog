@@ -1,0 +1,99 @@
+<!-- @dsCard group="Layout" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  .space-demo { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-sm); }
+  .space-bar { background: var(--color-accent); height: 16px; border-radius: 4px; }
+  .space-label { font-family: var(--font-mono); font-size: var(--font-size-caption1); color: var(--color-label-secondary); width: 160px; }
+  .radius-demo { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-bottom: var(--space-2xl); }
+  .radius-box {
+    width: 96px; height: 96px;
+    background: var(--color-accent-tint);
+    border: 1.5px solid var(--color-accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--font-size-caption1); color: var(--color-accent); font-weight: 600;
+  }
+  .shadow-demo { display: flex; flex-wrap: wrap; gap: var(--space-2xl); margin-bottom: var(--space-2xl); }
+  .shadow-box {
+    width: 120px; height: 80px;
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--font-size-caption1); color: var(--color-label-secondary);
+  }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Layout / スペーシング・角丸・影</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container" style="padding-top: var(--space-lg);">
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">スペーシング（8ptグリッド）</h2>
+    <div class="ds-card" style="margin-bottom: var(--space-2xl);">
+      <div class="space-demo"><span class="space-label">--space-xs (4px)</span><div class="space-bar" style="width: var(--space-xs);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-sm (8px)</span><div class="space-bar" style="width: var(--space-sm);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-md (12px)</span><div class="space-bar" style="width: var(--space-md);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-lg (16px)</span><div class="space-bar" style="width: var(--space-lg);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-xl (20px)</span><div class="space-bar" style="width: var(--space-xl);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-2xl (24px)</span><div class="space-bar" style="width: var(--space-2xl);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-3xl (32px)</span><div class="space-bar" style="width: var(--space-3xl);"></div></div>
+      <div class="space-demo"><span class="space-label">--space-4xl (40px)</span><div class="space-bar" style="width: var(--space-4xl);"></div></div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">角丸スケール</h2>
+    <div class="radius-demo">
+      <div class="radius-box" style="border-radius: var(--radius-sm);">sm 8</div>
+      <div class="radius-box" style="border-radius: var(--radius-input);">input 10</div>
+      <div class="radius-box" style="border-radius: var(--radius-button);">button 12</div>
+      <div class="radius-box" style="border-radius: var(--radius-card);">card 16</div>
+      <div class="radius-box" style="border-radius: var(--radius-sheet);">sheet 20</div>
+      <div class="radius-box" style="border-radius: var(--radius-pill);">pill</div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">シャドウ（多層・柔らかい浮遊感）</h2>
+    <div class="shadow-demo">
+      <div class="shadow-box" style="box-shadow: var(--shadow-xs);">xs</div>
+      <div class="shadow-box" style="box-shadow: var(--shadow-sm);">sm</div>
+      <div class="shadow-box" style="box-shadow: var(--shadow-md);">md</div>
+      <div class="shadow-box" style="box-shadow: var(--shadow-lg);">lg</div>
+      <div class="shadow-box" style="box-shadow: var(--shadow-float);">float</div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">グリッド / コンテナ</h2>
+    <p class="ds-text-footnote" style="margin-bottom: var(--space-md);">
+      .ds-container（max-width 960px, 中央寄せ）と .ds-grid-2/3/4（640px以下で自動1列）を提供。
+    </p>
+    <div class="ds-grid ds-grid-3" style="margin-bottom: var(--space-2xl);">
+      <div class="ds-card" style="text-align:center;">Col 1</div>
+      <div class="ds-card" style="text-align:center;">Col 2</div>
+      <div class="ds-card" style="text-align:center;">Col 3</div>
+    </div>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

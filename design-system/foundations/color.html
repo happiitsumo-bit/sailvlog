@@ -1,0 +1,133 @@
+<!-- @dsCard group="Colors" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-2xl);
+  }
+  .swatch {
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    border: 0.5px solid var(--color-separator);
+    box-shadow: var(--shadow-xs);
+  }
+  .swatch-fill { height: 64px; }
+  .swatch-label {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-bg-elevated);
+  }
+  .swatch-name { font-size: var(--font-size-caption1); font-weight: 600; }
+  .swatch-value { font-size: var(--font-size-caption2); color: var(--color-label-tertiary); font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Colors / カラートークン</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container" style="padding-top: var(--space-lg);">
+    <p class="ds-text-footnote" style="margin-bottom: var(--space-xl);">
+      ニュートラルランプはiOSの systemGray 階調に相当。アクセントは単一のマリンブルー（海・セーリング文脈）。
+      ダークモードは単純な色反転ではなく、面（canvas/primary/secondary/elevated）ごとに個別の階調を持つ。
+      上部の「Auto / Dark / Light」ボタンで両テーマを切り替えて確認できる。
+    </p>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">アクセント — Marine Blue</h2>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-fill" style="background: var(--color-accent);"></div>
+        <div class="swatch-label"><div class="swatch-name">accent</div><div class="swatch-value">--color-accent</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background: var(--color-accent-hover);"></div>
+        <div class="swatch-label"><div class="swatch-name">accent-hover</div><div class="swatch-value">--color-accent-hover</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background: var(--color-accent-pressed);"></div>
+        <div class="swatch-label"><div class="swatch-name">accent-pressed</div><div class="swatch-value">--color-accent-pressed</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background: var(--color-accent-tint);"></div>
+        <div class="swatch-label"><div class="swatch-name">accent-tint</div><div class="swatch-value">--color-accent-tint</div></div>
+      </div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">ニュートラルランプ</h2>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-050);"></div><div class="swatch-label"><div class="swatch-name">gray-050</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-100);"></div><div class="swatch-label"><div class="swatch-name">gray-100</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-200);"></div><div class="swatch-label"><div class="swatch-name">gray-200</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-300);"></div><div class="swatch-label"><div class="swatch-name">gray-300</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-400);"></div><div class="swatch-label"><div class="swatch-name">gray-400</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-500);"></div><div class="swatch-label"><div class="swatch-name">gray-500</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-600);"></div><div class="swatch-label"><div class="swatch-name">gray-600</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-700);"></div><div class="swatch-label"><div class="swatch-name">gray-700</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-800);"></div><div class="swatch-label"><div class="swatch-name">gray-800</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-gray-900);"></div><div class="swatch-label"><div class="swatch-name">gray-900</div></div></div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">サーフェス</h2>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-bg-canvas);"></div><div class="swatch-label"><div class="swatch-name">bg-canvas</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-bg-primary);"></div><div class="swatch-label"><div class="swatch-name">bg-primary</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-bg-secondary);"></div><div class="swatch-label"><div class="swatch-name">bg-secondary</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-bg-elevated);"></div><div class="swatch-label"><div class="swatch-name">bg-elevated</div></div></div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">セマンティック</h2>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-success);"></div><div class="swatch-label"><div class="swatch-name">success</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-warning);"></div><div class="swatch-label"><div class="swatch-name">warning</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-danger);"></div><div class="swatch-label"><div class="swatch-name">danger</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-info);"></div><div class="swatch-label"><div class="swatch-name">info</div></div></div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">sailvlog固有（セッション種別・艇識別）</h2>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-race);"></div><div class="swatch-label"><div class="swatch-name">race</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-practice);"></div><div class="swatch-label"><div class="swatch-name">practice</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-boat-1);"></div><div class="swatch-label"><div class="swatch-name">boat-1</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-boat-2);"></div><div class="swatch-label"><div class="swatch-name">boat-2</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-boat-3);"></div><div class="swatch-label"><div class="swatch-name">boat-3</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background: var(--color-boat-4);"></div><div class="swatch-label"><div class="swatch-name">boat-4</div></div></div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">ラベル（テキスト）とヘアライン</h2>
+    <div class="ds-card ds-stack ds-gap-sm">
+      <span class="ds-text-body" style="color: var(--color-label-primary);">label-primary — 本文テキスト</span>
+      <span class="ds-text-body" style="color: var(--color-label-secondary);">label-secondary — 補足テキスト</span>
+      <span class="ds-text-body" style="color: var(--color-label-tertiary);">label-tertiary — プレースホルダー相当</span>
+      <hr class="ds-hairline" style="margin: var(--space-sm) 0;">
+      <span class="ds-text-footnote">↑ ds-hairline（0.5px相当のセパレーター）</span>
+    </div>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

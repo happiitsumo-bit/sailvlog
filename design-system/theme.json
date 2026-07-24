@@ -1,0 +1,118 @@
+{
+  "name": "sailvlog Design System",
+  "version": "3.0.0",
+  "direction": "インスタ・macOS・iOSのように誰でも使いやすく、直感的にわかる",
+  "typography": {
+    "fontFamily": {
+      "sans": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Hiragino Sans\", \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", \"Segoe UI\", Roboto, sans-serif",
+      "mono": "ui-monospace, \"SF Mono\", \"Menlo\", \"Consolas\", monospace"
+    },
+    "weight": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700 },
+    "scale": {
+      "largeTitle": { "size": 34, "lineHeight": 41, "weight": 700 },
+      "title1": { "size": 28, "lineHeight": 34, "weight": 700 },
+      "title2": { "size": 22, "lineHeight": 28, "weight": 700 },
+      "title3": { "size": 20, "lineHeight": 25, "weight": 600 },
+      "headline": { "size": 17, "lineHeight": 22, "weight": 600 },
+      "body": { "size": 17, "lineHeight": 23, "weight": 400 },
+      "callout": { "size": 16, "lineHeight": 21, "weight": 400 },
+      "subheadline": { "size": 15, "lineHeight": 20, "weight": 400 },
+      "footnote": { "size": 13, "lineHeight": 18, "weight": 400 },
+      "caption1": { "size": 12, "lineHeight": 16, "weight": 400 },
+      "caption2": { "size": 11, "lineHeight": 13, "weight": 400 }
+    }
+  },
+  "spacing": {
+    "2xs": 2, "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 20,
+    "2xl": 24, "3xl": 32, "4xl": 40, "5xl": 48, "6xl": 64
+  },
+  "radius": {
+    "sm": 8,
+    "input": 10,
+    "button": 12,
+    "card": 16,
+    "sheet": 20,
+    "pill": 999
+  },
+  "shadow": {
+    "note": "各キーはlight/darkでrgba透明度が異なる。実値はstyles.cssの--shadow-*参照",
+    "tokens": ["xs", "sm", "md", "lg", "float"]
+  },
+  "color": {
+    "accent": {
+      "note": "マリンブルー（セーリング文脈の単一アクセント）",
+      "light": {
+        "accent": "#0a6fd6",
+        "hover": "#0862bd",
+        "pressed": "#0757a6",
+        "tint": "rgba(10, 111, 214, 0.12)"
+      },
+      "dark": {
+        "accent": "#3d93ff",
+        "hover": "#5aa4ff",
+        "pressed": "#6bb0ff",
+        "tint": "rgba(61, 147, 255, 0.16)"
+      }
+    },
+    "neutralRamp": {
+      "note": "iOS systemGray的階調。ライトは0=最も明るい面、900=最も濃い文字。ダークは逆転しつつ単純反転ではなく個別調整。",
+      "steps": [50, 100, 200, 300, 400, 500, 600, 700, 800, 900],
+      "light": [
+        "#f7f7f8", "#eeeef0", "#e2e2e6", "#d0d0d6", "#b6b6bf",
+        "#97979f", "#77777f", "#58585f", "#3a3a3f", "#1c1c1f"
+      ],
+      "dark": [
+        "#1c1c1e", "#242426", "#2c2c2e", "#3a3a3c", "#48484a",
+        "#636366", "#8e8e93", "#aeaeb2", "#c7c7cc", "#f2f2f7"
+      ]
+    },
+    "surface": {
+      "light": {
+        "canvas": "#f2f2f5",
+        "primary": "#ffffff",
+        "secondary": "#f7f7f8",
+        "elevated": "#ffffff"
+      },
+      "dark": {
+        "canvas": "#000000",
+        "primary": "#1c1c1e",
+        "secondary": "#2c2c2e",
+        "elevated": "#242426"
+      }
+    },
+    "label": {
+      "light": {
+        "primary": "#1c1c1f",
+        "secondary": "rgba(28,28,31,0.6)",
+        "tertiary": "rgba(28,28,31,0.38)"
+      },
+      "dark": {
+        "primary": "#f2f2f7",
+        "secondary": "rgba(242,242,247,0.6)",
+        "tertiary": "rgba(242,242,247,0.38)"
+      }
+    },
+    "semantic": {
+      "light": { "success": "#1fa363", "warning": "#d98a12", "danger": "#e0392f", "info": "#0a6fd6" },
+      "dark": { "success": "#34c07a", "warning": "#f0a72e", "danger": "#ff5b52", "info": "#3d93ff" }
+    },
+    "sailvlog": {
+      "race": { "light": "#e0392f", "dark": "#ff5b52" },
+      "practice": { "light": "#0a6fd6", "dark": "#3d93ff" },
+      "boats": {
+        "light": ["#0a6fd6", "#e0392f", "#d98a12", "#1fa363"],
+        "dark": ["#3d93ff", "#ff5b52", "#f0a72e", "#34c07a"]
+      }
+    }
+  },
+  "material": {
+    "note": "半透明+backdrop-filterのiOS的マテリアル。topbar/tabbar/playbarに使用。",
+    "light": { "background": "rgba(255,255,255,0.72)", "blur": "20px", "border": "rgba(60,60,67,0.18)" },
+    "dark": { "background": "rgba(28,28,30,0.72)", "blur": "20px", "border": "rgba(84,84,88,0.5)" }
+  },
+  "darkModeStrategy": "iOSライクな面階調再定義。単純な色反転(invert)ではなく、canvas/primary/secondary/elevatedの4面を個別に定義し、アクセントとラベルは明度を落とすのではなくビビッドさを保つ方向に調整。",
+  "themeSwitching": {
+    "mechanism": "media prefers-color-scheme をデフォルトとし、:root[data-theme=\"dark\"] / [data-theme=\"light\"] が明示的に上書きする",
+    "attribute": "data-theme on <html> or wrapping element"
+  }
+}
