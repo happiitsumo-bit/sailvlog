@@ -26,7 +26,10 @@
   - [ ] 一番危ない技術リスクに検証プラン（または検証済み）がある
   - [ ] TASKS.md の Phase 1 が「動く最小版」に最短到達する並びになっている
   - [ ] 過剰設計チェック: 「まだ無い問題」のための構造が入っていない（YAGNI）
-- 通過記録: {日付} / researcher起動一覧: 下記 / Codexレビュー: {実施日・指摘対応} / 備考:
+- 通過記録: **2026-07-24 PASS（Team Lead判定）** / researcher起動一覧: 下記 / Codexレビュー: 2026-07-24実施・指摘15件（High 6）→ 12件対応・3件はTeam Lead裁定で受容/降格（対応表はarchitect最終報告、コミット 8e1dcc4） / 備考:
+  - RQ判定: 12件中10件decided、RQ-09/10は方向decided（優先度「実装中可」につきテンプレの「保留+理由」の範囲内としてTeam Lead受容。RQ-10は独立2ソース未達=一次1件のみ、実装タスクT-21で確定する）
+  - SPIKE-01: PC全項目PASS（60fps/render p95 0.2ms/シーク<1ms/メモリ発散なし、コミット 4433b3a）。MapLibre比較は省略をTeam Lead受容（researcher①の独立2ソースが構造的不利を裏付け）。スマホ実機はB-2として未了（S1完了判定までに回収必須）
+  - 実装着手条件: S0〔共通〕のみ着手可。S1以降はB-1主役確定サブゲート（オーナーの2週間並行検証）待ち
   - researcher① 観点=再生エンジン/フロント（OSS実例・技術ブログ）担当RQ=01,02,04,12 → research/replay-engine.md（起動 2026-07-24）
   - researcher② 観点=データモデル/GPX処理（公式Doc・OSS）担当RQ=03,05,06,09,10 → research/data-model.md（起動 2026-07-24）
   - researcher③ 観点=基盤統合/ホスティング/収録（公式Doc・事例）担当RQ=07,08,11 → research/infra-recording.md（起動 2026-07-24）
