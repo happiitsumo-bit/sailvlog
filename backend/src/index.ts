@@ -7,6 +7,8 @@ import usersRouter from "./routes/users";
 import boatTypesRouter from "./routes/boatTypes";
 import sailorsRouter from "./routes/sailors";
 import teamsRouter from "./routes/teams";
+import sessionsRouter from "./routes/sessions";
+import tracksRouter from "./routes/tracks";
 
 // v3ピボット（2026-07-24, ADR-003）: 凍結対象ルート。
 // 実装は410 Goneの薄いハンドラに置換し、ルータ本体（articles等）はコードとして残置する
@@ -22,6 +24,10 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:3001,http:/
   .split(",")
   .map((o) => o.trim());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
+// v3(T-12, ARCH.md §4): /api/sessions系はgridJson/rawGpxを含むためlimitを拡張。
+// 既存ルートのlimitは変えない（express.jsonは既にreq._bodyがtrueなら再パースをスキップするため安全に併存できる）。
+app.use("/api/sessions", express.json({ limit: "8mb" }));
+app.use("/api/tracks", express.json({ limit: "8mb" }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
@@ -33,6 +39,8 @@ app.use("/api/users", usersRouter);
 app.use("/api/boat-types", boatTypesRouter);
 app.use("/api/sailors", sailorsRouter);
 app.use("/api/teams", teamsRouter);
+app.use("/api/sessions", sessionsRouter);
+app.use("/api/tracks", tracksRouter);
 
 // 凍結ルート（410 Gone。ADR-003）
 app.all("/api/articles", gone);

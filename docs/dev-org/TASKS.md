@@ -55,9 +55,11 @@
   - 検証: ユニットテスト（正常系6艇・欠測ギャップ・時刻逆転/属性欠落GPXの拒否・startSecオフセット計算）が通る
   - **検証結果（2026-07-24）**: `parseGpx`/`normalizeToGrid`/`computeSessionStart`を`frontend/src/lib/gpx/parse.ts`に実装（qa-engineer用意のfixture `__fixtures__/*.gpx` を流用）。Vitest（jsdom環境）10件全PASS: 正常系6艇・startSecオフセット5s/10s・欠測ギャップgaps=[[4,6]]検出＋補間・時刻逆転拒否・属性欠落拒否・壊れたXML拒否・エッジケース(trkpt0件拒否/1点のみ)・gridJson長一致。実行: `docker compose exec frontend npx vitest run src/lib/gpx`
   - 依存: なし
-- [ ] T-12: セッションAPI（Express）
+- [x] T-12: セッションAPI（Express）
   - 成果物: ARCH.md §4のうち**セッション/トラック系エンドポイント**（POST/GET/PATCH/DELETE sessions、POST tracks、GET tracks/:id/gpx）＋`requireTeamMember`ミドルウェア＋サーバ側構造検証。GET /:id はrawGpx除外・gzip。**注釈エンドポイント（annotations系）は本タスクの対象外＝T-15の担当**
   - 検証: supertest（作成→track投稿→取得→非メンバー403→削除権限403/204、バリデーション400系）が通る。構造検証はARCH.md §4の定義どおり: `gridJson.lat.length === gridJson.lon.length === pointCount` を検証し、**gapsは点列と長さを揃えない別配列**として各要素`[start,end]`の境界（`0 ≦ start ≦ end < pointCount`）を別途検証するテストを含む
+  - **検証結果（2026-07-24）**: `backend/src/routes/sessions.ts`（POST/GET一覧/GET詳細/PATCH/DELETE/POST tracks）＋`backend/src/routes/tracks.ts`（GET :id/gpx）＋`middleware/requireTeamMember.ts`＋`lib/validateTrackPayload.ts`を実装。express.jsonのlimitを`/api/sessions`・`/api/tracks`のみ8mbに拡張（他ルートは変更なし）。qa-engineer用意の`fixtures/trackPayloads.ts`をそのまま使い`t12-sessions-api.test.ts`で25件全PASS（作成/一覧/詳細/更新/削除の認可、lat・lon範囲外、length不一致、gaps境界（start負・end超過・start>end・境界ぎりぎり201）、duration超過、gridJson2MB超/rawGpx5MB超→413、非TeamMember403、未認証401）。バックエンド全体`docker compose exec backend npx jest`= 5 suites / 36 passed + 27 todo（qa側todo）。追加でcurl手動確認: register→session作成→track投稿→GET詳細(gridJson込み・rawGpx除外)→GPXダウンロード→DELETE(204)の一連が通ることを確認（テスト後にデータはクリーンアップ済み）
+  - **仕様上の補足**: `type`はPrismaで`@default(practice)`のため必須項目リストから除外（省略可）。gridJson/rawGpxのサイズ超過は`durationSec超過`より優先して413を返すよう順序を決定（両方に該当する場合の判定を一意にするため）
   - 依存: T-10
 - [ ] T-13: 取込ウィザードUI（`/sessions/new`）
   - 成果物: 複数GPXファイル選択→lib/gpxで正規化→重ね描き簡易プレビュー（Canvas静止画で可）→艇ラベル入力→Session+Tracks保存
