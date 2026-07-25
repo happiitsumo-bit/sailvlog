@@ -29,6 +29,7 @@ export default function NewSessionPage() {
   const [tracks, setTracks] = useState<TrackDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -61,6 +62,22 @@ export default function NewSessionPage() {
 
     setTracks(drafts);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragActive(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragActive(false);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragActive(false);
+    handleFiles(e.dataTransfer.files);
   }
 
   function updateBoatLabel(index: number, label: string) {
@@ -191,15 +208,41 @@ export default function NewSessionPage() {
 
         <div>
           <label htmlFor="s-gpx" style={fieldLabelStyle}>GPX FILES（艇ごとに1本・複数選択可）*</label>
-          <input
-            id="s-gpx"
-            ref={fileInputRef}
-            type="file"
-            accept=".gpx"
-            multiple
-            onChange={(e) => handleFiles(e.target.files)}
-            style={{ display: "block", marginTop: "0.25rem" }}
-          />
+          {/* ドロップゾーンは<button>+実<input type=file>で構成し、クリック可能なdivにはしない
+              （UI-DESIGN §7-4）。入力自体は.sr-onlyで視覚非表示にしつつフォーカス経路は残す。 */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.6rem",
+              padding: "1.5rem 1rem",
+              marginTop: "0.25rem",
+              textAlign: "center",
+              border: `2px dashed ${dragActive ? "var(--color-accent)" : "var(--border)"}`,
+              borderRadius: 8,
+              background: dragActive ? "var(--card)" : "transparent",
+            }}
+          >
+            <p className="dropzone-hint" style={{ margin: 0, fontSize: "0.85rem", color: "var(--fg-mute)" }}>
+              ここにGPXをドラッグ&ドロップ
+            </p>
+            <button type="button" className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>
+              ファイルを選択
+            </button>
+            <input
+              id="s-gpx"
+              ref={fileInputRef}
+              type="file"
+              accept=".gpx"
+              multiple
+              onChange={(e) => handleFiles(e.target.files)}
+              className="sr-only"
+            />
+          </div>
         </div>
 
         {tracks.length > 0 && (

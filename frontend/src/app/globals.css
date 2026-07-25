@@ -1933,6 +1933,12 @@ button { font-family: inherit; cursor: pointer; }
   .layout-two-col {
     grid-template-columns: 1fr;
   }
+
+  /* セッション取込（/sessions/new）: タッチ環境はDnD非対応前提のため案内文を隠し、
+     「ファイルを選択」ボタンのみ残す（UI-DESIGN §3 スマホ変形） */
+  .dropzone-hint {
+    display: none;
+  }
   .sidebar {
     position: static;
   }
@@ -2518,6 +2524,35 @@ button { font-family: inherit; cursor: pointer; }
   .app-main { padding: 1rem; }
   .bottom-tab-bar { display: block; }
   .topbar-search { display: none; }
+}
+
+/* ===== リプレイ画面（/sessions/[id]）レイアウト =====
+   DOM順とは独立に、名前付きグリッドエリアで画面幅ごとの配置だけを切り替える。
+   モバイル（既定）は縦1列＝「Canvas→再生コントロール→タイムライン→レグ→比較→メモ」
+   （UI-DESIGN §4.6・§7 #2）。デスクトップは本文2列＋右サイドバーに再配置する。 */
+.replay-layout {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "canvas"
+    "controls"
+    "timeline"
+    "legs"
+    "compare"
+    "memo";
+}
+
+@media (min-width: 769px) {
+  .replay-layout {
+    grid-template-columns: minmax(300px, 1fr) 240px;
+    grid-template-areas:
+      "canvas   compare"
+      "controls compare"
+      "timeline memo"
+      "legs     memo";
+  }
 }
 
 /* ===== a11y: screen-reader only ===== */

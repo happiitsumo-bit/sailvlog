@@ -11,6 +11,14 @@ import { LocalProjection, RenderTrack, project, splitByGapRuns } from "./geo";
 // （index % BOAT_COLORS.length。線種による識別強化＝§7 #8は別タスクの範囲）。
 export const BOAT_COLORS = ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a"];
 
+/**
+ * 5・6艇目（index 4・5）は色を再利用する（BOAT_COLORSは4色のまま増やさない）ため、
+ * 線種（破線）で見分けられるようにする（UI-DESIGN.md §4.2「6艇の識別ルール」／§7 #8）。
+ */
+export function getBoatLineDash(trackIndex: number): number[] {
+  return trackIndex >= BOAT_COLORS.length ? [7, 4] : [];
+}
+
 export interface RenderFrameOptions {
   tracks: RenderTrack[];
   proj: LocalProjection;
@@ -62,7 +70,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
       ctx.globalAlpha = emphasis.alpha * 0.65;
       ctx.lineWidth = emphasis.lineWidth;
       for (const run of runs) {
-        ctx.setLineDash(run.dashed ? [4, 3] : []);
+        ctx.setLineDash(run.dashed ? [4, 3] : getBoatLineDash(trackIndex));
         ctx.beginPath();
         for (let i = run.from; i <= run.to; i++) {
           const [x, y] = project(proj, lat[i], lon[i]);
@@ -85,6 +93,17 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
     ctx.lineWidth = comparisonTrackIds?.has(track.id) ? 2 : 1;
     ctx.strokeStyle = "#ffffff";
     ctx.stroke();
+
+    // 艇ラベル（色だけに識別を依存させない。§7 #8・UI-DESIGN §4.2「常時描画」）
+    const labelX = x + emphasis.markerRadius + 4;
+    const labelY = y + 4;
+    ctx.font = "11px -apple-system, system-ui";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(6, 20, 30, 0.85)";
+    ctx.strokeText(track.boatLabel, labelX, labelY);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(track.boatLabel, labelX, labelY);
+
     ctx.globalAlpha = 1;
   });
 }

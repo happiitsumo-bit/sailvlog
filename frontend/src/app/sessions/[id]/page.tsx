@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { Annotation, SessionDetail } from "@/types";
-import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
+import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, getBoatLineDash, RenderTrack, LocalProjection } from "@/lib/replay";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -20,6 +20,25 @@ const ANNOTATION_KINDS = {
 } as const;
 type AnnotationKind = keyof typeof ANNOTATION_KINDS;
 type Leg = { label: string; startSec: number };
+
+/**
+ * サイドバーのチェックリスト色スウォッチをCanvas描画と同じ「色＋線種」で表す
+ * （UI-DESIGN §4.2「6艇の識別ルール」・§7 #8: 色だけに識別を依存させない）。
+ */
+function boatSwatchStyle(trackIndex: number): React.CSSProperties {
+  const color = BOAT_COLORS[trackIndex % BOAT_COLORS.length];
+  const dashed = getBoatLineDash(trackIndex).length > 0;
+  return {
+    width: 18,
+    height: 4,
+    borderRadius: 2,
+    display: "inline-block",
+    flexShrink: 0,
+    background: dashed
+      ? `repeating-linear-gradient(to right, ${color} 0 6px, transparent 6px 10px)`
+      : color,
+  };
+}
 
 function formatTime(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
@@ -351,16 +370,21 @@ function SessionReplayPageContent() {
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ flex: "1 1 600px", minWidth: 300 }}>
+      {/* DOM順は「Canvas→再生コントロール→タイムライン→レグ→比較→メモ」が正
+          （UI-DESIGN §4.6・§7 #2）。CSS Gridの名前付きエリアでモバイルは縦1列＝この順、
+          デスクトップは2列（本文＋サイドバー）に再配置する。 */}
+      <div className="replay-layout">
+        <div style={{ gridArea: "canvas" }}>
           <canvas
             ref={canvasRef}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
             style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block" }}
           />
+        </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
+        <div style={{ gridArea: "controls" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
             <button type="button" onClick={togglePlay} className="btn btn-primary" style={{ minWidth: 88 }}>
               {playing ? "一時停止" : "再生"}
             </button>
@@ -394,8 +418,10 @@ function SessionReplayPageContent() {
               クリップボードが使えませんでした。このURLを手動でコピーしてください: {shareError}
             </p>
           )}
+        </div>
 
-          <div style={{ position: "relative", marginTop: "0.6rem" }}>
+        <div style={{ gridArea: "timeline" }}>
+          <div style={{ position: "relative" }}>
             <input
               type="range"
               min={0}
@@ -450,10 +476,11 @@ function SessionReplayPageContent() {
               ))}
             </div>
           </div>
+        </div>
 
           <section
             aria-labelledby="legs-title"
-            style={{ marginTop: "0.8rem", padding: "0.8rem 1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
+            style={{ gridArea: "legs", padding: "0.8rem 1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
               <h3 id="legs-title" className="sidebar-title" style={{ margin: 0, marginRight: "0.25rem" }}>レグ</h3>
@@ -483,6 +510,68 @@ function SessionReplayPageContent() {
             </p>
             {legError && <p role="alert" style={{ margin: "0.4rem 0 0", color: "var(--terra)", fontSize: "0.8rem" }}>{legError}</p>}
           </section>
+
+          <div style={{ gridArea: "compare" }}>
+          <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>艇の表示</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
+            {tracks.map((t, i) => (
+              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
+                <span aria-hidden style={boatSwatchStyle(i)} />
+                <span>{t.boatLabel}</span>
+              </label>
+            ))}
+          </div>
+
+          <h3 className="sidebar-title" style={{ marginBottom: "0.4rem" }}>比較する2艇（{comparisonTrackIds.size}/2）</h3>
+          <p style={{ fontSize: "0.75rem", color: "var(--fg-mute)", margin: "0 0 0.65rem" }}>
+            2艇を選ぶと、他艇を減光します。
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            {tracks.map((t, i) => (
+              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
+                <span aria-hidden style={boatSwatchStyle(i)} />
+                <span>{t.boatLabel}</span>
+              </label>
+            ))}
+          </div>
+          <p role="status" style={{ minHeight: "1.2rem", margin: 0, fontSize: "0.75rem", color: "var(--fg-mute)" }}>
+            {comparisonMessage}
+          </p>
+          </div>
+
+          <div style={{ gridArea: "memo" }}>
+          <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>注釈（{annotations.length}）</h3>
+          {annotations.length === 0 ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--fg-mute)" }}>まだ注釈がありません</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {annotations.map((a) => {
+                const track = tracks.find((t) => t.id === a.trackId);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => seekAndSync(a.tSec)}
+                    style={{
+                      textAlign: "left",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      padding: "0.5rem 0.65rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
+                      {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
             <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
@@ -528,68 +617,7 @@ function SessionReplayPageContent() {
               {addingAnnotation ? "注釈を追加しています" : ""}
             </p>
           </div>
-        </div>
-
-        <aside style={{ flex: "0 0 240px", minWidth: 200 }}>
-          <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>艇の表示</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
-            {tracks.map((t, i) => (
-              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
-                <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
-                <span>{t.boatLabel}</span>
-              </label>
-            ))}
           </div>
-
-          <h3 className="sidebar-title" style={{ marginBottom: "0.4rem" }}>比較する2艇（{comparisonTrackIds.size}/2）</h3>
-          <p style={{ fontSize: "0.75rem", color: "var(--fg-mute)", margin: "0 0 0.65rem" }}>
-            2艇を選ぶと、他艇を減光します。
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
-            {tracks.map((t, i) => (
-              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
-                <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
-                <span>{t.boatLabel}</span>
-              </label>
-            ))}
-          </div>
-          <p role="status" style={{ minHeight: "1.2rem", margin: "0 0 1.25rem", fontSize: "0.75rem", color: "var(--fg-mute)" }}>
-            {comparisonMessage}
-          </p>
-
-          <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>注釈（{annotations.length}）</h3>
-          {annotations.length === 0 ? (
-            <p style={{ fontSize: "0.8rem", color: "var(--fg-mute)" }}>まだ注釈がありません</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-              {annotations.map((a) => {
-                const track = tracks.find((t) => t.id === a.trackId);
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => seekAndSync(a.tSec)}
-                    style={{
-                      textAlign: "left",
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 6,
-                      padding: "0.5rem 0.65rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
-                      {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
-                    </div>
-                    <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </aside>
       </div>
     </div>
   );

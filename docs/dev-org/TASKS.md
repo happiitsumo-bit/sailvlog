@@ -61,12 +61,12 @@
   - **検証結果（2026-07-24）**: `backend/src/routes/sessions.ts`（POST/GET一覧/GET詳細/PATCH/DELETE/POST tracks）＋`backend/src/routes/tracks.ts`（GET :id/gpx）＋`middleware/requireTeamMember.ts`＋`lib/validateTrackPayload.ts`を実装。express.jsonのlimitを`/api/sessions`・`/api/tracks`のみ8mbに拡張（他ルートは変更なし）。qa-engineer用意の`fixtures/trackPayloads.ts`をそのまま使い`t12-sessions-api.test.ts`で25件全PASS（作成/一覧/詳細/更新/削除の認可、lat・lon範囲外、length不一致、gaps境界（start負・end超過・start>end・境界ぎりぎり201）、duration超過、gridJson2MB超/rawGpx5MB超→413、非TeamMember403、未認証401）。バックエンド全体`docker compose exec backend npx jest`= 5 suites / 36 passed + 27 todo（qa側todo）。追加でcurl手動確認: register→session作成→track投稿→GET詳細(gridJson込み・rawGpx除外)→GPXダウンロード→DELETE(204)の一連が通ることを確認（テスト後にデータはクリーンアップ済み）
   - **仕様上の補足**: `type`はPrismaで`@default(practice)`のため必須項目リストから除外（省略可）。gridJson/rawGpxのサイズ超過は`durationSec超過`より優先して413を返すよう順序を決定（両方に該当する場合の判定を一意にするため）
   - 依存: T-10
-- [ ] T-13: 取込ウィザードUI（`/sessions/new`）
+- [x] T-13: 取込ウィザードUI（`/sessions/new`）
   - 成果物: 複数GPXファイル選択→lib/gpxで正規化→重ね描き簡易プレビュー（Canvas静止画で可）→艇ラベル入力→Session+Tracks保存
   - 検証: 手動: 合成GPX6本を取り込み、DB保存後 `/sessions` 一覧に出る。壊れたGPXでエラーメッセージが出て保存されない
   - **検証結果（2026-07-24）**: `frontend/src/app/sessions/new/page.tsx`（ウィザード本体）＋`SessionPreviewCanvas.tsx`（重ね描き静止画プレビュー、lib/replayとは別実装）を実装。lib/gpx（T-11）の`parseGpx`/`computeSessionStart`/`normalizeToGrid`をそのまま利用し、ファイル単位でパース失敗を検知してエラー表示（該当ファイルのみエラー表示・保存ボタンは全体を無効化＝壊れたGPXが1本でもあれば保存されない）。T-12のAPI契約どおり`POST /api/sessions`→各艇`POST /api/sessions/:id/tracks`の順で保存し、成功後`/sessions?teamId=`へ遷移。T-13検証で要求される一覧確認のため、範囲内の最小ページとして`/sessions`（一覧）も同時に実装（ARCH.md §4のフロント主要ページ一覧に記載済みのページ）。teamIdはGET /api/teams（既存公開エンドポイント）から選択する方式（「自分のチーム」を返す専用APIが存在しないため。questions/newのboatType選択と同じパターン）。**この環境にDocker/PostgreSQLが無くbackendコンテナ（DNS名`backend`）に到達できないため、ブラウザでの実POST（DB書き込み込み）のE2E手動確認は実施不可**。実施した検証: ①`npx tsc --noEmit`エラー0 ②`npm run build`成功（`/sessions`, `/sessions/new`とも生成される動的ルートとして出力を確認） ③既存`npx vitest run`（lib/gpx T-11テスト10件）全PASS＝回帰なし ④一時テスト（コミット対象外・実行後削除）でqa-engineer用意の6艇fixture（`__fixtures__/boat1〜6_clean*.gpx`）を実際に`parseGpx`→`computeSessionStart`→`normalizeToGrid`に通し、ウィザードと同じ計算（durationSec=18、6グリッドとも`lat.length===lon.length===pointCount`）が成立することを確認。**DB書き込みを伴うE2E（GPX取込→`/sessions`一覧表示→壊れたGPXでの保存拒否の実ブラウザ確認）はCIで検証**（GitHub ActionsでのDocker+Postgres環境が前提。T-90でCI構築時にこのシナリオのE2Eテストを含めることを推奨）
   - 依存: T-11, T-12
-- [ ] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
+- [x] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
   - 成果物: `lib/replay/`（ReplayClock: rAF+ref／CanvasRenderer: ローカル平面投影・艇マーカー・テール・スケールバー）＋再生/一時停止/1x/4x/8x/シークバー/艇の表示切替UI（UI同期≦10Hz）。SPIKE-01は参照のみ・コピー禁止
   - 検証: 合成6艇セッションでPC実測: 60fps近傍（DevToolsで確認）・シーク体感即応・gaps区間が破線表示。数値はTASKS追記欄に記録
   - **検証結果（2026-07-24）**: `frontend/src/lib/replay/`（`geo.ts`=投影＋gaps判定の純関数、`ReplayClock.ts`=rAF+ref時刻管理、`CanvasRenderer.ts`=命令的描画、いずれも新規実装・spike/はコード参照のみで未コピー）＋`frontend/src/app/sessions/[id]/page.tsx`（再生ページ）を実装。UIパネル同期はrAFループ内で100ms間隔（=10Hz）に間引き、シーク操作のみ即時反映。
@@ -75,7 +75,7 @@
     - ③**実ブラウザでの性能実測**: この環境にDocker/PostgreSQLが無くbackendに接続できないため、SPIKE-01のgen-gpx.js（使い捨てスクリプト、コピー不可の対象外＝データ生成のみでロジックは含まない）で実規模データ（2時間・1Hz・6艇・7200点/艇、うち1艇に30秒ギャップ2箇所）を生成し、T-11の本番`parseGpx`/`normalizeToGrid`で正規化した上で使い捨てのモックAPIサーバ（Node標準httpのみ・新規依存なし・コミット対象外）に載せ、Playwright（環境にプリインストール済み）で`/sessions/[id]`を実ブラウザ（Headless Chromium）で操作して計測。結果: 再生中のrAFフレーム間隔が1x/4x/8xいずれもp50=p95=16.7ms・平均60.0fps（ディスプレイ同期16.7msに張り付き＝描画コストがフレーム予算に対して無視できるレベル。SPIKE-01のPC実測=render p95 0.2msと整合）。シーク応答（値変更→2rAF後の再描画完了まで）は17〜31ms（4サンプル、目標「シーク1秒以内」に対し十分高速）。gaps区間の破線表示はスクリーンショット（ズーム）で目視確認済み（艇3・tSec=1810=gap[1800,1829]内で実線→破線への切り替わりを確認）。console errorは1件（`ERR_CONNECTION_RESET`、モックサーバ未提供の付随リソース起因と推定・再生ロジックと無関係）
     - 艇の表示切替（チェックボックスでON/OFF）・シークバー・速度切替(1x/4x/8x)は同スクリーンショット/操作で動作確認済み
   - 依存: T-12（T-13と並行可。seedデータで先行開発）
-- [ ] T-15: タイムライン注釈（API＋UI）
+- [x] T-15: タイムライン注釈（API＋UI）
   - 成果物: **注釈CRUD API（POST /api/sessions/:id/annotations、PATCH/DELETE /api/annotations/:id。本タスクが唯一の担当）**＋再生ページのタイムラインピン表示・現在時刻で追加（tSec自動キャプチャ、艇はタップで任意付与）・ピンクリックでシーク・一覧サイドパネル
   - 検証: supertest（権限含む）＋手動: 注釈追加→リロード後も表示→ピンからシーク
   - **検証結果（2026-07-24）**: `backend/src/lib/validateAnnotationPayload.ts`（tSec∈[0,durationSec]・body≦2000字の構造検証）＋`backend/src/routes/sessions.ts`に`POST /:id/annotations`追加＋新規`backend/src/routes/annotations.ts`（`PATCH/DELETE /api/annotations/:id`、author本人 or Team adminのみ＝`requireTeamMember.ts`に追加した`isAuthorOrTeamAdmin`で判定）。フロントは`frontend/src/app/sessions/[id]/page.tsx`にタイムラインピン（シークバー直下、`tSec/durationSec`の位置にクリック可能な丸ボタン、クリックでシーク）・現在時刻に注釈追加するフォーム（艇の任意紐付けはタップ操作ではなくプルダウン選択に簡略化＝UI実装上の裁定で、ARCH変更ではない）・注釈一覧サイドパネル（クリックでシーク）を追加。
@@ -107,6 +107,25 @@
 >
 > **DS適用（2026-07-25・implementer/T-26と同時実施）**: `frontend/src/app/globals.css`の`:root`トークンをdesign-system/styles.css・theme.json準拠の値に差し替え（旧v1"Claude-paper"の変数名はDSトークンへのエイリアスとして残し、`.form-page`/`.container`/`.btn`等の既存クラスは無改造で配色だけ差替）。外部フォント読み込み（Google Fonts）を撤去しDS指定のシステムフォントスタックへ統一。`prefers-color-scheme`・`[data-theme]`によるダークテーマトークンを新規追加（旧globals.cssにはダークモードが存在しなかった）。`CanvasRenderer.ts`の`BOAT_COLORS`独自8色をDSの`--color-boat-1..4`（ダーク値）に統一しスケールバー色もDS水面上インク相当に変更。`sessions/[id]/page.tsx`のリプレイCanvas背景を生hex`#eef3f5`から`var(--gradient-water-deep)`に変更（UI-DESIGN §4「常時ダークな海図面」に一致）。`sessions/new/SessionPreviewCanvas.tsx`の同種の生hex背景・独自色もgetComputedStyle経由のDSトークン読み取りに変更（この画面は常時ダークではないためライト/ダーク双方に追従）。検証: `npx tsc --noEmit`エラー0／`npx vitest run`23件PASS／`npm run build`成功／`next start`+claude-in-chromeで`/login`・`/handbook`を実描画確認（DSアクセント色反映・コンソールエラー0件）。
 >   - **§7 #9本体（accent色のコントラスト是正）は未実施**: `--color-accent`のdark値(#2f9fd1)は白文字との組でコントラスト比3.0:1（design-system/theme.json記載の既知値）。UI-DESIGN §7 #9の指示どおり「DSトークン側の修正はdesign-system更新として1コミットで行う」対象であり、本タスク（frontend適用）のスコープ外のため据え置き。対応要否・実施担当はTeam Lead/architect判断を仰ぐ。
+>
+> **T-13/T-14/T-15 の完了再マーク（2026-07-25 継続セッション・残り3項目を実装）**
+> 上記再点検で未達だった2・4・8を実装し、[x]に戻す。10項目それぞれの充足根拠:
+>
+> | # | §7項目 | 判定 | 根拠 |
+> |---|---|---|---|
+> | 1 | セッションカードのリンク化 | OK | 既存対応済み（`sessions/page.tsx`） |
+> | 2 | モバイルDOM順 | **修正済** | `/sessions/[id]`をCSS Grid（`.replay-layout`名前付きエリア）へ再構成。モバイル（既定）は`canvas/controls/timeline/legs/compare/memo`の6エリアが縦1列でこの順に並び、デスクトップ（≥769px）のみ2列に再配置。Playwright実測でモバイル(390×844)のDOM順が`["canvas","controls","timeline","legs","compare","memo"]`と仕様どおり一致することを確認（レグUIはT-20/T-21のWIPで既に部分実装されており、今回の並び替えにそのまま組み込んだ） |
+> | 3 | タイムラインのキーボード操作 | OK | 既存対応済み |
+> | 4 | ファイル入力 | **修正済** | `/sessions/new`のドロップゾーンを実装（`<button>`＋実`<input type=file>`を`.sr-only`で視覚非表示、フォーカス経路は保持／`onDragOver`/`onDrop`でドラッグ&ドロップ対応／スマホ変形は`.dropzone-hint`を768px以下で非表示にしDnD案内文を隠す＝§3仕様どおり）。Playwright実測で input要素が`position:absolute; width:1px`（sr-only）・ボタン可視・モバイルで案内文非表示/ボタン可視を確認 |
+> | 5 | labelの関連付け | OK | 既存対応済み |
+> | 6 | ステータス通知 | OK | 既存対応済み |
+> | 7 | 操作対象サイズ24px | OK | 既存対応済み |
+> | 8 | 色以外の識別 | **修正済** | `CanvasRenderer.ts`に`getBoatLineDash(trackIndex)`を追加（index 0〜3=実線、4〜5=`BOAT_COLORS`再利用のうえ破線`[7,4]`）。テール描画の`ctx.setLineDash`に適用（gap区間の破線描画とは独立・両立）。現在位置マーカー脇に艇ラベル（`track.boatLabel`）を常時描画（濃色アウトライン+白文字でダーク海面上でも判読可）。サイドバーの色スウォッチ（艇の表示／比較する2艇の両チェックリスト）も同じ色＋線種（`repeating-linear-gradient`で破線相当）で描画し直し。Playwright実測でCanvasにラベルが実描画されること（スクリーンショット目視）、サイドバーのdashed艇スウォッチが破線として視認できること（スクリーンショット目視）を確認。ユニットテスト`getBoatLineDash`を2件追加しPASS |
+> | 9 | ダークテーマのコントラスト | 前提解消（本体は引き続き未達・スコープ外） | 変更なし（上記T-26/DS適用ログのとおり。DSトークン側の是正はTeam Lead/architect判断待ち） |
+> | 10 | `<html lang="ja">` | OK | 既存対応済み |
+>
+> - **検証（すべて実行しログ確認済み）**: ①`npx tsc --noEmit`エラー0 ②`npx vitest run` 25件PASS（既存23件+`getBoatLineDash`新規2件、回帰なし） ③`npm run build`成功（8ルート、サイズ変化のみ） ④**実DB統合のE2E**: ローカルPostgreSQL 16を起動（`service postgresql start`）→`sailvlog_user`ロール作成→`sailvlog_db`作成→`prisma migrate deploy`→backend実サーバ(`PORT=8000`)+frontend本番サーバ(`next start -p 3100`)を起動→ユーザー登録+Team/TeamMember をpsqlで作成→**Playwrightで実ブラウザから**: `/sessions/new`で6艇GPX（qa-engineer用意の`__fixtures__/boat1〜6_clean*.gpx`）をドロップゾーン経由でアップロード→保存→`/sessions`一覧のカードリンクから`/sessions/[id]`へ遷移→Canvas描画（艇ラベル表示・非ブランク描画=30サンプル点で確認）→デスクトップのグリッドエリア6件すべて存在確認→モバイル(390×844)でDOM順を上記のとおり確認、というシナリオを完走。スクリーンショット3枚（`replay-desktop.png`/`replay-mobile.png`/`sidebar-swatches.png`。実装者のscratchpadに保存・コミット対象外）で目視確認も実施。console errorは1件（404、favicon等の静的アセット起因と推定・機能に無関係）。検証後にPostgreSQL/backend/frontendのプロセスは停止済み
+> - **DB書き込みを伴う自動E2Eテスト自体（Playwrightスクリプト）はCIには含めていない**（T-90のCIはDocker上のpostgres serviceコンテナ前提で別途構築済み・今回の手動検証はローカルPostgres直接利用の使い捨てスクリプトのため）。自動E2Eの導入要否はT-90/T-91範囲の判断に委ねる
 
 - [x] T-16: 部内共有の仕上げ（URLクエリ最小＋認可確認）
   - 成果物: `?t=&boats=` の読み書き（一時停止/シーク確定時のみreplaceState）。共有ボタン（現URLコピー）

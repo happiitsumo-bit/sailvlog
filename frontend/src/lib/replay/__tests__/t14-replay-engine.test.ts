@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeProjection, project, isIndexInGap, splitByGapRuns, RenderTrack } from "../geo";
 import { ReplayClock } from "../ReplayClock";
-import { getTrackEmphasis } from "../CanvasRenderer";
+import { getTrackEmphasis, getBoatLineDash, BOAT_COLORS } from "../CanvasRenderer";
 
 function track(overrides: Partial<RenderTrack> = {}): RenderTrack {
   return {
@@ -123,5 +123,18 @@ describe("2艇比較の描画強調", () => {
     const compared = new Set([1, 2]);
     expect(getTrackEmphasis(1, compared)).toEqual({ alpha: 1, lineWidth: 3, markerRadius: 7 });
     expect(getTrackEmphasis(3, compared)).toEqual({ alpha: 0.16, lineWidth: 1, markerRadius: 4 });
+  });
+});
+
+describe("6艇の識別ルール（色だけに依存しない識別・UI-DESIGN §4.2/§7 #8）", () => {
+  it("index 0〜3（BOAT_COLORSの範囲内）は実線のまま", () => {
+    for (let i = 0; i < BOAT_COLORS.length; i++) {
+      expect(getBoatLineDash(i)).toEqual([]);
+    }
+  });
+
+  it("index 4以降（色を再利用する5・6艇目）は破線になる", () => {
+    expect(getBoatLineDash(BOAT_COLORS.length)).not.toEqual([]);
+    expect(getBoatLineDash(BOAT_COLORS.length + 1)).not.toEqual([]);
   });
 });
