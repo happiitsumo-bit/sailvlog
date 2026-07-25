@@ -5,7 +5,11 @@
 
 import { LocalProjection, RenderTrack, project, splitByGapRuns } from "./geo";
 
-export const BOAT_COLORS = ["#c1552c", "#2c6e8f", "#4a7c59", "#8a5fb0", "#c9a13b", "#b0475f", "#5f7470", "#a3623f"];
+// DS rev.3の艇識別カラー（design-system/theme.json color.sailvlog.boats.dark、
+// UI-DESIGN.md §4.2「6艇の識別ルール」）。Canvasは常時ダーク海図面のため、ダーク値を固定で使う。
+// トークンは4色のみ（rev.3で意図的に増やしていない）。5・6艇目は0〜3を再利用する
+// （index % BOAT_COLORS.length。線種による識別強化＝§7 #8は別タスクの範囲）。
+export const BOAT_COLORS = ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a"];
 
 export interface RenderFrameOptions {
   tracks: RenderTrack[];
@@ -90,13 +94,14 @@ function drawScaleBar(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, 
   const pxLen = meters * proj.scale;
   const x0 = 20;
   const y0 = canvas.height - 16;
-  ctx.strokeStyle = "#9fb2cf";
+  // DS rev.3の「水面上のグリッド/等深線インク」トークン相当（常時ダーク面上の白系半透明）
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(x0, y0);
   ctx.lineTo(x0 + pxLen, y0);
   ctx.stroke();
-  ctx.fillStyle = "#6b7a8f";
-  ctx.font = "12px system-ui";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.74)";
+  ctx.font = "12px -apple-system, system-ui";
   ctx.fillText(`${meters} m`, x0, y0 - 6);
 }

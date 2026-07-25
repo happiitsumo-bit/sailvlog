@@ -357,7 +357,7 @@ function SessionReplayPageContent() {
             ref={canvasRef}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
-            style={{ width: "100%", height: "auto", background: "#eef3f5", border: "1px solid var(--border)", borderRadius: 8, display: "block" }}
+            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block" }}
           />
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>

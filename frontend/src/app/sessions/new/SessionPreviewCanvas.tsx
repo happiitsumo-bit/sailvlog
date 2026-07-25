@@ -7,12 +7,12 @@ interface PreviewTrack {
   gridJson: { lat: number[]; lon: number[] };
 }
 
-const BOAT_COLORS = ["#c1552c", "#2c6e8f", "#4a7c59", "#8a5fb0", "#c9a13b", "#b0475f"];
-
 /**
  * 取込ウィザードの重ね描き簡易プレビュー（ARCH.md §4「Canvas静止画で可」）。
  * ローカル平面投影（緯度で経度を補正するだけの簡易版）で全艇を1枚に重ねる静止画。
  * 再生ページ本体のCanvasRenderer（T-14・lib/replay/）とは別実装。
+ * 本画面は常時ダークではないため、色はDSトークン（--color-bg-secondary・--color-boat-*）を
+ * getComputedStyleで読み取り、現在のライト/ダークテーマに追従させる（2026-07-25 DS rev.3適用）。
  */
 export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,9 +23,14 @@ export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const rootStyle = getComputedStyle(document.documentElement);
+    const readVar = (name: string, fallback: string) => rootStyle.getPropertyValue(name).trim() || fallback;
+    const bgColor = readVar("--color-bg-secondary", "#f7f7f8");
+    const boatColors = [1, 2, 3, 4].map((n) => readVar(`--color-boat-${n}`, "#0b6a9e"));
+
     const width = canvas.width;
     const height = canvas.height;
-    ctx.fillStyle = "#eef3f5";
+    ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, width, height);
 
     const allLat = tracks.flatMap((t) => t.gridJson.lat);
@@ -52,7 +57,7 @@ export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[
     }
 
     tracks.forEach((track, i) => {
-      const color = BOAT_COLORS[i % BOAT_COLORS.length];
+      const color = boatColors[i % boatColors.length];
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -84,7 +89,7 @@ export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
         {tracks.map((t, i) => (
           <span key={t.boatLabel + i} style={{ fontSize: "0.78rem", color: "var(--fg-mute)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: `var(--color-boat-${(i % 4) + 1})`, display: "inline-block" }} />
             {t.boatLabel}
           </span>
         ))}

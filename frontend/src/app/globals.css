@@ -1,45 +1,81 @@
 /* =============================================================
-   sailvlog — "Claude-paper" edition
-   Warm cream surfaces · Source Serif 4 · Terracotta accent
+   sailvlog v3 — Design System rev.3（「海図と水面の光」）適用
+   正本: design-system/styles.css / theme.json（docs/dev-org/UI-DESIGN.md §0・§7-9）
+   旧v1"Claude-paper"の値は廃止し、レガシー変数名はDSトークンへのエイリアスとして残す
+   （既存コンポーネントCSS・inline styleを書き換えずに配色だけ差し替えるため）。
+   外部フォント読み込み（Google Fonts）はDS方針により撤去（CSP対策・オフライン耐性・Do/Don't参照）。
    ============================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
-/* ===== Design Tokens ===== */
+/* ===== Design Tokens（design-system/styles.css・theme.json 準拠。ライト） ===== */
 :root {
-  /* Surface — warm paper */
-  --paper:      #F4F0E8;
-  --paper-2:    #EDE7DA;
-  --card:       #FBF9F4;
-  --card-warm:  #F7F2E6;
+  /* --- DSアクセント（マリンチャート） --- */
+  --color-accent:         #0b6a9e;
+  --color-accent-hover:   #095778;
+  --color-accent-pressed: #074562;
+  --color-accent-tint:    rgba(11, 106, 158, 0.12);
 
-  /* Legacy aliases (kept for backward compat) */
+  /* --- DSサーフェス --- */
+  --color-bg-canvas:    #f2f2f5;
+  --color-bg-primary:   #ffffff;
+  --color-bg-secondary: #f7f7f8;
+  --color-bg-elevated:  #ffffff;
+
+  /* --- DSラベル（本文色） --- */
+  --color-label-primary:   #1c1c1f;
+  --color-label-secondary: rgba(28,28,31,0.6);
+  --color-label-tertiary:  rgba(28,28,31,0.38);
+
+  /* --- DSセパレータ・セマンティック --- */
+  --color-separator: rgba(60,60,67,0.29);
+  --color-success: #1fa363;
+  --color-warning: #d98a12;
+  --color-danger:  #e0392f;
+  --color-info:    #0b6a9e;
+  --color-race:     #e0392f;
+  --color-practice: #0b6a9e;
+
+  /* --- DS艇識別カラー（4色のみ。5・6艇目は同色を再利用 — UI-DESIGN §4.2） --- */
+  --color-boat-1: #0b6a9e;
+  --color-boat-2: #e0392f;
+  --color-boat-3: #d98a12;
+  --color-boat-4: #1fa363;
+
+  /* --- 柱1「海図」・柱2「水面と光」。テーマ非連動で:rootに固定（design-system/readme.md） --- */
+  --color-chart-grid:  rgba(11, 106, 158, 0.10);
+  --color-chart-line:  rgba(28, 28, 31, 0.12);
+  --color-compass-ink: rgba(28, 28, 31, 0.16);
+  --gradient-water-dawn: linear-gradient(160deg, #0c2436 0%, #0c5678 42%, #1c7f96 68%, #e3924f 100%);
+  --gradient-water-deep: linear-gradient(165deg, #030d16 0%, #0a2f42 40%, #0b5372 72%, #12809e 100%);
+  --color-chart-grid-on-water: rgba(255, 255, 255, 0.10);
+  --color-chart-line-on-water: rgba(255, 255, 255, 0.16);
+  --color-hero-label-primary:   rgba(255, 255, 255, 0.96);
+  --color-hero-label-secondary: rgba(255, 255, 255, 0.74);
+
+  /* --- レガシー変数名 → DSトークンのエイリアス（既存クラス名・inline styleを維持したまま配色差替） --- */
+  --paper:      var(--color-bg-canvas);
+  --paper-2:    var(--color-bg-secondary);
+  --card:       var(--color-bg-elevated);
+  --card-warm:  var(--color-bg-secondary);
   --ink:        var(--paper);
   --ink-2:      var(--card);
   --ink-3:      var(--card-warm);
-  --ink-4:      #E5DFD0;
+  --ink-4:      var(--color-label-tertiary);
 
-  /* Foreground — deep warm ink */
-  --fg:         #1F1E1B;
-  --fg-2:       #3D3A33;
-  --fg-mute:    #6B6760;
-  --fg-dim:     #9A968C;
-
-  /* Legacy aliases */
+  --fg:         var(--color-label-primary);
+  --fg-2:       var(--color-label-primary);
+  --fg-mute:    var(--color-label-secondary);
+  --fg-dim:     var(--color-label-tertiary);
   --bone:       var(--fg);
   --bone-2:     var(--fg-2);
   --bone-mute:  var(--fg-mute);
   --bone-dim:   var(--fg-dim);
 
-  /* Accents */
-  --terra:      #C96442;
-  --terra-2:    #B5553A;
-  --terra-soft: #E8B8A6;
-  --sage:       #6B8E5A;
-  --sage-2:     #57764B;
-  --dijon:      #C39A3F;
-
-  /* Legacy accent aliases */
+  --terra:      var(--color-accent);
+  --terra-2:    var(--color-accent-hover);
+  --terra-soft: var(--color-accent-tint);
+  --sage:       var(--color-success);
+  --sage-2:     #16824f;
+  --dijon:      var(--color-warning);
   --flare:      var(--terra);
   --flare-2:    var(--terra-2);
   --cyan:       var(--sage);
@@ -47,33 +83,99 @@
   --lime:       var(--dijon);
   --lime-2:     var(--dijon);
 
-  /* Borders */
-  --border:        rgba(31,30,27,0.10);
-  --border-strong: rgba(31,30,27,0.18);
-  --border-flare:  rgba(201,100,66,0.40);
-  --border-cyan:   rgba(107,142,90,0.40);
+  --border:        var(--color-separator);
+  --border-strong: rgba(28,28,31,0.28);
+  --border-flare:  rgba(11,106,158,0.40);
+  --border-cyan:   rgba(31,163,99,0.40);
 
-  /* Elevation — soft, no neon */
-  --shadow-sm:    0 1px 2px rgba(31,30,27,0.04), 0 2px 8px rgba(31,30,27,0.04);
-  --shadow:       0 4px 16px rgba(31,30,27,0.06), 0 12px 32px rgba(31,30,27,0.05);
-  --shadow-lg:    0 8px 28px rgba(31,30,27,0.08), 0 20px 50px rgba(31,30,27,0.06);
+  --shadow-sm:    0 1px 2px rgba(28,28,31,0.05), 0 2px 8px rgba(28,28,31,0.04);
+  --shadow:       0 4px 16px rgba(28,28,31,0.07), 0 12px 32px rgba(28,28,31,0.05);
+  --shadow-lg:    0 8px 28px rgba(28,28,31,0.09), 0 20px 50px rgba(28,28,31,0.06);
   --shadow-flare: var(--shadow);
   --shadow-cyan:  var(--shadow);
 
-  /* Radius */
-  --radius-xs: 4px;
+  --radius-xs: 8px;
   --radius-sm: 8px;
-  --radius:    12px;
-  --radius-lg: 20px;
+  --radius:    10px;
+  --radius-lg: 16px;
 
-  /* Type */
-  --font-display: 'Source Serif 4', 'Tiempos', 'Georgia', serif;
-  --font-body:    'Inter', 'Hiragino Sans', 'Noto Sans JP', -apple-system, sans-serif;
-  --font-mono:    'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  /* --- タイポ: DS指定のシステムサンセリフ一本（外部フォント読み込みなし） --- */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Roboto, sans-serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Roboto, sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
 
-  /* Easing */
   --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
   --ease-snap: cubic-bezier(0.7, 0, 0.3, 1);
+}
+
+/* ===== ダークテーマ（DS rev.3。OS設定 prefers-color-scheme、または明示的な [data-theme] で切替） ===== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-accent: #2f9fd1;
+    --color-accent-hover: #49b0dd;
+    --color-accent-pressed: #63bce6;
+    --color-accent-tint: rgba(47, 159, 209, 0.16);
+
+    --color-bg-canvas: #000000;
+    --color-bg-primary: #1c1c1e;
+    --color-bg-secondary: #2c2c2e;
+    --color-bg-elevated: #242426;
+
+    --color-label-primary: #f2f2f7;
+    --color-label-secondary: rgba(242,242,247,0.6);
+    --color-label-tertiary: rgba(242,242,247,0.38);
+
+    --color-separator: rgba(84,84,88,0.6);
+
+    --color-success: #34c07a;
+    --color-warning: #f0a72e;
+    --color-danger: #ff5b52;
+    --color-info: #2f9fd1;
+    --color-race: #ff5b52;
+    --color-practice: #2f9fd1;
+
+    --color-boat-1: #2f9fd1;
+    --color-boat-2: #ff5b52;
+    --color-boat-3: #f0a72e;
+    --color-boat-4: #34c07a;
+
+    --color-chart-grid: rgba(47, 159, 209, 0.16);
+    --color-chart-line: rgba(242, 242, 247, 0.10);
+    --color-compass-ink: rgba(242, 242, 247, 0.14);
+  }
+}
+:root[data-theme="dark"] {
+  --color-accent: #2f9fd1;
+  --color-accent-hover: #49b0dd;
+  --color-accent-pressed: #63bce6;
+  --color-accent-tint: rgba(47, 159, 209, 0.16);
+
+  --color-bg-canvas: #000000;
+  --color-bg-primary: #1c1c1e;
+  --color-bg-secondary: #2c2c2e;
+  --color-bg-elevated: #242426;
+
+  --color-label-primary: #f2f2f7;
+  --color-label-secondary: rgba(242,242,247,0.6);
+  --color-label-tertiary: rgba(242,242,247,0.38);
+
+  --color-separator: rgba(84,84,88,0.6);
+
+  --color-success: #34c07a;
+  --color-warning: #f0a72e;
+  --color-danger: #ff5b52;
+  --color-info: #2f9fd1;
+  --color-race: #ff5b52;
+  --color-practice: #2f9fd1;
+
+  --color-boat-1: #2f9fd1;
+  --color-boat-2: #ff5b52;
+  --color-boat-3: #f0a72e;
+  --color-boat-4: #34c07a;
+
+  --color-chart-grid: rgba(47, 159, 209, 0.16);
+  --color-chart-line: rgba(242, 242, 247, 0.10);
+  --color-compass-ink: rgba(242, 242, 247, 0.14);
 }
 
 /* ===== Reset ===== */
@@ -2137,26 +2239,20 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-/* ===== AppShell Layout ===== */
+/* ===== AppShell Layout（v3, 2026-07-25 T-26で単カラム化） =====
+   v2の左ナビ(ClassSidebar)・右サイドバー(RightSidebar)は削除対象の
+   articles/questions/boat/teams/sailors等にしか出口が無かったため、
+   シェルはトップバー＋単一メインカラム＋モバイル下部タブバーへ簡素化した。 */
 :root {
-  --sidebar-width: 240px;
-  --sidebar-collapsed: 64px;
   --topbar-height: 52px;
-  --right-sidebar-width: 280px;
-  --sidebar-bg: var(--paper-2);
   --topbar-bg: var(--card);
 }
 
 .app-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--right-sidebar-width);
-  grid-template-rows: var(--topbar-height) 1fr;
   min-height: 100vh;
 }
 
 .app-topbar {
-  grid-column: 1 / -1;
-  grid-row: 1;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -2166,43 +2262,13 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   padding: 0 1.25rem;
   gap: 1rem;
+  height: var(--topbar-height);
 }
-
-.app-left-sidebar {
-  grid-column: 1;
-  grid-row: 2;
-  position: sticky;
-  top: var(--topbar-height);
-  height: calc(100vh - var(--topbar-height));
-  overflow-y: auto;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 0.75rem 0;
-  scrollbar-width: none;
-}
-.app-left-sidebar::-webkit-scrollbar { display: none; }
 
 .app-main {
-  grid-column: 2;
-  grid-row: 2;
   min-width: 0;
   padding: 2rem 2.5rem;
 }
-
-.app-right-sidebar {
-  grid-column: 3;
-  grid-row: 2;
-  position: sticky;
-  top: var(--topbar-height);
-  height: calc(100vh - var(--topbar-height));
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  padding: 1.5rem 1.25rem;
-  scrollbar-width: none;
-}
-.app-right-sidebar::-webkit-scrollbar { display: none; }
 
 /* ===== Sidebar Nav Items ===== */
 .sidebar-nav-section {
@@ -2444,31 +2510,12 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== Responsive ===== */
 @media (max-width: 1279px) {
-  .app-shell {
-    grid-template-columns: var(--sidebar-collapsed) 1fr;
-  }
-  .app-right-sidebar { display: none; }
-  .sidebar-nav-item span:not(.sidebar-icon),
-  .sidebar-class-item span:not(.sidebar-class-flag),
-  .sidebar-nav-label,
-  .sidebar-divider-label,
-  .sidebar-user-name,
-  .sidebar-logout-btn { display: none; }
-  .sidebar-nav-item { padding: 0.65rem; justify-content: center; }
-  .sidebar-class-item { padding: 0.5rem; justify-content: center; }
-  .sidebar-user { justify-content: center; padding: 0.75rem 0.5rem; }
-  .topbar-logo span { display: none; }
   .app-main { padding: 1.5rem; }
 }
 
 @media (max-width: 767px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: var(--topbar-height) 1fr;
-    padding-bottom: 64px;
-  }
-  .app-left-sidebar { display: none; }
-  .app-main { padding: 1rem; grid-column: 1; }
+  .app-shell { padding-bottom: 64px; }
+  .app-main { padding: 1rem; }
   .bottom-tab-bar { display: block; }
   .topbar-search { display: none; }
 }
