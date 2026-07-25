@@ -214,6 +214,18 @@
     3. **GitHubリモートがあるリポジトリなのでCIを組む**（GitHub Actionsでpush時にテスト実行）。リモート運用をやめた場合はCIを外し、ローカルで回せるテストコマンドをREADMEに明記する
     4. READMEまたはdocs/に**「Q&A/トラブルシューティング」セクション**を作る（本タスクではテスト/CI、Q&A本文はT-91が担当）
   - 検証: CIグリーン。カバレッジ対象=「半年後に黙って壊れたら困る」パース/認可/API契約
+  - **検証結果（2026-07-25・qa-engineer、担当範囲=CI構築とテスト整理のみ。Q&A本文はT-91）**:
+    - **品質要件1（テスト最低1本）**: 既存で充足済み。backend 8 suites（t01/t10/t12/t15/t30/t31+health+resetDb系）・frontend lib/gpx 10件＋lib/replay 13件。今回は既存テストの追加実装は行わず、CI導線とテスト実行の安定化のみ担当。
+    - **品質要件2（実行ログ添付）**: 下記「検証コマンドと実出力」参照。すべて実行してログを確認済み（「通るはず」ゼロ）。
+    - **品質要件3（CI構築）**: `.github/workflows/test.yml`は既にimplementerが用意していた雛形（backend: postgres serviceコンテナ→`npx prisma generate`→`npm test`／frontend: `npm test`のみ）を確認し、**T-90の指示どおりfrontendジョブに`npx tsc --noEmit`と`npm run build`を追加**（既存の`npm test`=vitestはそのまま）。backend側は`npm test`のpretestフック（`scripts/ensure-test-db.js`）が`prisma migrate deploy`を内部で実行する構造だったため、指示にある「migrate deploy→jest」の順序は追加のCIステップなしで既に満たされている（ローカルで新規clone→`npm ci`→`npm test`のみで実際に動作することを確認済み＝下記ログ）。
+    - **`--runInBand`判断（発見事項2026-07-24分への回答）**: **デフォルト化を採用**（`backend/package.json`の`"test"`スクリプトを`jest --runInBand`に変更、`backend/jest.config.js`に根拠コメント追加）。新規git clone環境で複数ワーカー並列（デフォルト）を3回実行し**毎回9〜22件が非決定的に失敗**（FK違反等、resetDbHook.tsのTRUNCATEと他ワーカーの実行中トランザクションが競合）することを実測で再現。同じ環境で`--runInBand`に切り替えて3回実行し**毎回8 suites/73 passed/0 failedで完全一致**（所要時間17.7〜17.9秒）。ワーカー毎テストDB分離も検討したが、この規模（8 suites・100ケース・直列で18秒）では並列化の時間短縮効果よりDB分離基盤の追加複雑度がROEで見合わないと判断（原則5）。
+    - **テストのテスト（バグ注入確認）**: `backend/src/lib/validateTrackPayload.ts`のlat範囲チェック（`la < -90 || la > 90`）を`la < -900 || la > 900`に一時的に書き換えたところ、`t12-sessions-api.test.ts`の「latが[-90,90]範囲外は400」が期待400・実際201で即FAIL（1 failed/72 passed）を確認。直後に復元し全PASSに戻ることも確認（差分の実体は残していない・コミット対象外）。
+    - **検証コマンドと実出力**（すべて`/private/tmp/.../scratchpad/ci-check`への新規git clone、CIと同じ「まっさらな環境」で実施。既存のdocker-compose共有コンテナは他エージェントの作業中セッションのため使わず、フレッシュチェックアウトのみで検証）:
+      - frontend: `npm ci` → `npx tsc --noEmit`（エラー0） → `npm test`（vitest run: 2 files, 23 passed） → `npm run build`（`✓ Compiled successfully`、8ルート生成、`/`,`/handbook`,`/login`,`/register`,`/sessions`,`/sessions/[id]`,`/sessions/new`,`/_not-found`）
+      - backend: `npm ci` → `npx prisma generate`成功 → `npm test`（`--runInBand`込み。pretestが`sailvlog_test`をCREATE→`prisma migrate deploy`→jest実行）→ **8 suites / 73 passed / 27 todo / 0 failed**（3回連続で完全再現・所要17.7〜17.9秒）
+    - **CI実行結果（push後）**: 下記コミットをpushし`gh run list`/`gh run view`で確認（結果はコミットメッセージ直後に追記）。
+    - **未達・T-91送り**: README/docsへの「Q&A/トラブルシューティング」セクション本文（品質要件4）はT-91の担当範囲のため本タスクでは着手せず。`ローカルで回せるテストコマンド`の実在確認は完了（frontend `npm test`／backend `npm test`）だが、README明記自体はT-91が実施。
+    - **@testing-library/react 導入の要否**: TASKS.md発見事項（§7 a11y再点検、106行目）どおり必要性は認める（`role="status"`/`role="alert"`・label関連付け・24pxタップ対象などT-13/14/15/26で手動確認に留まっている項目の回帰を自動で捕まえられない）。ただし**今回は見送り**（`frontend/package.json`変更がimplementerの同時編集と衝突するため対象外・Team Lead承認制の新規npm依存でもある）。導入時の想定: `@testing-library/react`＋`@testing-library/jest-dom`をvitestに追加し、`/sessions/[id]`・`/sessions/new`・`/login`・`/register`のa11y属性（role/label/aria-label）のスナップショット的回帰テストを1〜2本ずつ追加する程度で十分（大規模なコンポーネントテスト網羅は不要＝ここもS規模の割り切り）。
   - 依存: MVP完了集約条件（上記）
 - [ ] T-91: README＋Q&A＋デモ素材（docs-writer / demo-director）
   - 成果物: README刷新（v3の一言・起動手順・スクリーンショット/GIF・ピボット意思決定の記録リンク）＋Q&A/トラブルシューティング（使い方FAQ・cold start・GPXが読めない時・Geo Tracker設定ミス等の踏んだ罠と回避策・壊れたときの確認手順=ログの見方）
