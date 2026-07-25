@@ -10,6 +10,7 @@ import teamsRouter from "./routes/teams";
 import sessionsRouter from "./routes/sessions";
 import tracksRouter from "./routes/tracks";
 import annotationsRouter from "./routes/annotations";
+import publicRouter from "./routes/public";
 
 // v3ピボット（2026-07-24, ADR-003）: 凍結対象ルート。
 // 実装は410 Goneの薄いハンドラに置換し、ルータ本体（articles等）はコードとして残置する
@@ -43,6 +44,8 @@ app.use("/api/teams", teamsRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/tracks", tracksRouter);
 app.use("/api/annotations", annotationsRouter);
+// T-31: 認証不要の公開取得API（ADR-007）。JWT必須の他ルートとは別の未認証入口。
+app.use("/api/public", publicRouter);
 
 // 凍結ルート（410 Gone。ADR-003）
 app.all("/api/articles", gone);
