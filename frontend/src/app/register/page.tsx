@@ -26,7 +26,7 @@ export default function RegisterPage() {
         form
       );
       saveAuth(res.token, res.user);
-      router.push("/");
+      router.push("/sessions");
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
@@ -40,18 +40,18 @@ export default function RegisterPage() {
       <h1 className="form-title">⛵ 新規登録</h1>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label>ユーザー名</label>
-          <input name="username" value={form.username} onChange={onChange} required minLength={3} maxLength={50} />
+          <label htmlFor="register-username">ユーザー名</label>
+          <input id="register-username" name="username" value={form.username} onChange={onChange} required minLength={3} maxLength={50} />
         </div>
         <div className="form-group">
-          <label>メールアドレス</label>
-          <input type="email" name="email" value={form.email} onChange={onChange} required />
+          <label htmlFor="register-email">メールアドレス</label>
+          <input id="register-email" type="email" name="email" value={form.email} onChange={onChange} required />
         </div>
         <div className="form-group">
-          <label>パスワード</label>
-          <input type="password" name="password" value={form.password} onChange={onChange} required minLength={8} />
+          <label htmlFor="register-password">パスワード</label>
+          <input id="register-password" type="password" name="password" value={form.password} onChange={onChange} required minLength={8} />
         </div>
-        {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
         <button type="submit" className="btn btn-primary form-submit" disabled={loading}>
           {loading ? "登録中..." : "アカウントを作成"}
         </button>

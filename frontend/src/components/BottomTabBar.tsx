@@ -10,7 +10,7 @@ export default function BottomTabBar() {
     <nav className="bottom-tab-bar" aria-label="Main navigation">
       <div className="bottom-tab-bar-inner">
         {NAV_ITEMS.map((tab) => {
-          const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+          const active = pathname.startsWith(tab.href);
           return (
             <Link
               key={tab.href}

@@ -23,7 +23,7 @@ export default function LoginPage() {
         { email, password }
       );
       saveAuth(res.token, res.user);
-      router.push("/");
+      router.push("/sessions");
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "ログインに失敗しました");
@@ -37,14 +37,14 @@ export default function LoginPage() {
       <h1 className="form-title">⛵ ログイン</h1>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label>メールアドレス</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <label htmlFor="login-email">メールアドレス</label>
+          <input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div className="form-group">
-          <label>パスワード</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <label htmlFor="login-password">パスワード</label>
+          <input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
-        {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
         <button type="submit" className="btn btn-primary form-submit" disabled={loading}>
           {loading ? "ログイン中..." : "ログイン"}
         </button>

@@ -1,19 +1,6 @@
+// v3ピボット（2026-07-25, T-26）: v2画面（articles/questions/feed/learn/reference/boat/tag/teams/sailors/users）は
+// アーカイブブランチ archive/v2-frontend へ退避の上でフロントから削除。ナビはv3の実態（セッション/収録ハンドブック）のみに絞る。
 export const NAV_ITEMS = [
-  { href: "/",          icon: "⌂", label: "Home" },
-  { href: "/reference", icon: "◇", label: "Reference" },
-  { href: "/feed",      icon: "◈", label: "Feed" },
-  { href: "/questions", icon: "?", label: "Q&A" },
-  { href: "/learn",     icon: "▶", label: "Learn" },
-  { href: "/sailors",   icon: "◉", label: "Sailors" },
-  { href: "/teams",     icon: "◈", label: "Teams" },
-] as const;
-
-// ILCAはOlympic Laser の新名称。ホーム等での表示はレース志向クラスとして省略。
-export const CLASS_ITEMS = [
-  { slug: "op",      label: "OP",      flag: "/flags/op.webp"  },
-  { slug: "420",     label: "420",     flag: "/flags/420.png"  },
-  { slug: "470",     label: "470",     flag: "/flags/470.png"  },
-  { slug: "snipe",   label: "Snipe",   flag: "/flags/snipe.png"},
-  { slug: "49er",    label: "49er",    flag: "/flags/49er.jpg" },
-  { slug: "cruiser", label: "Cruiser", flag: null               },
+  { href: "/sessions", icon: "⛵", label: "Sessions" },
+  { href: "/handbook", icon: "📘", label: "Handbook" },
 ] as const;
