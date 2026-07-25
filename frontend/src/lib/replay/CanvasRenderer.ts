@@ -7,9 +7,13 @@ import { LocalProjection, RenderTrack, project, splitByGapRuns } from "./geo";
 
 // DS rev.3の艇識別カラー（design-system/theme.json color.sailvlog.boats.dark、
 // UI-DESIGN.md §4.2「6艇の識別ルール」）。Canvasは常時ダーク海図面のため、ダーク値を固定で使う。
-// トークンは4色のみ（rev.3で意図的に増やしていない）。5・6艇目は0〜3を再利用する
-// （index % BOAT_COLORS.length。線種による識別強化＝§7 #8は別タスクの範囲）。
-export const BOAT_COLORS = ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a"];
+// 2026-07-25: 6艇同時再生が主役ユースケースであるため4色→6色に拡張（Team Lead指摘）。
+// 旧実装はindex % 4で5・6艇目が1・2艇目と同一色になっていた（プロジェクタ投影・遠目識別の要件に反する）。
+// 色以外の識別（色覚多様性・プロジェクタの色再現差への耐性＝UI-DESIGN §7項目8）は、
+// 6色化だけに頼らず drawBoatLabel() の常時ラベル表示でも担保する。
+// setLineDash はテール描画のgaps（欠測区間）表現専用であり、艇識別には使わない
+// （同じ視覚チャネルを2つの意味に重ねると意味が衝突するため。§7項目8のレビュー指摘）。
+export const BOAT_COLORS = ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a", "#a679e0", "#e2569a"];
 
 export interface RenderFrameOptions {
   tracks: RenderTrack[];
@@ -35,6 +39,18 @@ export function getTrackEmphasis(trackId: number, comparisonTrackIds?: Set<numbe
   return comparisonTrackIds.has(trackId)
     ? { alpha: 1, lineWidth: 3, markerRadius: 7 }
     : { alpha: 0.16, lineWidth: 1, markerRadius: 4 };
+}
+
+/**
+ * 現在位置マーカー脇に常時描画する艇ラベル（UI-DESIGN §4.2・§7項目8＝色以外の識別手段）。
+ * boatLabelは自由入力（例:「4423 田中/佐藤」）のため、プロジェクタ越しの遠目識別に耐えるよう
+ * 先頭トークン（空白区切り）だけを短縮表示する。純関数として切り出し、ユニットテスト対象にする。
+ */
+export function shortBoatLabel(boatLabel: string, maxChars = 8): string {
+  const trimmed = boatLabel.trim();
+  if (trimmed.length === 0) return "?";
+  const firstToken = trimmed.split(/\s+/)[0];
+  return firstToken.length > maxChars ? `${firstToken.slice(0, maxChars - 1)}…` : firstToken;
 }
 
 export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, opts: RenderFrameOptions): void {
@@ -85,6 +101,18 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
     ctx.lineWidth = comparisonTrackIds?.has(track.id) ? 2 : 1;
     ctx.strokeStyle = "#ffffff";
     ctx.stroke();
+
+    // 艇ラベル（色以外の識別手段。UI-DESIGN §7項目8）。マーカーの右上に常時描画する。
+    const label = shortBoatLabel(track.boatLabel);
+    const labelX = x + emphasis.markerRadius + 4;
+    const labelY = y - emphasis.markerRadius - 4;
+    ctx.font = "bold 12px -apple-system, system-ui";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(3, 13, 22, 0.85)"; // 水面と同系の暗色縁取りで、どの艇色の上でも読める
+    ctx.strokeText(label, labelX, labelY);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(label, labelX, labelY);
+
     ctx.globalAlpha = 1;
   });
 }

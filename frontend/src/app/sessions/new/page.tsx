@@ -29,6 +29,7 @@ export default function NewSessionPage() {
   const [tracks, setTracks] = useState<TrackDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -61,6 +62,24 @@ export default function NewSessionPage() {
 
     setTracks(drafts);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  // ドロップゾーン（UI-DESIGN §3・§7項目4）。実<input type="file">＋<label for>は既存のままa11yを維持し、
+  // その上にドラッグ&ドロップの受け口を重ねるだけ（キーボードのみのユーザーはlabelクリック/Tab+Enterで
+  // 従来どおり操作できる）。dragenter/dragleaveは子要素への出入りで交互に発火するため、
+  // dragOver側で毎回trueに倒し、実際にドロップゾーン外へ出たときだけdragLeaveでfalseにする。
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  }
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setIsDraggingOver(false);
+  }
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    handleFiles(e.dataTransfer.files);
   }
 
   function updateBoatLabel(index: number, label: string) {
@@ -191,15 +210,41 @@ export default function NewSessionPage() {
 
         <div>
           <label htmlFor="s-gpx" style={fieldLabelStyle}>GPX FILES（艇ごとに1本・複数選択可）*</label>
-          <input
-            id="s-gpx"
-            ref={fileInputRef}
-            type="file"
-            accept=".gpx"
-            multiple
-            onChange={(e) => handleFiles(e.target.files)}
-            style={{ display: "block", marginTop: "0.25rem" }}
-          />
+          {/* ドロップゾーン（UI-DESIGN §3）。実<input type="file">＋<label for>はそのまま維持し
+              （キーボードのみのユーザーはこれで操作できる）、その上にドラッグ&ドロップの受け口を重ねる。
+              スマホ等タッチ環境はドラッグ操作自体が無いため、この装飾は無害（§4.6のとおりボタン操作のみで完結する）。 */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              marginTop: "0.25rem",
+              border: `2px dashed ${isDraggingOver ? "var(--color-accent)" : "var(--border)"}`,
+              borderRadius: 10,
+              padding: "1.1rem 1rem",
+              textAlign: "center",
+              background: isDraggingOver ? "var(--color-accent-tint)" : "transparent",
+              transition: "border-color 0.15s var(--ease-out), background 0.15s var(--ease-out)",
+            }}
+          >
+            {/* UI-DESIGN §4.6: スマホはDnD非対応のタッチ環境が前提のため、ヒント文言のみ非表示にする
+                （「ファイルを選択」ボタンは残す。§7項目4のドロップゾーン自体はデスクトップ専用の装飾）。 */}
+            <p className="gpx-dropzone-hint" style={{ fontSize: "0.85rem", color: "var(--fg-mute)", marginBottom: "0.6rem" }}>
+              ここにGPXをドラッグ&ドロップ
+            </p>
+            <label htmlFor="s-gpx" className="btn btn-ghost" style={{ display: "inline-block", cursor: "pointer" }}>
+              ファイルを選択
+            </label>
+            <input
+              id="s-gpx"
+              ref={fileInputRef}
+              type="file"
+              accept=".gpx"
+              multiple
+              onChange={(e) => handleFiles(e.target.files)}
+              className="sr-only"
+            />
+          </div>
         </div>
 
         {tracks.length > 0 && (

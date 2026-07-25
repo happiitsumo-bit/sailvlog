@@ -351,8 +351,13 @@ function SessionReplayPageContent() {
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ flex: "1 1 600px", minWidth: 300 }}>
+      {/* UI-DESIGN §4.6: モバイルではDOM順が正（Canvas→再生コントロール→タイムライン→レグ→比較→メモ）。
+          このdivの子はcanvas〜legsまでをまとめた.replay-mainと、比較・メモをまとめた.replay-asideの
+          2要素のみで、DOM順どおり.replay-mainが先・.replay-asideが後（§7項目2、2026-07-25修正）。
+          .replay-layoutは狭幅で縦積みになり、その際もDOM順=表示順になる（横並びのデスクトップでは
+          .replay-asideが右カラムに回る）。 */}
+      <div className="replay-layout">
+        <div className="replay-main">
           <canvas
             ref={canvasRef}
             width={CANVAS_WIDTH}
@@ -484,53 +489,9 @@ function SessionReplayPageContent() {
             {legError && <p role="alert" style={{ margin: "0.4rem 0 0", color: "var(--terra)", fontSize: "0.8rem" }}>{legError}</p>}
           </section>
 
-          <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
-            <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-              <select
-                aria-label="メモの種類"
-                value={newAnnotationKind}
-                onChange={(e) => setNewAnnotationKind(e.target.value as AnnotationKind)}
-                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
-              >
-                {Object.entries(ANNOTATION_KINDS).map(([value, kind]) => (
-                  <option key={value} value={value}>{kind.label}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={newAnnotationBody}
-                onChange={(e) => setNewAnnotationBody(e.target.value)}
-                placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
-                maxLength={2000}
-                style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
-              />
-              <select
-                value={newAnnotationTrackId}
-                onChange={(e) => setNewAnnotationTrackId(e.target.value ? Number(e.target.value) : "")}
-                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
-              >
-                <option value="">対象艇（任意）</option>
-                {tracks.map((t) => (
-                  <option key={t.id} value={t.id}>{t.boatLabel}</option>
-                ))}
-              </select>
-              <button type="button" onClick={addAnnotation} className="btn btn-primary" disabled={!newAnnotationBody.trim() || addingAnnotation}>
-                {addingAnnotation ? "追加中…" : "追加"}
-              </button>
-            </div>
-            {annotationError && (
-              <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
-                {annotationError}
-              </p>
-            )}
-            <p role="status" className="sr-only">
-              {addingAnnotation ? "注釈を追加しています" : ""}
-            </p>
-          </div>
         </div>
 
-        <aside style={{ flex: "0 0 240px", minWidth: 200 }}>
+        <aside className="replay-aside">
           <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>艇の表示</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
             {tracks.map((t, i) => (
@@ -589,6 +550,54 @@ function SessionReplayPageContent() {
               })}
             </div>
           )}
+
+          {/* 「今の場面にメモを残す」（UI-DESIGN §4.2「反省メモ」パネル＝一覧の下に追加導線）。
+              §7項目2のDOM順修正で、艇の表示切替→比較→メモの並びに揃えるため
+              main列からこちら（aside＝メモパネル内）へ移設した（2026-07-25）。 */}
+          <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
+            <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <select
+                aria-label="メモの種類"
+                value={newAnnotationKind}
+                onChange={(e) => setNewAnnotationKind(e.target.value as AnnotationKind)}
+                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
+              >
+                {Object.entries(ANNOTATION_KINDS).map(([value, kind]) => (
+                  <option key={value} value={value}>{kind.label}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={newAnnotationBody}
+                onChange={(e) => setNewAnnotationBody(e.target.value)}
+                placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
+                maxLength={2000}
+                style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
+              />
+              <select
+                value={newAnnotationTrackId}
+                onChange={(e) => setNewAnnotationTrackId(e.target.value ? Number(e.target.value) : "")}
+                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
+              >
+                <option value="">対象艇（任意）</option>
+                {tracks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.boatLabel}</option>
+                ))}
+              </select>
+              <button type="button" onClick={addAnnotation} className="btn btn-primary" disabled={!newAnnotationBody.trim() || addingAnnotation}>
+                {addingAnnotation ? "追加中…" : "追加"}
+              </button>
+            </div>
+            {annotationError && (
+              <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
+                {annotationError}
+              </p>
+            )}
+            <p role="status" className="sr-only">
+              {addingAnnotation ? "注釈を追加しています" : ""}
+            </p>
+          </div>
         </aside>
       </div>
     </div>

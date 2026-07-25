@@ -39,6 +39,8 @@
   --color-boat-2: #e0392f;
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
+  --color-boat-5: #7a4bc4;
+  --color-boat-6: #c23e83;
 
   /* --- 柱1「海図」・柱2「水面と光」。テーマ非連動で:rootに固定（design-system/readme.md） --- */
   --color-chart-grid:  rgba(11, 106, 158, 0.10);
@@ -111,10 +113,10 @@
 /* ===== ダークテーマ（DS rev.3。OS設定 prefers-color-scheme、または明示的な [data-theme] で切替） ===== */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-accent: #2f9fd1;
-    --color-accent-hover: #49b0dd;
-    --color-accent-pressed: #63bce6;
-    --color-accent-tint: rgba(47, 159, 209, 0.16);
+    --color-accent: #177bae; /* 2026-07-25: #2f9fd1(white-on-accent 3.0:1)から是正。white-on-accent ≈4.69:1(UI-DESIGN §7項目9) */
+    --color-accent-hover: #2f95c9;
+    --color-accent-pressed: #49aad9;
+    --color-accent-tint: rgba(23, 123, 174, 0.16);
 
     --color-bg-canvas: #000000;
     --color-bg-primary: #1c1c1e;
@@ -138,6 +140,8 @@
     --color-boat-2: #ff5b52;
     --color-boat-3: #f0a72e;
     --color-boat-4: #34c07a;
+    --color-boat-5: #a679e0;
+    --color-boat-6: #e2569a;
 
     --color-chart-grid: rgba(47, 159, 209, 0.16);
     --color-chart-line: rgba(242, 242, 247, 0.10);
@@ -145,10 +149,10 @@
   }
 }
 :root[data-theme="dark"] {
-  --color-accent: #2f9fd1;
-  --color-accent-hover: #49b0dd;
-  --color-accent-pressed: #63bce6;
-  --color-accent-tint: rgba(47, 159, 209, 0.16);
+  --color-accent: #177bae; /* 2026-07-25: #2f9fd1(white-on-accent 3.0:1)から是正。white-on-accent ≈4.69:1(UI-DESIGN §7項目9) */
+  --color-accent-hover: #2f95c9;
+  --color-accent-pressed: #49aad9;
+  --color-accent-tint: rgba(23, 123, 174, 0.16);
 
   --color-bg-canvas: #000000;
   --color-bg-primary: #1c1c1e;
@@ -172,6 +176,8 @@
   --color-boat-2: #ff5b52;
   --color-boat-3: #f0a72e;
   --color-boat-4: #34c07a;
+  --color-boat-5: #a679e0;
+  --color-boat-6: #e2569a;
 
   --color-chart-grid: rgba(47, 159, 209, 0.16);
   --color-chart-line: rgba(242, 242, 247, 0.10);
@@ -3435,4 +3441,41 @@ button { font-family: inherit; cursor: pointer; }
   }
   .bento-tile-span2 { grid-column: 1; }
   .bento-tile-h2 { min-height: var(--bento-unit); }
+}
+
+/* ===== リプレイ画面（/sessions/[id]）レイアウト — UI-DESIGN §4・§4.6 =====
+   §7項目2（2026-07-25修正）: モバイルではDOM順=表示順が正（Canvas→再生コントロール→
+   タイムライン→レグ→比較→メモ）。.replay-main(canvas〜legs)と.replay-aside(比較+メモ)を
+   2つの直接の子要素として並べ、狭幅では単純に縦積みにする（flexの折返しに頼らず
+   明示的なブレークポイントでフル幅にする）。デスクトップは右サイドバー固定幅の2カラム。 */
+.replay-layout {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.replay-main {
+  flex: 1 1 600px;
+  min-width: 300px;
+}
+.replay-aside {
+  flex: 0 0 240px;
+  min-width: 200px;
+}
+@media (max-width: 860px) {
+  .replay-main,
+  .replay-aside {
+    flex-basis: 100%;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* ===== GPXドロップゾーン（/sessions/new）— UI-DESIGN §3・§7項目4 =====
+   実<input type="file">＋<label for>のa11yはそのまま、ドラッグ&ドロップの受け口は
+   見た目（破線ボーダー）のみで、ページ側でJSのdragover/drop制御をしている。 */
+@media (max-width: 640px) {
+  .gpx-dropzone-hint {
+    display: none;
+  }
 }

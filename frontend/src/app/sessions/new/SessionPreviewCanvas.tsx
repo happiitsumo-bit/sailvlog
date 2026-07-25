@@ -13,6 +13,8 @@ interface PreviewTrack {
  * 再生ページ本体のCanvasRenderer（T-14・lib/replay/）とは別実装。
  * 本画面は常時ダークではないため、色はDSトークン（--color-bg-secondary・--color-boat-*）を
  * getComputedStyleで読み取り、現在のライト/ダークテーマに追従させる（2026-07-25 DS rev.3適用）。
+ * 艇色は6艇分（--color-boat-1〜6）を読み取る。6艇同時再生が主役ユースケースのため
+ * 4色のみだとindex%4で5・6艇目が重複していた（2026-07-25 Team Lead指摘・T-14/T-20関連修正）。
  */
 export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,7 +28,7 @@ export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[
     const rootStyle = getComputedStyle(document.documentElement);
     const readVar = (name: string, fallback: string) => rootStyle.getPropertyValue(name).trim() || fallback;
     const bgColor = readVar("--color-bg-secondary", "#f7f7f8");
-    const boatColors = [1, 2, 3, 4].map((n) => readVar(`--color-boat-${n}`, "#0b6a9e"));
+    const boatColors = [1, 2, 3, 4, 5, 6].map((n) => readVar(`--color-boat-${n}`, "#0b6a9e"));
 
     const width = canvas.width;
     const height = canvas.height;
@@ -89,7 +91,7 @@ export default function SessionPreviewCanvas({ tracks }: { tracks: PreviewTrack[
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
         {tracks.map((t, i) => (
           <span key={t.boatLabel + i} style={{ fontSize: "0.78rem", color: "var(--fg-mute)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: `var(--color-boat-${(i % 4) + 1})`, display: "inline-block" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: `var(--color-boat-${(i % 6) + 1})`, display: "inline-block" }} />
             {t.boatLabel}
           </span>
         ))}

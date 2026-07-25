@@ -1,6 +1,6 @@
 {
   "name": "sailvlog Design System",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "direction": "土台（iOS/インスタ的な使いやすさ・角丸・影・トークン駆動）は維持しつつ、視覚言語を「海図（nautical chart）」と「水面と光」の2本柱でセーリング文脈に固有化する",
   "designPillars": {
     "chart": "グリッド・等深線・コンパスローズ。構造を「読む」ための語彙（ヒーロー帯・リプレイ海面の背景テクスチャ、空状態の装飾）",
@@ -8,9 +8,9 @@
     "notAdopted": "国際信号旗の抽象化・風向風速の本格的なアイコン体系は今回見送り（1〜2本の柱に絞るため）。将来検討する場合は --color-wind-chip-* / .ds-chip--wind の拡張から着手する"
   },
   "accentHueShift": {
-    "note": "汎用iOSブルー(#0b6a9e/#2f9fd1)から、やや青緑寄りの「マリンチャート」トーンへ僅かにシフト。コントラスト比は同等以上を検証済み（light: white-on-accent ≈5.9:1 / dark: white-on-accent ≈3.0:1、旧トークンのdark ≈3.1:1と同水準）",
+    "note": "汎用iOSブルー(#0b6a9e/#2f9fd1)から、やや青緑寄りの「マリンチャート」トーンへ僅かにシフト。コントラスト比は同等以上を検証済み（light: white-on-accent ≈5.9:1）。dark値は2026-07-25に#2f9fd1(white-on-accent ≈3.0:1、WCAG AA 4.5:1未達)から#177bae(white-on-accent ≈4.69:1)へ是正（UI-DESIGN §7項目9）。旧#2f9fd1は--color-boat-1（艇識別カラー）としてのみ引き続き使用する",
     "light": { "accent": "#0b6a9e", "hover": "#095778", "pressed": "#074562" },
-    "dark": { "accent": "#2f9fd1", "hover": "#49b0dd", "pressed": "#63bce6" }
+    "dark": { "accent": "#177bae", "hover": "#2f95c9", "pressed": "#49aad9" }
   },
   "typography": {
     "fontFamily": {
@@ -58,10 +58,10 @@
         "tint": "rgba(11, 106, 158, 0.12)"
       },
       "dark": {
-        "accent": "#2f9fd1",
-        "hover": "#49b0dd",
-        "pressed": "#63bce6",
-        "tint": "rgba(47, 159, 209, 0.16)"
+        "accent": "#177bae",
+        "hover": "#2f95c9",
+        "pressed": "#49aad9",
+        "tint": "rgba(23, 123, 174, 0.16)"
       }
     },
     "neutralRamp": {
@@ -110,8 +110,9 @@
       "race": { "light": "#e0392f", "dark": "#ff5b52" },
       "practice": { "light": "#0b6a9e", "dark": "#2f9fd1" },
       "boats": {
-        "light": ["#0b6a9e", "#e0392f", "#d98a12", "#1fa363"],
-        "dark": ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a"]
+        "note": "2026-07-25拡張: 6艇同時再生が主役ユースケースのため4色→6色に拡張（Team Lead指摘）。index%4での5・6艇目重複を解消。色以外の識別（常時ラベル表示）はUI-DESIGN §4.2・§7項目8で別途担保する",
+        "light": ["#0b6a9e", "#e0392f", "#d98a12", "#1fa363", "#7a4bc4", "#c23e83"],
+        "dark": ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a", "#a679e0", "#e2569a"]
       }
     }
   },

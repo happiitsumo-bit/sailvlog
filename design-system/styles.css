@@ -170,6 +170,8 @@ ol {
   --color-boat-2: #e0392f; /* 相手艇 */
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
+  --color-boat-5: #7a4bc4; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+  --color-boat-6: #c23e83;
 
   /* --- Color: Nautical Chart（海図の視覚言語。等深線・グリッド用の低彩度トーン） --- */
   --color-chart-grid: rgba(11, 106, 158, 0.10);
@@ -245,11 +247,11 @@ ol {
     --color-separator: rgba(84, 84, 88, 0.6);
     --color-separator-opaque: #3a3a3c;
 
-    --color-accent: #2f9fd1;
-    --color-accent-hover: #49b0dd;
-    --color-accent-pressed: #63bce6;
-    --color-accent-tint: rgba(47, 159, 209, 0.16);
-    --color-accent-tint-strong: rgba(47, 159, 209, 0.28);
+    --color-accent: #177bae; /* 2026-07-25: #2f9fd1(white-on-accent 3.0:1)から是正。white-on-accent ≈4.69:1(UI-DESIGN §7項目9) */
+    --color-accent-hover: #2f95c9;
+    --color-accent-pressed: #49aad9;
+    --color-accent-tint: rgba(23, 123, 174, 0.16);
+    --color-accent-tint-strong: rgba(23, 123, 174, 0.28);
 
     --color-success: #34c07a;
     --color-success-tint: rgba(52, 192, 122, 0.16);
@@ -271,6 +273,8 @@ ol {
     --color-boat-2: #ff5b52;
     --color-boat-3: #f0a72e;
     --color-boat-4: #34c07a;
+    --color-boat-5: #a679e0; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+    --color-boat-6: #e2569a;
 
     --color-chart-grid: rgba(47, 159, 209, 0.16);
     --color-chart-line: rgba(242, 242, 247, 0.10);
@@ -326,11 +330,11 @@ ol {
   --color-separator: rgba(84, 84, 88, 0.6);
   --color-separator-opaque: #3a3a3c;
 
-  --color-accent: #2f9fd1;
-  --color-accent-hover: #49b0dd;
-  --color-accent-pressed: #63bce6;
-  --color-accent-tint: rgba(47, 159, 209, 0.16);
-  --color-accent-tint-strong: rgba(47, 159, 209, 0.28);
+  --color-accent: #177bae; /* 2026-07-25: #2f9fd1(white-on-accent 3.0:1)から是正。white-on-accent ≈4.69:1(UI-DESIGN §7項目9) */
+  --color-accent-hover: #2f95c9;
+  --color-accent-pressed: #49aad9;
+  --color-accent-tint: rgba(23, 123, 174, 0.16);
+  --color-accent-tint-strong: rgba(23, 123, 174, 0.28);
 
   --color-success: #34c07a;
   --color-success-tint: rgba(52, 192, 122, 0.16);
@@ -352,6 +356,8 @@ ol {
   --color-boat-2: #ff5b52;
   --color-boat-3: #f0a72e;
   --color-boat-4: #34c07a;
+  --color-boat-5: #a679e0; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+  --color-boat-6: #e2569a;
 
   --color-chart-grid: rgba(47, 159, 209, 0.16);
   --color-chart-line: rgba(242, 242, 247, 0.10);
@@ -430,6 +436,8 @@ ol {
   --color-boat-2: #e0392f;
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
+  --color-boat-5: #7a4bc4; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+  --color-boat-6: #c23e83;
 
   --color-chart-grid: rgba(11, 106, 158, 0.10);
   --color-chart-line: rgba(28, 28, 31, 0.12);
