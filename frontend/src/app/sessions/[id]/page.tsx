@@ -287,12 +287,14 @@ function SessionReplayPageContent() {
       const next = new Set(prev);
       if (next.has(trackId)) {
         next.delete(trackId);
-        setComparisonMessage("");
+        setComparisonMessage(next.size === 0 ? "" : "もう1艇選ぶと比較表示になります。");
         return next;
       }
+      // 3艇目以降はブロックせず、先勝ちで一番古い選択を自動解除する
+      // （UI-DESIGN §4.3「チェック2件超は先勝ちで古い方を自動解除・ポップオーバー等は出さない」）。
       if (next.size >= 2) {
-        setComparisonMessage("比較できるのは2艇までです。いずれかを解除してください。");
-        return next;
+        const [oldest] = next;
+        next.delete(oldest);
       }
       next.add(trackId);
       setComparisonMessage(next.size === 2 ? "2艇を強調表示しています。" : "もう1艇選ぶと比較表示になります。");
