@@ -13,6 +13,13 @@ const CANVAS_HEIGHT = 540;
 const TAIL_SECONDS = 300; // 直近5分（SPIKE-01実測構成を踏襲）
 const UI_SYNC_INTERVAL_MS = 100; // UIパネルへの同期は≦10Hz（ARCH.md §4）
 const SPEEDS = [1, 4, 8];
+const ANNOTATION_KINDS = {
+  question: { label: "問い", prefix: "問い" },
+  insight: { label: "気づき", prefix: "気づき" },
+  action: { label: "次回試す", prefix: "次回試す" },
+} as const;
+type AnnotationKind = keyof typeof ANNOTATION_KINDS;
+type Leg = { label: string; startSec: number };
 
 function formatTime(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
@@ -39,21 +46,28 @@ function SessionReplayPageContent() {
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [visibleTrackIds, setVisibleTrackIds] = useState<Set<number>>(new Set());
+  const [comparisonTrackIds, setComparisonTrackIds] = useState<Set<number>>(new Set());
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [simTimeDisplay, setSimTimeDisplay] = useState(0);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [newAnnotationBody, setNewAnnotationBody] = useState("");
+  const [newAnnotationKind, setNewAnnotationKind] = useState<AnnotationKind>("insight");
   const [newAnnotationTrackId, setNewAnnotationTrackId] = useState<number | "">("");
   const [addingAnnotation, setAddingAnnotation] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [comparisonMessage, setComparisonMessage] = useState("");
+  const [legs, setLegs] = useState<Leg[]>([]);
+  const [savingLegs, setSavingLegs] = useState(false);
+  const [legError, setLegError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clockRef = useRef<ReplayClock | null>(null);
   const projRef = useRef<LocalProjection | null>(null);
   const visibleTrackIdsRef = useRef<Set<number>>(new Set());
+  const comparisonTrackIdsRef = useRef<Set<number>>(new Set());
   const lastFrameTimeRef = useRef<number | null>(null);
   const lastSyncTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -65,6 +79,11 @@ function SessionReplayPageContent() {
       .then((d) => {
         setDetail(d);
         setAnnotations(d.annotations);
+        setLegs(
+          d.session.legs?.length
+            ? [...d.session.legs].sort((a, b) => a.startSec - b.startSec)
+            : [{ label: "L1", startSec: 0 }]
+        );
 
         // 部内共有URL(?t=&boats=)の読み込み（T-16, ARCH.md §4）。値が無い/不正なら全艇表示・t=0にフォールバック。
         const trackIds = d.tracks.map((t) => t.id);
@@ -88,6 +107,10 @@ function SessionReplayPageContent() {
   useEffect(() => {
     visibleTrackIdsRef.current = visibleTrackIds;
   }, [visibleTrackIds]);
+
+  useEffect(() => {
+    comparisonTrackIdsRef.current = comparisonTrackIds;
+  }, [comparisonTrackIds]);
 
   useEffect(() => {
     clockRef.current?.setSpeed(speed);
@@ -123,6 +146,7 @@ function SessionReplayPageContent() {
         proj,
         simTimeSec: clock.simTimeSec,
         visibleTrackIds: visibleTrackIdsRef.current,
+        comparisonTrackIds: comparisonTrackIdsRef.current,
         tailSeconds: TAIL_SECONDS,
       });
 
@@ -209,10 +233,16 @@ function SessionReplayPageContent() {
     setAddingAnnotation(true);
     setAnnotationError(null);
     try {
+      const annotationKind = ANNOTATION_KINDS[newAnnotationKind];
+      const currentLegIndex = legs.reduce(
+        (found, leg, index) => (leg.startSec <= clockRef.current!.simTimeSec ? index : found),
+        0
+      );
       const { annotation } = await api.post<{ annotation: Annotation }>(`/api/sessions/${sessionId}/annotations`, {
         tSec: Math.floor(clockRef.current.simTimeSec),
-        body: newAnnotationBody.trim(),
+        body: `【${annotationKind.prefix}】${newAnnotationBody.trim()}`,
         trackId: newAnnotationTrackId === "" ? undefined : newAnnotationTrackId,
+        legIndex: currentLegIndex,
       });
       setAnnotations((prev) => [...prev, annotation].sort((a, b) => a.tSec - b.tSec));
       setNewAnnotationBody("");
@@ -231,6 +261,57 @@ function SessionReplayPageContent() {
       else next.add(trackId);
       return next;
     });
+  }
+
+  function toggleComparison(trackId: number) {
+    setComparisonTrackIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(trackId)) {
+        next.delete(trackId);
+        setComparisonMessage("");
+        return next;
+      }
+      if (next.size >= 2) {
+        setComparisonMessage("比較できるのは2艇までです。いずれかを解除してください。");
+        return next;
+      }
+      next.add(trackId);
+      setComparisonMessage(next.size === 2 ? "2艇を強調表示しています。" : "もう1艇選ぶと比較表示になります。");
+      return next;
+    });
+  }
+
+  async function addLegBoundary() {
+    const clock = clockRef.current;
+    if (!clock) return;
+    const startSec = Math.floor(clock.simTimeSec);
+    if (startSec <= 0) {
+      setLegError("タイムラインを進めてから、次のレグ開始位置を追加してください。");
+      return;
+    }
+    if (legs.some((leg) => Math.abs(leg.startSec - startSec) < 2)) {
+      setLegError("同じ時刻付近にレグ境界がすでにあります。");
+      return;
+    }
+
+    const nextLegs = [...legs, { label: "", startSec }]
+      .sort((a, b) => a.startSec - b.startSec)
+      .map((leg, index) => ({ ...leg, label: `L${index + 1}` }));
+
+    setSavingLegs(true);
+    setLegError(null);
+    try {
+      const { session: updated } = await api.patch<{ session: SessionDetail["session"] }>(
+        `/api/sessions/${sessionId}`,
+        { legs: nextLegs }
+      );
+      setLegs(nextLegs);
+      setDetail((prev) => (prev ? { ...prev, session: { ...prev.session, ...updated } } : prev));
+    } catch (err) {
+      setLegError(err instanceof Error ? err.message : "レグ境界の保存に失敗しました");
+    } finally {
+      setSavingLegs(false);
+    }
   }
 
   if (loadError) {
@@ -370,14 +451,57 @@ function SessionReplayPageContent() {
             </div>
           </div>
 
+          <section
+            aria-labelledby="legs-title"
+            style={{ marginTop: "0.8rem", padding: "0.8rem 1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <h3 id="legs-title" className="sidebar-title" style={{ margin: 0, marginRight: "0.25rem" }}>レグ</h3>
+              {legs.map((leg) => (
+                <button
+                  key={`${leg.label}-${leg.startSec}`}
+                  type="button"
+                  className="filter-chip"
+                  onClick={() => seekAndSync(leg.startSec)}
+                  aria-label={`${leg.label}の開始 ${formatTime(leg.startSec)} へ移動`}
+                >
+                  {leg.label} · {formatTime(leg.startSec)}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={addLegBoundary}
+                disabled={savingLegs}
+                style={{ marginLeft: "auto" }}
+              >
+                {savingLegs ? "保存中…" : "現在位置を次のレグ開始にする"}
+              </button>
+            </div>
+            <p style={{ margin: "0.5rem 0 0", fontSize: "0.78rem", color: "var(--fg-mute)" }}>
+              タイムラインでマーク回航時刻へ移動して境界を保存すると、以後はレグボタンから頭出しできます。
+            </p>
+            {legError && <p role="alert" style={{ margin: "0.4rem 0 0", color: "var(--terra)", fontSize: "0.8rem" }}>{legError}</p>}
+          </section>
+
           <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
-            <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に注釈を追加</h3>
+            <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <select
+                aria-label="メモの種類"
+                value={newAnnotationKind}
+                onChange={(e) => setNewAnnotationKind(e.target.value as AnnotationKind)}
+                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
+              >
+                {Object.entries(ANNOTATION_KINDS).map(([value, kind]) => (
+                  <option key={value} value={value}>{kind.label}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={newAnnotationBody}
                 onChange={(e) => setNewAnnotationBody(e.target.value)}
-                placeholder="例: ここでタック判断が遅れた"
+                placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
                 maxLength={2000}
                 style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
               />
@@ -417,6 +541,23 @@ function SessionReplayPageContent() {
               </label>
             ))}
           </div>
+
+          <h3 className="sidebar-title" style={{ marginBottom: "0.4rem" }}>比較する2艇（{comparisonTrackIds.size}/2）</h3>
+          <p style={{ fontSize: "0.75rem", color: "var(--fg-mute)", margin: "0 0 0.65rem" }}>
+            2艇を選ぶと、他艇を減光します。
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            {tracks.map((t, i) => (
+              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
+                <span>{t.boatLabel}</span>
+              </label>
+            ))}
+          </div>
+          <p role="status" style={{ minHeight: "1.2rem", margin: "0 0 1.25rem", fontSize: "0.75rem", color: "var(--fg-mute)" }}>
+            {comparisonMessage}
+          </p>
 
           <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>注釈（{annotations.length}）</h3>
           {annotations.length === 0 ? (

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeProjection, project, isIndexInGap, splitByGapRuns, RenderTrack } from "../geo";
 import { ReplayClock } from "../ReplayClock";
+import { getTrackEmphasis } from "../CanvasRenderer";
 
 function track(overrides: Partial<RenderTrack> = {}): RenderTrack {
   return {
@@ -109,5 +110,18 @@ describe("ReplayClock (T-14 ADR-001 rAF+ref)", () => {
     expect(clock.simTimeSec).toBe(50);
     clock.seekTo(20);
     expect(clock.simTimeSec).toBe(20);
+  });
+});
+
+describe("2艇比較の描画強調", () => {
+  it("2艇未満の選択では全艇を通常表示する", () => {
+    expect(getTrackEmphasis(1, new Set())).toEqual({ alpha: 1, lineWidth: 1.5, markerRadius: 5 });
+    expect(getTrackEmphasis(1, new Set([1]))).toEqual({ alpha: 1, lineWidth: 1.5, markerRadius: 5 });
+  });
+
+  it("2艇選択時は対象艇を強調し、その他を減光する", () => {
+    const compared = new Set([1, 2]);
+    expect(getTrackEmphasis(1, compared)).toEqual({ alpha: 1, lineWidth: 3, markerRadius: 7 });
+    expect(getTrackEmphasis(3, compared)).toEqual({ alpha: 0.16, lineWidth: 1, markerRadius: 4 });
   });
 });
