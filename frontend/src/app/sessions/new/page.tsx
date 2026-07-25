@@ -221,7 +221,7 @@ export default function NewSessionPage() {
                   {t.fileName}
                 </span>
                 {t.error ? (
-                  <span style={{ color: "var(--terra)", fontSize: "0.85rem" }}>{t.error}</span>
+                  <span role="alert" style={{ color: "var(--terra)", fontSize: "0.85rem" }}>{t.error}</span>
                 ) : (
                   <>
                     <input
@@ -249,13 +249,18 @@ export default function NewSessionPage() {
           </div>
         )}
 
+        {/* エラー帯・状態通知は支援技術にも伝える（UI-DESIGN §7-6） */}
         {durationTooLong && (
-          <p style={{ color: "var(--terra)", fontSize: "0.85rem" }}>
+          <p role="alert" style={{ color: "var(--terra)", fontSize: "0.85rem" }}>
             セッション長が{MAX_DURATION_SEC / 3600}時間の上限を超えています（{Math.round((normalized?.durationSec ?? 0) / 60)}分）。
           </p>
         )}
 
-        {submitError && <p style={{ color: "var(--terra)", fontSize: "0.85rem" }}>{submitError}</p>}
+        {submitError && <p role="alert" style={{ color: "var(--terra)", fontSize: "0.85rem" }}>{submitError}</p>}
+
+        <p role="status" className="sr-only">
+          {submitting ? "セッションを保存しています" : ""}
+        </p>
 
         <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", paddingTop: "0.5rem" }}>
           <Link href="/sessions" className="btn btn-ghost">Cancel</Link>

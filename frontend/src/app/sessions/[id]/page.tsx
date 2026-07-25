@@ -48,6 +48,7 @@ function SessionReplayPageContent() {
   const [addingAnnotation, setAddingAnnotation] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clockRef = useRef<ReplayClock | null>(null);
@@ -183,11 +184,24 @@ function SessionReplayPageContent() {
     try {
       await navigator.clipboard.writeText(window.location.href);
       setCopied(true);
+      setShareError(null);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // clipboard APIが使えない環境ではボタン自体を無効化していないため、フォールバックのアラートで代替
-      window.prompt("このURLをコピーしてください:", window.location.href);
+      // clipboard APIが使えない環境（非HTTPS等）では、ブロッキングダイアログではなく
+      // 画面内にURLを表示して手動コピーさせる（UI-DESIGN §7-6: alert()/prompt()は使わない）。
+      setShareError(window.location.href);
     }
+  }
+
+  /** シークバーのキーボード操作（UI-DESIGN §7-3: ←→で±5秒、Shift併用で±30秒） */
+  function handleSeekKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault(); // input[type=range]既定の±1秒を止めて仕様のステップに置き換える
+    const clock = clockRef.current;
+    if (!clock) return;
+    const step = (e.shiftKey ? 30 : 5) * (e.key === "ArrowRight" ? 1 : -1);
+    const max = detail?.session.durationSec ?? 0;
+    seekAndSync(Math.min(Math.max(0, clock.simTimeSec + step), max));
   }
 
   async function addAnnotation() {
@@ -223,8 +237,8 @@ function SessionReplayPageContent() {
     // 非TeamMember等の403もここに到達する（api.tsが本文のerrorメッセージ付きでthrowする。ARCH.md §4）。
     return (
       <div className="container">
-        <div className="empty-state">
-          <div className="empty-state-icon">×</div>
+        <div className="empty-state" role="alert">
+          <div className="empty-state-icon" aria-hidden>×</div>
           <p className="empty-state-text">閲覧できません</p>
           <p style={{ color: "var(--fg-mute)", fontSize: "0.85rem", marginTop: "0.5rem" }}>{loadError}</p>
         </div>
@@ -238,7 +252,7 @@ function SessionReplayPageContent() {
   if (!detail) {
     return (
       <div className="container">
-        <p style={{ color: "var(--fg-mute)" }}>読み込み中…</p>
+        <p role="status" style={{ color: "var(--fg-mute)" }}>読み込み中…</p>
       </div>
     );
   }
@@ -287,6 +301,19 @@ function SessionReplayPageContent() {
             </button>
           </div>
 
+          {/* 状態通知（UI-DESIGN §7-6）。コピー完了は role="status"、コピー失敗は assertive で読み上げる */}
+          <p role="status" className="sr-only">
+            {copied ? "共有URLをクリップボードにコピーしました" : ""}
+          </p>
+          {shareError && (
+            <p
+              role="alert"
+              style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--fg-mute)", wordBreak: "break-all" }}
+            >
+              クリップボードが使えませんでした。このURLを手動でコピーしてください: {shareError}
+            </p>
+          )}
+
           <div style={{ position: "relative", marginTop: "0.6rem" }}>
             <input
               type="range"
@@ -298,30 +325,47 @@ function SessionReplayPageContent() {
               onMouseUp={handleSeekCommit}
               onTouchEnd={handleSeekCommit}
               onKeyUp={handleSeekCommit}
+              onKeyDown={handleSeekKeyDown}
               style={{ width: "100%", display: "block" }}
-              aria-label="シークバー"
+              aria-label="シークバー（左右キーで±5秒、Shift併用で±30秒）"
+              aria-valuetext={`${formatTime(simTimeDisplay)} / ${formatTime(session.durationSec)}`}
             />
-            {/* タイムライン注釈ピン（T-15）。クリックでその時刻へシークする */}
-            <div style={{ position: "relative", height: 14, marginTop: 2 }}>
+            {/* タイムライン注釈ピン（T-15）。クリックでその時刻へシークする。
+                見た目は8pxだが、UI-DESIGN §7-7（WCAG 2.2 Target Size）に合わせて
+                透明のヒット領域で24×24pxを確保する。 */}
+            <div style={{ position: "relative", height: 24, marginTop: 2 }}>
               {annotations.map((a) => (
                 <button
                   key={a.id}
                   type="button"
                   onClick={() => seekAndSync(a.tSec)}
                   title={`${formatTime(a.tSec)} — ${a.body}`}
+                  aria-label={`${formatTime(a.tSec)} の注釈へ移動: ${a.body}`}
                   style={{
                     position: "absolute",
                     left: `${(a.tSec / session.durationSec) * 100}%`,
                     transform: "translateX(-50%)",
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "var(--terra)",
-                    border: "1px solid var(--paper)",
+                    width: 24,
+                    height: 24,
+                    display: "grid",
+                    placeItems: "center",
+                    background: "transparent",
+                    border: "none",
                     padding: 0,
                     cursor: "pointer",
                   }}
-                />
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "var(--terra)",
+                      border: "1px solid var(--paper)",
+                    }}
+                  />
+                </button>
               ))}
             </div>
           </div>
@@ -351,7 +395,14 @@ function SessionReplayPageContent() {
                 {addingAnnotation ? "追加中…" : "追加"}
               </button>
             </div>
-            {annotationError && <p style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>{annotationError}</p>}
+            {annotationError && (
+              <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
+                {annotationError}
+              </p>
+            )}
+            <p role="status" className="sr-only">
+              {addingAnnotation ? "注釈を追加しています" : ""}
+            </p>
           </div>
         </div>
 
