@@ -38,6 +38,7 @@ model User {
 
   uploadedSessions    Session[]    @relation("SessionUploader")
   authoredAnnotations Annotation[] @relation("AnnotationAuthor")
+  publishedSessions   Session[]    @relation("SessionPublisher")
 }
 
 model BoatType {
@@ -339,9 +340,17 @@ model Session {
   notes       String?     @db.Text
   marks       Json?       // [{ label: "上", lat: number, lon: number }, ...] レグ頭出し用（RQ-10）
   legs        Json?       // [{ label: "L1", startSec: number }, ...] セッション共通レグ境界（算出結果＋手動補正後）
-  // 部内共有の可視範囲。今回は"team"のみ実装(知の共有層rev.4の前方互換要件。将来"unlisted"/"public"を追加予定)。
+  // 部内共有の可視範囲。"team" | "unlisted" | "public"（共有1・T-30で実効化。ADR-007によりenum化しない）。
   visibility  String      @default("team")
   createdAt   DateTime    @default(now())
+
+  // --- 共有1（PRD rev.6・SPEC-share1-phase1.md §4・T-30）で純追加。ADR-007 ---
+  publicSlug      String?   @unique @db.VarChar(32) // crypto.randomBytes(9)のbase64url(12字)。連番IDは絶対に露出させない。非公開時null
+  learningSummary String?   @db.Text                // 「学びの要約」。昇格時必須(1〜400字)・公開ビューの主役テキスト
+  publishedAt     DateTime?                         // 昇格日時。取り消しでnullへ戻す
+  publishedById   Int?                              // 昇格を実行したUser
+  publishedBy     User?     @relation("SessionPublisher", fields: [publishedById], references: [id])
+  publicViewCount Int       @default(0)             // 公開ビュー表示回数。APIにも画面にも出さない（PRD §5-7 非KPI。参照は運用SQLのみ）
 
   teamId     Int
   team       Team @relation(fields: [teamId], references: [id])
@@ -379,6 +388,7 @@ model Annotation {
   authorId  Int
   author    User @relation("AnnotationAuthor", fields: [authorId], references: [id])
 
+  isPublic Boolean @default(false) // 共有1で純追加（T-30）。既定は非公開。昇格ダイアログで選ばれたものだけtrue（ADR-007）
   tSec     Int     // セッション相対秒（必須アンカー。再生位置から自動キャプチャ）
   trackId  Int?    // 対象艇（任意）
   track    Track?  @relation(fields: [trackId], references: [id], onDelete: SetNull)

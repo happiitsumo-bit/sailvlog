@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import crypto from "crypto";
 import prisma from "../database";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import {
@@ -9,11 +10,24 @@ import {
 } from "../middleware/requireTeamMember";
 import { validateTrackPayload } from "../lib/validateTrackPayload";
 import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
+import { validatePublishPayload } from "../lib/validatePublishPayload";
 
 const router = Router();
 
 const MAX_DURATION_SEC = 14400; // 4時間（ARCH.md §3）
 const MAX_TITLE_LEN = 255;
+
+// 公開URL(/p/[slug])のオリジン。専用の新規env変数を足さず、既存のCORS_ORIGIN(フロントの許可オリジン)の
+// 先頭値を流用する（T-30・ARCH §4「新規npm依存なし」の精神を環境変数追加の抑制にも適用）。
+function publicOrigin(): string {
+  const first = (process.env.CORS_ORIGIN ?? "http://localhost:3001").split(",")[0]?.trim();
+  return first || "http://localhost:3001";
+}
+
+function generatePublicSlug(): string {
+  // crypto.randomBytes(9).toString("base64url") — Node標準・新規npm依存なし（T-30・ARCH ADR-007）
+  return crypto.randomBytes(9).toString("base64url");
+}
 
 // POST /api/sessions — 新規セッション作成
 router.post(
@@ -234,6 +248,100 @@ router.post(
     });
 
     res.status(201).json({ annotation });
+  }
+);
+
+// POST /api/sessions/:id/publish — 公開昇格（T-30, ARCH.md §4/ADR-007）。
+// 権限はuploader本人 or Team adminのみ。再公開のたびに新しいスラッグを発行する（前と異なるスラッグ＝1方向解釈）。
+router.post(
+  "/:id/publish",
+  authMiddleware,
+  requireSessionTeamMember(),
+  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+    const sessionId = req.sessionRecord!.id;
+
+    const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
+    if (!allowed) {
+      res.status(403).json({ error: "公開できるのはアップロード者本人またはチーム管理者のみです" });
+      return;
+    }
+
+    const result = validatePublishPayload(req.body);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    const { visibility, learningSummary, publicAnnotationIds } = req.body as {
+      visibility: "unlisted" | "public";
+      learningSummary: string;
+      publicAnnotationIds?: number[];
+    };
+    const ids = publicAnnotationIds ?? [];
+
+    if (ids.length > 0) {
+      const matched = await prisma.annotation.count({
+        where: { id: { in: ids }, sessionId },
+      });
+      if (matched !== ids.length) {
+        res.status(400).json({ error: "publicAnnotationIds に他セッションの注釈IDが含まれています" });
+        return;
+      }
+    }
+
+    // 前と異なるスラッグを毎回発行する。理論上の衝突（@unique制約違反）に備え数回だけ再試行する。
+    let publicSlug = generatePublicSlug();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const clash = await prisma.session.findUnique({ where: { publicSlug } });
+      if (!clash) break;
+      publicSlug = generatePublicSlug();
+    }
+
+    const [session] = await prisma.$transaction([
+      prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          visibility,
+          learningSummary: learningSummary.trim(),
+          publicSlug,
+          publishedAt: new Date(),
+          publishedById: req.userId as number,
+        },
+      }),
+      // 既定=非公開に一度戻してから、選ばれたものだけ公開にする（再公開時に前回選択が残らないようにする）
+      prisma.annotation.updateMany({ where: { sessionId }, data: { isPublic: false } }),
+      ...(ids.length > 0
+        ? [prisma.annotation.updateMany({ where: { sessionId, id: { in: ids } }, data: { isPublic: true } })]
+        : []),
+    ]);
+
+    res.status(200).json({
+      publicSlug: session.publicSlug,
+      publicUrl: `${publicOrigin()}/p/${session.publicSlug}`,
+      visibility: session.visibility,
+      publishedAt: session.publishedAt,
+    });
+  }
+);
+
+// POST /api/sessions/:id/unpublish — 公開取り消し（T-30）。publicSlugを破棄しvisibilityを"team"へ戻す。
+router.post(
+  "/:id/unpublish",
+  authMiddleware,
+  requireSessionTeamMember(),
+  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+    const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
+    if (!allowed) {
+      res.status(403).json({ error: "取り消せるのはアップロード者本人またはチーム管理者のみです" });
+      return;
+    }
+
+    const session = await prisma.session.update({
+      where: { id: req.sessionRecord!.id },
+      data: { visibility: "team", publicSlug: null, publishedAt: null },
+    });
+
+    res.status(200).json({ visibility: session.visibility });
   }
 );
 
