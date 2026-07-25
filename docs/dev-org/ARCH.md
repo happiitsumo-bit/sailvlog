@@ -66,8 +66,16 @@ model Session {
   notes       String?     @db.Text
   marks       Json?       // [{ label: "上", lat: number, lon: number }, ...] レグ頭出し用（RQ-10）
   legs        Json?       // [{ label: "L1", startSec: number }, ...] セッション共通レグ境界（算出結果＋手動補正後）
-  visibility  String      @default("team") // 追補2026-07-24(Team Lead承認): MVPでは"team"のみ。知の共有層rev.4の前方互換用（将来"unlisted"/"public"/チーム間フォロー承認を値追加で対応。PRD-rev4-sharing-layer.md参照）。APIは本値によらず部内限定のまま
+  visibility  String      @default("team") // "team" | "unlisted" | "public"。**共有1(PRD rev.6・Phase 1最後尾)で実効化**（追補2026-07-24時点では"team"固定だった）。enum化しない理由はADR-007
   createdAt   DateTime    @default(now())
+
+  // --- 共有1（PRD rev.6・SPEC-share1-phase1.md §4）で純追加。ADR-007 ---
+  publicSlug      String?   @unique @db.VarChar(32) // crypto.randomBytes(9)のbase64url(12字)。連番IDは絶対に露出させない。非公開時null
+  learningSummary String?   @db.Text                // 「学びの要約」。昇格時必須(1〜400字)・公開ビューの主役テキスト
+  publishedAt     DateTime?                         // 昇格日時。取り消しでnullへ戻す
+  publishedById   Int?                              // 昇格を実行したUser
+  publishedBy     User?     @relation("SessionPublisher", fields: [publishedById], references: [id])
+  publicViewCount Int       @default(0)             // 公開ビュー表示回数。**APIにも画面にも出さない**（PRD §5-7 非KPI。参照は運用SQLのみ）
 
   teamId     Int
   team       Team @relation(fields: [teamId], references: [id])
@@ -105,6 +113,7 @@ model Annotation {
   authorId  Int
   author    User @relation("AnnotationAuthor", fields: [authorId], references: [id])
 
+  isPublic Boolean @default(false) // 共有1で純追加。**既定は非公開**。昇格ダイアログで選ばれたものだけtrue（反省会の生の議論が昇格の副作用で外に出ない構造。ADR-007）
   tSec     Int     // セッション相対秒（必須アンカー。再生位置から自動キャプチャ）
   trackId  Int?    // 対象艇（任意）
   track    Track?  @relation(fields: [trackId], references: [id], onDelete: SetNull)
@@ -137,9 +146,19 @@ model Annotation {
 | `POST /api/sessions/:id/annotations` | `{ tSec, body, trackId?, legIndex? }` | `201 { annotation }` | 400 / 403 |
 | `PATCH/DELETE /api/annotations/:id` | body更新 / 削除 | 200 / 204 | 403（author本人 or Team admin のみ） |
 
+**共有1の追加エンドポイント（PRD rev.6・ADR-007。JWT必須の2本＋未認証1本）**
+
+| I/F | 認証 | 入力 | 出力 | エラー |
+|---|---|---|---|---|
+| `POST /api/sessions/:id/publish` | JWT必須 | `{ visibility: "unlisted"\|"public", learningSummary, publicAnnotationIds: number[] }` | `200 { publicSlug, publicUrl, visibility, publishedAt }` | 400（要約が空/401字以上・visibility不正・他セッションの注釈ID混入） / 403（uploader本人でもTeam adminでもない） / 404 |
+| `POST /api/sessions/:id/unpublish` | JWT必須 | — | `200 { visibility: "team" }`（**publicSlugを破棄**。再公開時は新スラッグ＝PRD §5-2の1方向解釈） | 403 / 404 |
+| `GET /api/public/sessions/:slug` | **不要** | — | `200 { session, tracks, annotations }` ホワイトリスト整形。IPあたり60req/min制限 | **404のみ**（存在しない/非公開/取り消し済みを区別しない） |
+
+**公開ペイロードから必ず除外する**（ホワイトリスト方式で「含めるものだけ」を書く。自動テストで担保＝T-31）: `rawGpx`（`GET /api/tracks/:id/gpx` も未認証では404）／`isPublic=false` の注釈（件数も出さない）／email／`teamId`・メンバー一覧（チーム表示名のみ可）／`notes`／`publicViewCount`。**`legs` は再生に必要なため含める**。
+
 **サーバ側再検証（フロントパースを信頼しない）**: lat∈[-90,90]・lon∈[-180,180]・`gridJson.lat.length === gridJson.lon.length === pointCount`（gapsは点列と長さを揃えない別配列。各要素`[start,end]`が`0 ≦ start ≦ end < pointCount`であることを別途境界検証）・startSec+pointCount≦durationSec+誤差・tSec∈[0,durationSec]・rawGpx≦5MB・gridJson≦2MB・body≦2000字。`express.json({ limit: "8mb" })` は `/api/sessions` 配下のみに適用（既存ルートのlimitは変えない）。
 
-**フロント主要ページ**: `/sessions`（一覧）・`/sessions/new`（取込ウィザード: ファイル選択→DOMParserパース→1Hzグリッド正規化→重ね描きプレビュー→保存）・`/sessions/[id]`（再生ページ。URLクエリ `?t=秒&boats=trackId,...&leg=n` を初期化時に読み、一時停止/シーク確定時のみ `history.replaceState` で書く）。
+**フロント主要ページ**: `/sessions`（一覧）・`/sessions/new`（取込ウィザード: ファイル選択→DOMParserパース→1Hzグリッド正規化→重ね描きプレビュー→保存）・`/sessions/[id]`（再生ページ。URLクエリ `?t=秒&boats=trackId,...&leg=n` を初期化時に読み、一時停止/シーク確定時のみ `history.replaceState` で書く）・**`/p/[slug]`（共有1の公開ビュー。認証不要・読み取り専用。`lib/replay/` をそのまま再利用し、描画コードは分岐も複製もしない。差分は「渡すデータが絞られている」ことと「編集UIを描画しない」ことだけ。`generateMetadata` でOGPを出力し、`unlisted` は `noindex`）**。
 
 **再生エンジンモジュール境界**（実装者向け）: `frontend/src/lib/gpx/`（パース＋正規化。DOM API以外に依存しない純関数、ユニットテスト対象）と `frontend/src/lib/replay/`（ReplayClock: rAF+refの時刻管理／CanvasRenderer: 投影・艇・テール・スケールバー描画／型定義）。ReactコンポーネントはこれらをuseRef経由で保持し、UIパネルの状態同期は250ms間隔のsetIntervalまたはrAF間引きで行う。SPIKE-01（`spike/`）は**参照のみ・コピー禁止**（使い捨て契約）。
 
@@ -192,12 +211,20 @@ model Annotation {
 - **理由:** DOMParserはブラウザ標準・Node側には存在しない（サーバでやるならXMLライブラリ依存が増える）。取込UXの要=「アップロード前に時刻同期のズレや欠測を目視確認できるプレビュー」はフロントパースなら追加コストゼロ。パース・正規化ロジックは純関数モジュール（`lib/gpx/`）に隔離し、将来サーバ移動が必要になっても移せる形にする
 - **結果として受け入れるデメリット:** クライアントを信頼しない再検証をサーバに二重で持つ（ただし検証は数値範囲チェックのみで軽い）。curl等からの直接POSTでは「gridJsonがrawGpxと整合する」ことまでは検証しない（部内認証済みユーザーのみの脅威モデルで許容。公開化する場合は再考）
 
+### ADR-007: 公開昇格は「専用スラッグ＋専用ホワイトリスト・シリアライザ」で実装し、既存の部内APIを流用しない
+- **状況:** 共有1（公開昇格＋限定公開URL＋OGP）がPhase 1へ前倒しされた（PRD rev.6・`SPEC-share1-phase1.md` 承認済み）。認証必須の部内APIしか無かった系に、**初めて未認証で読めるエンドポイント**を足すことになる
+- **決定:** ①URLキーは連番IDではなく `crypto.randomBytes(9)` の base64url 12文字を `Session.publicSlug` にユニーク保存 ②公開取得は `GET /api/public/sessions/:slug` を**新設**し、既存 `GET /api/sessions/:id` のレスポンス整形を再利用しない。公開ペイロードは「除外するものを列挙」ではなく「**含めるものだけを列挙するホワイトリスト方式**」で組む ③注釈の公開は `Annotation.isPublic`（既定false）で選別 ④存在しないスラッグ・非公開・取り消し済みは**区別せず一律404** ⑤IPあたり60req/minの簡易レート制限（メモリ内カウンタ・新規npm依存なし）
+- **理由:** ADR-006の末尾で先送りした「公開化する場合は再考」がここで現実になった。**脅威モデルが「部内認証済みユーザーのみ」から「インターネット全体」へ変わる**ため、既存整形の流用は将来カラムが増えたときの意図しない露出を招く。ホワイトリスト方式なら、新カラムの既定は「公開しない」になる。一律404はスラッグ総当たりに手がかりを与えないため（「非公開です」は存在を教えてしまう）
+- **選ばなかった側の最強の擁護論:** 「`GET /api/sessions/:id` に匿名分岐を足せば1エンドポイントで済み、再生ペイロードの整形ロジックが二重化しない」— DRYとしては正当。ただし認可分岐が1本の関数に同居すると、後日の変更で分岐を1つ踏み外しただけで全公開事故になる。**分けておけば、公開側の関数を読むだけで「何が外に出るか」が全部わかる**、が反駁（再生エンジン側=`lib/replay/` はフロントで完全に再利用するので、二重化するのはサーバの整形のみ）
+- **結果として受け入れるデメリット:** サーバ側にセッション整形が2系統できる（部内用/公開用）。同期漏れは、**公開レスポンスに禁止キー（rawGpx・email・teamId・非公開注釈）が含まれないことを検証する自動テスト**（TASKS T-31）で捕まえる
+
 ## 7. リスクと縮退プラン
 
 - **一番危ない残リスク: スマホ実機性能が未計測のまま設計を確定していること。** PC実測（M5・Headless Chrome）はPASSしたが、PRD要件「スマホでも閲覧」の実機検証はオーナー待ち（B-2）。ただし①主利用文脈はプロジェクタ/PC（PRD§3）②PC側の余裕が極端（p95 0.2ms ≒ 予算16.7msの1/80）で、ミドルレンジスマホがPCの50倍遅くてもPASS圏内、の2点からFAIL確率は低いと見積もる。**検証プラン:** `spike/README.md` の手順でオーナーがS1（TASKS.md 実装スライス1）着手前〜並行に計測（基準: 30fps/シーク1s/ロード5s/クラッシュなし）。FAIL時はSPIKE-01計画の縮退策（①描画間引き→②Path2D差分→③テール上限→④OffscreenCanvas/WebGL=新技術枠を解放）を順に適用。本線（PC）は影響を受けない
 - 第2: 主役体験が並行検証でAに転ぶ → 〔共通〕タスク（T-01/T-02）は無駄にならない設計。E2固有実装はGATES ①通過を着手条件にする（TASKS.md B-1）
 - 第3: JSONB応答が実データで遅い → T-24実測ガード（縮退はADR-002に記載）
 - 第4: 供給リスク（マネ艇が録らない）→ 設計の外。並行検証とハンドブック（T-22）が担当
+- 第5（共有1・ADR-007）: **未認証エンドポイントからの情報露出**。縮退ではなく予防で対処する — ホワイトリスト整形＋禁止キー非含有テスト（T-31）＋一律404＋レート制限。**万一の事故時の縮退**は `POST /api/sessions/:id/unpublish` を全公開セッションに対して実行するSQL/スクリプト1本で全撤収できる（`publicSlug=null` にすれば全URLが即404になる）。この「一撃で全部引っ込められる」性質を設計上の保険として維持する（＝公開状態をSession単体で完結させ、別テーブルへ複製しない理由でもある）
 - **間に合わない場合に削る順序:** ①レグ頭出し（T-21。注釈ジャンプで代替可能）→ ②2艇比較ハイライト（T-20。艇選択の色分けで代替）→ ③URLクエリのleg/boatsパラメータ（tのみ残す）→ ④スマホ閲覧最適化（T-25。PC/プロジェクタ本線は維持）。**取込→複数艇再生→注釈→部内共有の縦1本とデモ品質は最後まで削らない**
 
 ## 8. Definition of Done
