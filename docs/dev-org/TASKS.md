@@ -247,6 +247,11 @@
 - [ ] T-91: README＋Q&A＋デモ素材（docs-writer / demo-director）
   - 成果物: README刷新（v3の一言・起動手順・スクリーンショット/GIF・ピボット意思決定の記録リンク）＋Q&A/トラブルシューティング（使い方FAQ・cold start・GPXが読めない時・Geo Tracker設定ミス等の踏んだ罠と回避策・壊れたときの確認手順=ログの見方）
   - 検証: 第三者（オーナー以外の部員）がREADMEだけで閲覧まで到達できる
+  - **検証結果（2026-07-26・docs-writer、担当範囲=文書パートのみ。デモGIF/スクリーンショットは未着手）**: `README.md` を全面刷新（v1/v2時代の「ナレッジシェアSNS」記述を一掃し、v3「反省会リプレイ・デバッガ」の一言＋なぜ作ったか＋主な機能＋技術スタック（選定理由付き）＋セットアップ＋テストコマンド＋使い方＋Q&A/トラブルシューティングの構成に刷新）。デモGIF/スクリーンショットは実体が無いため、画像リンクは作らず「未挿入」と明示するプレースホルダ文言のみ設置（デモ素材担当が後で差し替える前提）。
+    - 実行して確認したコマンドと実出力: ①`docker compose exec backend npm install`（`Cannot find module 'pg'`を解消。`node_modules`が匿名ボリューム固定でpackage.json更新が反映されない既知問題の再現・解消を確認）②`docker compose exec backend npm test` → `8 suites / 73 passed / 27 todo / 0 failed`（約17秒）③`docker compose exec frontend npm test` → `5 files / 42 passed`（Vitest。T-20/T-25分含め既存より増加を確認＝実装レーンの並行作業を反映）④`docker compose exec frontend npx tsc --noEmit` → エラー0（`.next/types`配下の削除済みv2ページ参照はキャッシュ起因の警告のみでビルドには影響しないことを`npm run build`で確認）⑤`docker compose exec frontend npm run build` → 成功、8ルート生成（`/`, `/handbook`, `/login`, `/register`, `/sessions`, `/sessions/[id]`, `/sessions/new`, `/_not-found`）⑥`curl`で`/login`・`/register`・`/sessions`・`/handbook`が200、`http://localhost:8001/api/teams`が200、`http://localhost:8001/api/auth/login`が401（想定どおり）、`http://localhost:8001/api/questions`が410（凍結ルート）であることを実測。
+    - **副作用と復旧**: 検証中に`next dev`が動いている同一frontendコンテナで`npm run build`（本番ビルド）を実行したため`.next`が競合し、devサーバーが`TypeError: Cannot read properties of undefined (reading 'call')`で500を返す状態になった。`docker compose restart frontend`で復旧し`/`が200へ戻ることを確認済み（他レーンの作業への実害は無かったが、Q&Aセクションに「壊れたときの確認手順」としてこの事象と復旧法を明記した）。
+    - 未検証として残した箇所: ①「第三者（オーナー以外の部員）がREADMEだけで閲覧まで到達できる」の実地確認はオーナー/部員による実施が前提のため未実施 ②`docs/README.md`は他レーン由来の未コミット差分（mockups行の追加のみ）が残っていたため、内容を変更せずそのまま保持（本タスクでは触っていない）。
+    - デモ素材担当への申し送り: README冒頭のプレースホルダ（「ここにデモGIF/スクリーンショットが入ります」の行）に、`/sessions/[id]`の複数艇再生＋タイムライン注釈が伝わる素材を差し込んでください。挿入後はプレースホルダ文言を削除し、画像パスに置き換えてください（存在確認のうえコミットすること）。
   - 依存: MVP完了集約条件（上記）
 - [ ] T-92: リリース＋計測準備（release-manager）
   - 成果物: PRD §6の成功指標①〜③を数えるSQL（アップロード数・注釈数の集計クエリ）をdocsに記載。knowledge還流（RESEARCH.md §5の候補を/tilへ）
