@@ -236,9 +236,23 @@
       7. **404の一律性**: 存在しないスラッグ`/p/does-not-exist-slug-xyz`が**404**（`curl -o /dev/null -w "%{http_code}"`）
       - 検証後、`POST /:id/unpublish`でテストセッションを`team`へ復元済み。使い捨てPlaywrightスクリプト（`t33-verify.js`/`t33-domorder.js`/`t33-chrome-check.js`/`t33-shot.js`）はscratchpad配下・コミット対象外
   - 依存: T-31, T-14（再生エンジン）
-- [ ] T-34: OGP＋公開E2E〔共有1〕 — **ここで共有1完成**
+- [x] T-34: OGP＋公開E2E〔共有1〕 — **ここで共有1完成**
   - 成果物: `/p/[slug]` の `generateMetadata`（title・description=学びの要約冒頭100字・`og:image`=静的1枚・`unlisted` は `robots: noindex`）＋静的OG画像1枚（海図面＋ロゴ。動的生成はバックログ）
   - 検証: E2E通し — 部内で昇格 → ログアウト状態でURLを開く → 公開注釈のみ表示 → メタタグをHTMLで確認（`og:title`/`og:description`/`og:image`/`noindex`の有無が範囲で切り替わる） → 「公開をやめる」→ **同じURLが404** → 再公開で別URLが発行される。結果をこのファイルに追記
+  - **検証結果（2026-07-26）**: 実装＝`frontend/src/app/p/[slug]/page.tsx`に`generateMetadata`を追加（title=`{セッション名} ｜ {チーム名} — sailvlog`、description=学びの要約冒頭100字、`openGraph`/`twitter`ともに`og:image`を出力、`visibility==="unlisted"`のときのみ`robots:{index:false,follow:false}`）＋`frontend/public/og-image.png`（1200×630静的画像。海図グリッド＋航跡風の折れ線＋「⛵ sailvlog」ロゴ＋サブタイトル。使い捨てのPlaywright+HTML合成で1枚だけ生成しコミット、動的OG画像生成は実装しない＝SPEC §3.2の禁止事項どおり）。
+    - **発見事項→その場で修正（og:imageの絶対URL解決）**: 当初`next/metadata`の`metadataBase`（`app/layout.tsx`に追加）に委ねたところ、この環境のdocker-compose構成（`next dev`がコンテナ内部では3000番で待受け、公開ポートは3001番）で`og:image`が`http://localhost:3000/og-image.png`に解決され、外部からアクセス不能なURLになる実測不具合を確認（`metadataBase`の値を明示的に変えても反映されず、常に3000番になる＝Next.js側がdev時に内部ポートを優先する挙動と推測）。対応として、backendの`publicOrigin()`（T-30）と同じ発想で`frontend/src/app/p/[slug]/page.tsx`内に`siteOrigin()`ヘルパーを実装し、`NEXT_PUBLIC_SITE_URL`（未設定時`http://localhost:3001`）から`og:image`の絶対URLを明示的に組み立てる方式に変更。修正後`curl`で`http://localhost:3001/og-image.png`（正しい公開ポート）が解決されることを確認。本番（Vercel/Render）デプロイ時は`NEXT_PUBLIC_SITE_URL`に実ドメインを設定する必要がある（T-02/デプロイ設定側の作業。現状はwaive中のため未設定=ローカルfallback値のまま）。
+    - **`npx tsc --noEmit`**: エラー0。**`npm run build`**: 9ルート（T-33から変化なし、`/p/[slug]`のサイズが4.3kBのまま）。**`npx vitest run`**: 6 files / **54 passed**（T-32/T-33から回帰なし。T-34はメタデータ出力のみで新規純関数ロジックなしのため新規ユニットテストは追加せず、E2Eで直接検証）。
+    - **E2E通し検証（Playwright + `docker compose`稼働中の実backend/db/frontend、T-32/T-33で使ったセッションid=2を再利用）**:
+      1. 部内ユーザー(uploader本人)として`POST /api/sessions/2/publish`でunlisted昇格 → `publicSlug`発行を確認
+      2. ログアウト状態（token/userをセットしない新規ブラウザコンテキスト）で`/p/{slug}`を開き**HTTPステータス200**
+      3. 公開注釈「テスト注釈A」はページ本文に含まれ、非公開注釈「テスト注釈B」は含まれないことを確認
+      4. メタタグをレンダリング後HTMLから正規表現で検査: `og:title`/`og:description`/`og:image`が存在し、**unlistedでは`<meta name="robots" content="noindex...">`が存在**することを確認
+      5. `POST /api/sessions/2/unpublish`で取り消し
+      6. **同じURL(旧slug)が404**になることをPlaywrightの`page.goto()`のレスポンスステータスで確認
+      7. `POST /api/sessions/2/publish`（今度は`visibility:"public"`）で再公開 → **旧slugとは異なる新slugが発行**されることを確認。新URLは200で開け、`visibility:"public"`のため**`noindex`が付与されない**ことも確認（unlisted/publicでのnoindex切替を実データで検証）
+      8. 旧URL(手順1のslug)は再公開後も**引き続き404のまま**であることを確認（再公開が旧URLを復活させないことの確認。ADR-007「1方向昇格＝取り消し後は新スラッグ」の実データ検証）
+      - 検証後、`POST /:id/unpublish`でテストセッションを`team`へ復元し、使い捨てPlaywrightスクリプト（`t34-e2e.js`、`og-source.html`/`og-shot.js`はog-image.png生成用）はscratchpad配下・コミット対象外
+    - **これで共有1（公開昇格＋限定公開URL＋OGP）完成**。T-30〜T-34すべて完了。S2.5セクションの残タスクなし。
   - 依存: T-32, T-33
 
 ### S3: 仕上げ（③Quality / ④Demo Gate に向けて）
