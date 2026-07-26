@@ -21,7 +21,7 @@ export function validatePublishPayload(input: PublishPayloadInput): ValidationRe
   if (typeof learningSummary !== "string" || learningSummary.trim().length === 0) {
     return { ok: false, status: 400, error: "learningSummary は必須です" };
   }
-  if (learningSummary.length > MAX_SUMMARY_LEN) {
+  if (learningSummary.trim().length > MAX_SUMMARY_LEN) {
     return { ok: false, status: 400, error: `learningSummary は${MAX_SUMMARY_LEN}文字以内である必要があります` };
   }
   if (publicAnnotationIds !== undefined) {

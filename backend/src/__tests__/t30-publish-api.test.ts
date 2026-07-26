@@ -95,6 +95,15 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
     expect(res.status).toBe(400);
   });
 
+  test("learningSummaryが400字＋末尾空白1つは200（R-08: フロントtrim後判定とサーバ側判定を一致させる）", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(app)
+      .post(`/api/sessions/${sessionId}/publish`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ visibility: "unlisted", learningSummary: `${"あ".repeat(400)} ` });
+    expect(res.status).toBe(200);
+  });
+
   test("visibilityが不正な値は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
     const res = await request(app)
