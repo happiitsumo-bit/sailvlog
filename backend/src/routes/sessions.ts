@@ -109,7 +109,7 @@ router.get(
   async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const id = req.sessionRecord!.id;
 
-    const [session, tracks, annotations] = await Promise.all([
+    const [sessionRow, tracks, annotations] = await Promise.all([
       prisma.session.findUnique({ where: { id } }),
       prisma.track.findMany({
         where: { sessionId: id },
@@ -128,7 +128,11 @@ router.get(
       prisma.annotation.findMany({ where: { sessionId: id }, orderBy: { tSec: "asc" } }),
     ]);
 
-    res.json({ session, tracks, annotations });
+    // Quality Gate Major修正: publicViewCountはPRD §6により「SQLでのみ参照・UI表示や成功指標にしない」
+    // と定められている非KPI項目。部内API(GET /api/sessions/:id)のレスポンスから除外する。
+    const { publicViewCount: _publicViewCount, ...session } = sessionRow ?? {};
+
+    res.json({ session: sessionRow ? session : null, tracks, annotations });
   }
 );
 

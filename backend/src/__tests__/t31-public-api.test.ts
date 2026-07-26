@@ -185,6 +185,28 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     expect(last!.status).toBe(429);
   }, 30000);
 
+  // Quality Gate Major1修正: Next.jsサーバーコンポーネント経由のアクセスは全員が同じreq.ipで
+  // backendに到着するため、素のreq.ipだけをキーにすると「1分61回開かれた時点で全公開URLが
+  // 全員に404」になる。frontend/src/lib/publicSession.ts が転送する x-forwarded-client-ip を
+  // backendが優先して使うことで、実クライアント単位にレート制限が効くことを検証する。
+  test("④-b レート制限: x-forwarded-client-ip が異なれば同一req.ipでも別バケットとして扱われる", async () => {
+    const { slug } = await createPublishedSession();
+
+    let lastA;
+    for (let i = 0; i < 61; i++) {
+      lastA = await request(app)
+        .get(`/api/public/sessions/${slug}`)
+        .set("x-forwarded-client-ip", "203.0.113.1");
+    }
+    expect(lastA!.status).toBe(429);
+
+    // 別クライアントIPを名乗ればまだ枠が残っている(同一req.ipのまま、ヘッダだけ変える)
+    const otherClient = await request(app)
+      .get(`/api/public/sessions/${slug}`)
+      .set("x-forwarded-client-ip", "203.0.113.2");
+    expect(otherClient.status).toBe(200);
+  }, 30000);
+
   test("publicViewCountは同一IP・同一スラッグ5分以内は加算されない(2回叩いても+1のみ)", async () => {
     const { sessionId, slug } = await createPublishedSession();
     await request(app).get(`/api/public/sessions/${slug}`);

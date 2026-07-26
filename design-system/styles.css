@@ -273,6 +273,8 @@ ol {
     --color-boat-2: #ff5b52;
     --color-boat-3: #f0a72e;
     --color-boat-4: #34c07a;
+    --color-boat-5: #a679e0; /* 2026-07-26補完: ライトのみ5・6が追加されていた片肺状態を解消（値はtheme.json boats.darkと同一。ARCH ADR-008） */
+    --color-boat-6: #e2569a;
     --color-boat-5: #a679e0; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
     --color-boat-6: #e2569a;
 

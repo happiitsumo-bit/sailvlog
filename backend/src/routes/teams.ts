@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // GET /api/teams — 一覧
-router.get("/", async (req, res) => {
+// Quality Gate Blocker修正: 未認証で全チームslug + 部員名簿(氏名/専門/経験年数/艇種)が取得できていた
+// （/api/teams → slug特定 → /api/teams/:slug で名簿取得、という経路。共有1でチーム名が公開ページに
+// 出るようになったことで初めて成立した）。authMiddlewareを追加し、部内ログイン済みユーザーのみに限定する。
+router.get("/", authMiddleware, async (req, res) => {
   try {
     const { category, search } = req.query;
 
@@ -36,8 +40,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/teams/:slug — 詳細
-router.get("/:slug", async (req, res) => {
+// GET /api/teams/:slug — 詳細（部員名簿を含むためBlocker修正で認証必須化）
+router.get("/:slug", authMiddleware, async (req, res) => {
   try {
     const team = await prisma.team.findUnique({
       where: { slug: req.params.slug },

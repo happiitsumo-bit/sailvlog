@@ -1,5 +1,10 @@
 import "dotenv/config";
-import express, { Request, Response } from "express";
+// Quality Gate Major修正: Express 4 + Node 20ではasyncハンドラ内の未処理rejectionが
+// next(err)へ渡らずプロセスごと終了する。express-async-errorsをexpressより先にimportすることで
+// Router.get/post等をパッチし、asyncハンドラの例外を自動的にnext(err)へ回すようにする
+// （個別ルートのtry/catchを全部書き換える必要がない安全網。既存のtry/catch付きルートには影響しない）。
+import "express-async-errors";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 
 import authRouter from "./routes/auth";
@@ -62,6 +67,17 @@ app.all("/api/posts", gone);
 app.all("/api/posts/*", gone);
 app.all("/api/courses", gone);
 app.all("/api/courses/*", gone);
+
+// Quality Gate Major修正: DB例外等でプロセスが落ちるのを防ぐグローバルエラーハンドラ。
+// express-async-errors経由でnext(err)に渡ってきた例外・同期的にthrowされた例外の両方をここで受け止め、
+// 確実に500応答へ落とす（プロセスは継続する）。ルート個別のtry/catchはこれを置き換えるものではなく、
+// 「catchし忘れた場合の安全網」として最後段に置く。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Unhandled error:", err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: "Internal Server Error" });
+});
 
 if (require.main === module) {
   app.listen(PORT, () => {

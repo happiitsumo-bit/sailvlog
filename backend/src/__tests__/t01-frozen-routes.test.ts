@@ -45,8 +45,17 @@ describe("T-01 存続ルート", () => {
     expect(loginRes.body.token).toBeDefined();
   });
 
-  test("GET /api/teams は200のまま", async () => {
-    const res = await request(app).get("/api/teams");
-    expect(res.status).toBe(200);
+  // Quality Gate Blocker修正(T-95)により、GET /api/teams は未認証401・認証済み200へ仕様変更した
+  // （未認証で全チームslug＋部員名簿まで取得できていたため）。「存続ルート」であることの検証は
+  // 維持しつつ、期待値をBlocker修正後の仕様に合わせる。
+  test("GET /api/teams は認証済みなら200のまま（未認証は401）", async () => {
+    const unauth = await request(app).get("/api/teams");
+    expect(unauth.status).toBe(401);
+
+    const loginRes = await request(app).post("/api/auth/login").send({ email, password });
+    const authed = await request(app)
+      .get("/api/teams")
+      .set("Authorization", `Bearer ${loginRes.body.token}`);
+    expect(authed.status).toBe(200);
   });
 });

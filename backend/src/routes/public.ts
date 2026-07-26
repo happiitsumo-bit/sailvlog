@@ -13,7 +13,16 @@ function notFound(res: Response): void {
   res.status(404).json({ error: "セッションが見つかりません" });
 }
 
+// Quality Gate Major1修正: このルートはNext.jsのサーバーコンポーネントから叩かれるため、
+// req.ip は常に「Next.jsサーバー1台のIP」になり、レート制限/閲覧数カウントが実質1ユーザー分に
+// 潰れる（発見事項参照）。frontend/src/lib/publicSession.ts が転送する x-forwarded-client-ip
+// （Next側で受け取った本来のx-forwarded-for/x-real-ipの先頭値）があればそれを優先する。
+// 限界: backendへ直接到達できる呼び出し元はこのヘッダを任意に詐称できる（Next経由を強制しない）。
+// 本番(Render)でもbackendは公開URLを持つため同じ限界が残るが、Major1の実害
+// （1台のIPに潰れて機能しないこと）は解消できるため、詐称リスクは発見事項に明記の上で許容する。
 function clientIp(req: Request): string {
+  const forwarded = req.header("x-forwarded-client-ip");
+  if (forwarded) return forwarded;
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 

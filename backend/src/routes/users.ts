@@ -19,7 +19,9 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res: Response): Promi
 });
 
 // GET /api/users/:username — プロフィール
-router.get("/:username", async (req: Request, res: Response): Promise<void> => {
+// Quality Gate Blocker修正と同種の指摘: 未認証でspecialty/affiliation/experienceYears等が
+// 取得できていたため authMiddleware を追加（teams.ts:40-70 の指摘と同種）。
+router.get("/:username", authMiddleware, async (req: Request, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { username: req.params.username },
     select: {
