@@ -6,6 +6,16 @@ export function getAvatarColor(username: string): string {
   return AVATAR_COLORS[h];
 }
 
+/** セッション内相対秒 → "HH:MM:SS"（リプレイ画面・公開ビュー・昇格ダイアログで共通利用。ADR-007の
+    「再生エンジンをそのまま再利用する」思想を時刻表示の細部にも適用し、表記の分岐を作らない）。 */
+export function formatClockTime(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const h = String(Math.floor(s / 3600)).padStart(2, "0");
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+  const sec = String(s % 60).padStart(2, "0");
+  return `${h}:${m}:${sec}`;
+}
+
 export function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diff / 60000);

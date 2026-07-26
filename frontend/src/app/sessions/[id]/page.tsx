@@ -4,10 +4,15 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import { isLoggedIn } from "@/lib/auth";
+import { isLoggedIn, getUser } from "@/lib/auth";
 import { Annotation, SessionDetail } from "@/types";
 import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
 import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
+import { formatClockTime as formatTime } from "@/lib/utils";
+import { canManageSession } from "@/lib/publish";
+import { fetchIsTeamAdmin } from "@/lib/teamRole";
+import { VisibilityChip } from "@/components/VisibilityChip";
+import { PublishDialog, PublishResult } from "@/components/PublishDialog";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -21,14 +26,6 @@ const ANNOTATION_KINDS = {
 } as const;
 type AnnotationKind = keyof typeof ANNOTATION_KINDS;
 type Leg = { label: string; startSec: number };
-
-function formatTime(totalSec: number): string {
-  const s = Math.max(0, Math.floor(totalSec));
-  const h = String(Math.floor(s / 3600)).padStart(2, "0");
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
-  const sec = String(s % 60).padStart(2, "0");
-  return `${h}:${m}:${sec}`;
-}
 
 export default function SessionReplayPage() {
   return (
@@ -68,6 +65,17 @@ function SessionReplayPageContent() {
   const [compareOpen, setCompareOpen] = useState(true);
   const [memoOpen, setMemoOpen] = useState(true);
 
+  // T-32: 公開昇格（UI-DESIGN §5.2）。「公開する」ボタンはuploader本人 or Team adminのみに描画する
+  // （「押せるが失敗する」より「無い」方が親切＝UI-DESIGN §5.2の明文どおり）。
+  const [canManage, setCanManage] = useState(false);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [publishToast, setPublishToast] = useState("");
+  const [publishUrlCopied, setPublishUrlCopied] = useState(false);
+  const [confirmingUnpublish, setConfirmingUnpublish] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [unpublishError, setUnpublishError] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clockRef = useRef<ReplayClock | null>(null);
   const projRef = useRef<LocalProjection | null>(null);
@@ -106,6 +114,24 @@ function SessionReplayPageContent() {
           setSimTimeDisplay(clock.simTimeSec);
         }
         clockRef.current = clock;
+
+        // T-32: 公開状態の初期化（既に公開中なら公開URLをヘッダに出す）。
+        // 公開ビュー `/p/[slug]` はこのフロントと同一オリジンで配信されるため window.location.origin から組み立てる。
+        if (d.session.visibility !== "team" && d.session.publicSlug) {
+          setPublicUrl(`${window.location.origin}/p/${d.session.publicSlug}`);
+        }
+
+        // 「公開する」ボタンの表示条件（uploader本人 or Team admin）。uploader本人ならAPI往復なしで即判定できる。
+        const user = getUser();
+        if (user) {
+          if (canManageSession(d.session.uploaderId, user.id, false)) {
+            setCanManage(true);
+          } else {
+            fetchIsTeamAdmin(d.session.teamId, user.id).then((isAdmin) => {
+              if (isAdmin) setCanManage(true);
+            });
+          }
+        }
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "セッションの取得に失敗しました"));
   }, [sessionId, router]);
@@ -228,6 +254,55 @@ function SessionReplayPageContent() {
       // clipboard APIが使えない環境（非HTTPS等）では、ブロッキングダイアログではなく
       // 画面内にURLを表示して手動コピーさせる（UI-DESIGN §7-6: alert()/prompt()は使わない）。
       setShareError(window.location.href);
+    }
+  }
+
+  /** T-32: 昇格ダイアログでの公開確定後（UI-DESIGN §5.2「確定後: URLを自動コピーし、role="status"のトースト」）。 */
+  async function handlePublished(result: PublishResult) {
+    setShowPublishDialog(false);
+    setPublicUrl(result.publicUrl);
+    setDetail((prev) =>
+      prev
+        ? { ...prev, session: { ...prev.session, visibility: result.visibility, publishedAt: result.publishedAt } }
+        : prev
+    );
+    try {
+      await navigator.clipboard.writeText(result.publicUrl);
+      setPublishToast("公開しました。URLをコピーしました");
+    } catch {
+      setPublishToast("公開しました");
+    }
+    setTimeout(() => setPublishToast(""), 3000);
+  }
+
+  async function copyPublicUrl() {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setPublishUrlCopied(true);
+      setTimeout(() => setPublishUrlCopied(false), 2000);
+    } catch {
+      setShareError(publicUrl);
+    }
+  }
+
+  /** 「公開をやめる」— UI-DESIGN §5.2: 確認ステップを1つ挟む（window.confirm()は使わずインラインUIで代替）。 */
+  async function confirmUnpublish() {
+    setUnpublishing(true);
+    setUnpublishError(null);
+    try {
+      const result = await api.post<{ visibility: string }>(`/api/sessions/${sessionId}/unpublish`, {});
+      setDetail((prev) =>
+        prev ? { ...prev, session: { ...prev.session, visibility: result.visibility as SessionDetail["session"]["visibility"], publicSlug: null, publishedAt: null } } : prev
+      );
+      setPublicUrl(null);
+      setConfirmingUnpublish(false);
+      setPublishToast("公開をやめました");
+      setTimeout(() => setPublishToast(""), 3000);
+    } catch (err) {
+      setUnpublishError(err instanceof Error ? err.message : "公開の取り消しに失敗しました");
+    } finally {
+      setUnpublishing(false);
     }
   }
 
@@ -379,12 +454,68 @@ function SessionReplayPageContent() {
     <div className="container" style={{ maxWidth: 1080 }}>
       <div className="page-header">
         <Link href="/sessions" className="page-header-back">Sessions</Link>
-        <h1 className="page-header-title">{session.title}</h1>
+        <h1 className="page-header-title" style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+          {session.title}
+          <VisibilityChip visibility={session.visibility} />
+        </h1>
         <p className="page-header-sub">
           {session.type === "race" ? "レース" : "練習"} · {new Date(session.startedAt).toLocaleString("ja-JP")}
           {session.venue ? ` · ${session.venue}` : ""}
         </p>
+
+        {/* T-32: 「公開する」ボタンはuploader本人 or Team adminのみに描画する（UI-DESIGN §5.2）。 */}
+        {canManage && (
+          <div style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+            {session.visibility === "team" ? (
+              <button type="button" className="btn btn-primary" onClick={() => setShowPublishDialog(true)}>
+                公開する
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn btn-ghost" onClick={copyPublicUrl}>
+                  {publishUrlCopied ? "コピーしました" : "公開URLをコピー"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setConfirmingUnpublish((v) => !v)}
+                  disabled={unpublishing}
+                >
+                  公開をやめる
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {confirmingUnpublish && (
+          <div className="dialog-confirm-card" role="status">
+            <p>公開URLは無効になります。もう一度公開すると新しいURLになります。</p>
+            {unpublishError && <p role="alert" style={{ color: "var(--terra)" }}>{unpublishError}</p>}
+            <div className="dialog-confirm-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setConfirmingUnpublish(false)} disabled={unpublishing}>
+                キャンセル
+              </button>
+              <button type="button" className="btn btn-primary" onClick={confirmUnpublish} disabled={unpublishing}>
+                {unpublishing ? "取り消しています…" : "公開をやめる"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p role="status" className={publishToast ? undefined : "sr-only"}>
+          {publishToast}
+        </p>
       </div>
+
+      {showPublishDialog && (
+        <PublishDialog
+          sessionId={sessionId}
+          annotations={annotations}
+          onClose={() => setShowPublishDialog(false)}
+          onPublished={handlePublished}
+        />
+      )}
 
       {/* UI-DESIGN §4.6: モバイルではDOM順が正（Canvas→再生コントロール→タイムライン→レグ→比較→メモ）。
           このdivの子はcanvas〜legsまでをまとめた.replay-mainと、比較・メモをまとめた.replay-asideの

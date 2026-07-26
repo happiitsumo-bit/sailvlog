@@ -202,9 +202,23 @@
     - backend全体`docker compose exec backend npx jest --runInBand`= **8 suites / 73 passed（todo27件除く）/ 0 failed**（T-30含め回帰なし）。`npx tsc --noEmit`は既存の`auth.ts`型エラー2件のみ（T-31変更ファイル起因のエラーはゼロ）
     - **発見事項**: レート制限のIPキーは`req.ip`を使用（Renderの単一インスタンス前提・Express `trust proxy`未設定）。将来リバースプロキシ構成が変わる場合は`trust proxy`設定の見直しが必要になる可能性がある（現状のARCH.md/SPECの前提を超える変更のため実装者判断では対応せず記録のみ）
   - 依存: T-30
-- [ ] T-32: 昇格ダイアログUI〔共有1〕
+- [x] T-32: 昇格ダイアログUI〔共有1〕
   - 成果物: `/sessions/[id]` に「公開する」ボタン（権限保持者のみ描画）＋昇格ダイアログ（学びの要約テキストエリア＝残り文字数表示・必須／注釈チェックリスト＝**既定全オフ**＋「反省会のメモは既定で非公開です」の説明文／公開範囲ラジオ2択＋「リンクを知っている人は誰でも見られます」の明記／**「航跡の先頭・末尾に陸上の移動が含まれていないか確認してください」の注意書き**＝PRD第7リスク②）。公開済みは「公開URLをコピー」「公開をやめる」に切替。`/sessions` 一覧とリプレイ画面に「公開中」/「リンク限定」チップ
   - 検証: UI-DESIGN §7の10項目を満たす（label関連付け・`role="status"`・24pxタップ対象・`alert()`不使用）。手動: 非権限ユーザーにボタンが出ない／要約未入力で確定できない／既定でチェックが1つも入っていない
+  - **検証結果（2026-07-26）**: 実装＝`frontend/src/lib/publish.ts`（純関数: `canManageSession`/`remainingSummaryChars`/`isSummaryValid`/`visibilityChipLabel`）＋`frontend/src/lib/teamRole.ts`（Team admin判定。backendに「自分のrole」専用APIが無いため既存の一般公開エンドポイント`GET /api/teams`→`GET /api/teams/:slug`を2段で叩く代替実装。uploader本人一致なら呼ばない設計でネットワーク往復を最小化）＋`frontend/src/components/PublishDialog.tsx`（昇格ダイアログ本体）＋`frontend/src/components/VisibilityChip.tsx`＋`/sessions/[id]/page.tsx`・`/sessions/page.tsx`へ統合。`frontend/src/lib/utils.ts`に`formatClockTime`を切り出し、`/sessions/[id]`の既存`formatTime`をこれに置換（重複実装を避け、後続T-33での再利用に備える＝ADR-007の再利用原則を時刻表示にも適用）。
+    - **ユニットテスト**: `frontend/src/lib/__tests__/t32-publish.test.ts`（新規12件: canManageSession の未ログイン/uploader本人/Team admin/一般部員の4分岐、remainingSummaryChars、isSummaryValid の空・空白のみ・400字ちょうど・401字、visibilityChipLabel の public/unlisted/team）。`npx vitest run` = **6 files / 54 passed**（ベースライン42件を維持し、新規12件を追加。既存回帰なし）。
+    - **`npx tsc --noEmit`**: エラー0。**`npm run build`**: `✓ Compiled successfully`、8ルート生成（`/p/[slug]`はT-33で追加予定のため未出現、既存8ルートは維持）。
+    - **Playwright実DB検証**（`docker compose`稼働中のbackend/db/frontendに対し、`POST /api/auth/register`で新規ユーザー2名を作成→`TeamMember`をSQLで直接INSERT/UPDATE→localStorageにtoken/userをセットしてブラウザ操作。手順は2026-07-26付「発見事項」のMac版Playwright手順を使用）:
+      1. **uploader本人でアクセス**: 「公開する」ボタンが表示された（`getByRole("button",{name:"公開する"})`で検出）
+      2. **要約未入力では確定できない**: ダイアログの確定ボタンが`disabled=true`。入力後`disabled=false`に変化することも確認
+      3. **注釈チェックは既定で全オフ**: 注釈2件中、いずれもチェックなしを確認（`isChecked()`が両方false）
+      4. **1件選択してunlistedで公開→トースト・チップ・ボタン切替**: 公開後`role="status"`のトーストに「公開しました」を確認、`.visibility-chip`が「リンク限定」、ヘッダのボタンが「公開URLをコピー」に切替わったことを確認
+      5. **`alert()`/`prompt()`不使用**: `page.on("dialog", ...)`でネイティブdialogイベントを監視し、公開・公開をやめる操作を通して**発火なし**を確認（確認ステップはインラインの`.dialog-confirm-card`で実装、`window.confirm()`は使っていない）
+      6. **「公開をやめる」の確認文言**: 「公開URLは無効になります。もう一度公開すると新しいURLになります」を確認
+      7. **権限マトリクスの3分岐を実データで確認**: ①uploader本人（userId=2）→ボタン表示 ②同チームの一般部員（role=member, userId=3, 非uploader）→ボタン**非表示**（`btnCount=0`） ③同じuserId=3を`TeamMember.role='admin'`にSQL更新→ボタン**表示**（`btnCount=1`、`fetchIsTeamAdmin`の非同期判定が反映されるまで1.5秒待機して確認）。3ケースとも期待どおり
+      8. **`/sessions`一覧のチップ**: 公開後に`/sessions?teamId=1`を開き`.visibility-chip`のテキストが「リンク限定」であることを確認
+      - 検証後、`POST /:id/unpublish`で該当セッションを`team`へ戻しテストデータをクリーンな状態に復元済み。使い捨てPlaywrightスクリプト（`t32-verify.js`/`t32-perm-check.js`/`t32-debug*.js`/`t32-list-check.js`）はscratchpad配下・コミット対象外
+    - **発見事項**: バックエンドに「呼び出しユーザー自身のteam role」を1回で返す専用API（例: `GET /api/sessions/:id`のレスポンスに`myRole`を含める等）が無いため、Team admin判定は`GET /api/teams`→`GET /api/teams/:slug`の2段呼び出しで代替した（`frontend/src/lib/teamRole.ts`）。uploader本人のケースはこの往復が発生しないため実用上のコストは限定的だが、Team admin判定のたびに一覧+詳細の2リクエストが発生する点は将来「セッション詳細に自分のroleを含める」バックエンドAPI改修で解消できる（backend/はスコープ外のため実装せず記録のみ）。
   - 依存: T-30, UI-DESIGN rev.5 §5
 - [ ] T-33: 公開ビュー `/p/[slug]`〔共有1〕
   - 成果物: 認証不要の読み取り専用ページ。`lib/replay/` を**そのまま再利用**（描画コードを分岐も複製もしない）。学びの要約→Canvas→再生コントロール→タイムライン（公開注釈のみピン）→公開メモ一覧→「sailvlogとは」説明ブロックの順。編集系UI（メモ追加・公開ボタン・削除）は**描画しない**

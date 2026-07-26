@@ -3513,3 +3513,155 @@ button { font-family: inherit; cursor: pointer; }
     display: none;
   }
 }
+
+/* ===== 共有1（公開昇格）— UI-DESIGN §5.2 昇格ダイアログ・状態チップ ===== */
+
+.visibility-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  min-height: 24px;
+}
+.visibility-chip--public {
+  background: rgba(107,142,90,0.12);
+  color: var(--sage-2, var(--sage));
+  border: 1px solid rgba(107,142,90,0.30);
+}
+.visibility-chip--unlisted {
+  background: rgba(195,154,63,0.12);
+  color: var(--dijon);
+  border: 1px solid rgba(195,154,63,0.30);
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 1rem;
+  z-index: 1000;
+  overflow-y: auto;
+}
+.dialog-panel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow);
+  padding: 1.75rem;
+  width: 100%;
+  max-width: 520px;
+}
+.dialog-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 500;
+  margin: 0 0 1.2rem;
+  color: var(--fg);
+}
+.dialog-char-count {
+  color: var(--fg-mute);
+  font-weight: 400;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+.dialog-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0 0 1.2rem;
+}
+.dialog-fieldset legend {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: var(--fg-mute);
+  padding: 0;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.01em;
+}
+.dialog-hint {
+  font-size: 0.78rem;
+  color: var(--fg-mute);
+  margin: 0 0 0.6rem;
+}
+.dialog-warning {
+  color: var(--terra);
+}
+.dialog-annotation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+/* チェックボックスのタップ対象を label 全体（最低24px高）まで広げる（§7項目7） */
+.dialog-annotation-item {
+  display: flex;
+  align-items: flex-start;
+}
+.dialog-annotation-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-height: 24px;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+  cursor: pointer;
+  width: 100%;
+}
+.dialog-annotation-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+}
+.dialog-radio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-height: 24px;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+  cursor: pointer;
+}
+.dialog-radio-item input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+.dialog-confirm-card {
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dialog-confirm-card p {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.dialog-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+}

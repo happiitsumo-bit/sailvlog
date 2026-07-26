@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { SessionSummary, TeamSummary } from "@/types";
+import { VisibilityChip } from "@/components/VisibilityChip";
 
 export default function SessionsPage() {
   return (
@@ -93,7 +94,10 @@ function SessionsPageContent() {
               className="question-card"
               style={{ display: "block" }}
             >
-              <h3 className="question-title">{s.title}</h3>
+              <h3 className="question-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                {s.title}
+                <VisibilityChip visibility={s.visibility} />
+              </h3>
               <div className="question-meta">
                 <span>{s.type === "race" ? "レース" : "練習"}</span>
                 <span>{new Date(s.startedAt).toLocaleString("ja-JP")}</span>
