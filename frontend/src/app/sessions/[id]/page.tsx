@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { Annotation, SessionDetail } from "@/types";
 import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
+import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -62,12 +63,17 @@ function SessionReplayPageContent() {
   const [legs, setLegs] = useState<Leg[]>([]);
   const [savingLegs, setSavingLegs] = useState(false);
   const [legError, setLegError] = useState<string | null>(null);
+  // UI-DESIGN §4.6: スマホ縦画面では「比較する2艇」「反省メモ」を折りたたみアコーディオン（初期は閉）にする。
+  // デスクトップでは常時展開のまま（レイアウト上ズレないよう、マウント時のみ幅判定して閉じる。SSRは開いた状態）。
+  const [compareOpen, setCompareOpen] = useState(true);
+  const [memoOpen, setMemoOpen] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clockRef = useRef<ReplayClock | null>(null);
   const projRef = useRef<LocalProjection | null>(null);
   const visibleTrackIdsRef = useRef<Set<number>>(new Set());
   const comparisonTrackIdsRef = useRef<Set<number>>(new Set());
+  const touchStartXRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number | null>(null);
   const lastSyncTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -103,6 +109,14 @@ function SessionReplayPageContent() {
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "セッションの取得に失敗しました"));
   }, [sessionId, router]);
+
+  useEffect(() => {
+    // マウント時の1回だけ判定（リサイズは追従しない。回転等の再判定はスコープ外）。
+    if (window.matchMedia("(max-width: 860px)").matches) {
+      setCompareOpen(false);
+      setMemoOpen(false);
+    }
+  }, []);
 
   useEffect(() => {
     visibleTrackIdsRef.current = visibleTrackIds;
@@ -215,6 +229,27 @@ function SessionReplayPageContent() {
       // 画面内にURLを表示して手動コピーさせる（UI-DESIGN §7-6: alert()/prompt()は使わない）。
       setShareError(window.location.href);
     }
+  }
+
+  /** Canvas上の左右スワイプで±5秒シーク（UI-DESIGN §4.6: 片手操作前提のタッチ操作）。
+      タイムラインバーの直接ドラッグとは独立した経路で、シークバーの値は変えず
+      seekAndSync経由でclockとURLを直接更新する。 */
+  function handleCanvasTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
+    touchStartXRef.current = e.touches[0]?.clientX ?? null;
+  }
+  function handleCanvasTouchEnd(e: React.TouchEvent<HTMLCanvasElement>) {
+    const startX = touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (startX == null) return;
+    const endX = e.changedTouches[0]?.clientX;
+    if (endX == null) return;
+    const dx = endX - startX;
+    const step = computeSwipeSeekStepSec(dx);
+    if (step === 0) return;
+    const clock = clockRef.current;
+    const max = detail?.session.durationSec ?? 0;
+    if (!clock || max === 0) return;
+    seekAndSync(clampSeekTarget(clock.simTimeSec, step, max));
   }
 
   /** シークバーのキーボード操作（UI-DESIGN §7-3: ←→で±5秒、Shift併用で±30秒） */
@@ -362,7 +397,9 @@ function SessionReplayPageContent() {
             ref={canvasRef}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
-            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block" }}
+            onTouchStart={handleCanvasTouchStart}
+            onTouchEnd={handleCanvasTouchEnd}
+            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block", touchAction: "pan-y" }}
           />
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
@@ -460,8 +497,8 @@ function SessionReplayPageContent() {
             aria-labelledby="legs-title"
             style={{ marginTop: "0.8rem", padding: "0.8rem 1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-              <h3 id="legs-title" className="sidebar-title" style={{ margin: 0, marginRight: "0.25rem" }}>レグ</h3>
+            <div className="replay-legs-row" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <h3 id="legs-title" className="sidebar-title" style={{ margin: 0, marginRight: "0.25rem", flexShrink: 0 }}>レグ</h3>
               {legs.map((leg) => (
                 <button
                   key={`${leg.label}-${leg.startSec}`}
@@ -475,10 +512,10 @@ function SessionReplayPageContent() {
               ))}
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="btn btn-ghost replay-leg-add-btn"
                 onClick={addLegBoundary}
                 disabled={savingLegs}
-                style={{ marginLeft: "auto" }}
+                style={{ marginLeft: "auto", flexShrink: 0 }}
               >
                 {savingLegs ? "保存中…" : "現在位置を次のレグ開始にする"}
               </button>
@@ -503,101 +540,121 @@ function SessionReplayPageContent() {
             ))}
           </div>
 
-          <h3 className="sidebar-title" style={{ marginBottom: "0.4rem" }}>比較する2艇（{comparisonTrackIds.size}/2）</h3>
-          <p style={{ fontSize: "0.75rem", color: "var(--fg-mute)", margin: "0 0 0.65rem" }}>
-            2艇を選ぶと、他艇を減光します。
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
-            {tracks.map((t, i) => (
-              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
-                <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
-                <span>{t.boatLabel}</span>
-              </label>
-            ))}
-          </div>
-          <p role="status" style={{ minHeight: "1.2rem", margin: "0 0 1.25rem", fontSize: "0.75rem", color: "var(--fg-mute)" }}>
-            {comparisonMessage}
-          </p>
-
-          <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>注釈（{annotations.length}）</h3>
-          {annotations.length === 0 ? (
-            <p style={{ fontSize: "0.8rem", color: "var(--fg-mute)" }}>まだ注釈がありません</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-              {annotations.map((a) => {
-                const track = tracks.find((t) => t.id === a.trackId);
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => seekAndSync(a.tSec)}
-                    style={{
-                      textAlign: "left",
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 6,
-                      padding: "0.5rem 0.65rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
-                      {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
-                    </div>
-                    <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 「今の場面にメモを残す」（UI-DESIGN §4.2「反省メモ」パネル＝一覧の下に追加導線）。
-              §7項目2のDOM順修正で、艇の表示切替→比較→メモの並びに揃えるため
-              main列からこちら（aside＝メモパネル内）へ移設した（2026-07-25）。 */}
-          <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
-            <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-              <select
-                aria-label="メモの種類"
-                value={newAnnotationKind}
-                onChange={(e) => setNewAnnotationKind(e.target.value as AnnotationKind)}
-                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
-              >
-                {Object.entries(ANNOTATION_KINDS).map(([value, kind]) => (
-                  <option key={value} value={value}>{kind.label}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={newAnnotationBody}
-                onChange={(e) => setNewAnnotationBody(e.target.value)}
-                placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
-                maxLength={2000}
-                style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
-              />
-              <select
-                value={newAnnotationTrackId}
-                onChange={(e) => setNewAnnotationTrackId(e.target.value ? Number(e.target.value) : "")}
-                style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
-              >
-                <option value="">対象艇（任意）</option>
-                {tracks.map((t) => (
-                  <option key={t.id} value={t.id}>{t.boatLabel}</option>
-                ))}
-              </select>
-              <button type="button" onClick={addAnnotation} className="btn btn-primary" disabled={!newAnnotationBody.trim() || addingAnnotation}>
-                {addingAnnotation ? "追加中…" : "追加"}
-              </button>
-            </div>
-            {annotationError && (
-              <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
-                {annotationError}
-              </p>
-            )}
-            <p role="status" className="sr-only">
-              {addingAnnotation ? "注釈を追加しています" : ""}
+          {/* UI-DESIGN §4.6: スマホ縦画面ではこの2パネル（比較する2艇／反省メモ）が
+              折りたたみアコーディオン（初期は閉）に変形する。デスクトップは常時展開のまま
+              動作を変えない（<details>のopen属性はデスクトップでも有効だが、マウント時の
+              幅判定でスマホのみ閉じるためデスクトップの見た目・操作感は従来どおり）。 */}
+          <details
+            className="replay-accordion"
+            open={compareOpen}
+            onToggle={(e) => setCompareOpen(e.currentTarget.open)}
+          >
+            <summary className="sidebar-title" style={{ marginBottom: "0.4rem", cursor: "pointer" }}>
+              比較する2艇（{comparisonTrackIds.size}/2）
+            </summary>
+            <p style={{ fontSize: "0.75rem", color: "var(--fg-mute)", margin: "0 0 0.65rem" }}>
+              2艇を選ぶと、他艇を減光します。
             </p>
-          </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              {tracks.map((t, i) => (
+                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                  <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
+                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
+                  <span>{t.boatLabel}</span>
+                </label>
+              ))}
+            </div>
+            <p role="status" style={{ minHeight: "1.2rem", margin: "0 0 1.25rem", fontSize: "0.75rem", color: "var(--fg-mute)" }}>
+              {comparisonMessage}
+            </p>
+          </details>
+
+          <details
+            className="replay-accordion"
+            open={memoOpen}
+            onToggle={(e) => setMemoOpen(e.currentTarget.open)}
+          >
+            <summary className="sidebar-title" style={{ marginBottom: "0.75rem", cursor: "pointer" }}>
+              反省メモ（{annotations.length}）
+            </summary>
+            {annotations.length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "var(--fg-mute)" }}>まだ注釈がありません</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                {annotations.map((a) => {
+                  const track = tracks.find((t) => t.id === a.trackId);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => seekAndSync(a.tSec)}
+                      style={{
+                        textAlign: "left",
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                        padding: "0.5rem 0.65rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
+                        {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
+                      </div>
+                      <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 「今の場面にメモを残す」（UI-DESIGN §4.2「反省メモ」パネル＝一覧の下に追加導線）。
+                §7項目2のDOM順修正で、艇の表示切替→比較→メモの並びに揃えるため
+                main列からこちら（aside＝メモパネル内）へ移設した（2026-07-25）。 */}
+            <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
+              <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                <select
+                  aria-label="メモの種類"
+                  value={newAnnotationKind}
+                  onChange={(e) => setNewAnnotationKind(e.target.value as AnnotationKind)}
+                  style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
+                >
+                  {Object.entries(ANNOTATION_KINDS).map(([value, kind]) => (
+                    <option key={value} value={value}>{kind.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={newAnnotationBody}
+                  onChange={(e) => setNewAnnotationBody(e.target.value)}
+                  placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
+                  maxLength={2000}
+                  style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
+                />
+                <select
+                  value={newAnnotationTrackId}
+                  onChange={(e) => setNewAnnotationTrackId(e.target.value ? Number(e.target.value) : "")}
+                  style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.6rem", color: "var(--fg)" }}
+                >
+                  <option value="">対象艇（任意）</option>
+                  {tracks.map((t) => (
+                    <option key={t.id} value={t.id}>{t.boatLabel}</option>
+                  ))}
+                </select>
+                <button type="button" onClick={addAnnotation} className="btn btn-primary" disabled={!newAnnotationBody.trim() || addingAnnotation}>
+                  {addingAnnotation ? "追加中…" : "追加"}
+                </button>
+              </div>
+              {annotationError && (
+                <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
+                  {annotationError}
+                </p>
+              )}
+              <p role="status" className="sr-only">
+                {addingAnnotation ? "注釈を追加しています" : ""}
+              </p>
+            </div>
+          </details>
         </aside>
       </div>
     </div>

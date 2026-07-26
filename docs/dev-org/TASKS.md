@@ -61,12 +61,12 @@
   - **検証結果（2026-07-24）**: `backend/src/routes/sessions.ts`（POST/GET一覧/GET詳細/PATCH/DELETE/POST tracks）＋`backend/src/routes/tracks.ts`（GET :id/gpx）＋`middleware/requireTeamMember.ts`＋`lib/validateTrackPayload.ts`を実装。express.jsonのlimitを`/api/sessions`・`/api/tracks`のみ8mbに拡張（他ルートは変更なし）。qa-engineer用意の`fixtures/trackPayloads.ts`をそのまま使い`t12-sessions-api.test.ts`で25件全PASS（作成/一覧/詳細/更新/削除の認可、lat・lon範囲外、length不一致、gaps境界（start負・end超過・start>end・境界ぎりぎり201）、duration超過、gridJson2MB超/rawGpx5MB超→413、非TeamMember403、未認証401）。バックエンド全体`docker compose exec backend npx jest`= 5 suites / 36 passed + 27 todo（qa側todo）。追加でcurl手動確認: register→session作成→track投稿→GET詳細(gridJson込み・rawGpx除外)→GPXダウンロード→DELETE(204)の一連が通ることを確認（テスト後にデータはクリーンアップ済み）
   - **仕様上の補足**: `type`はPrismaで`@default(practice)`のため必須項目リストから除外（省略可）。gridJson/rawGpxのサイズ超過は`durationSec超過`より優先して413を返すよう順序を決定（両方に該当する場合の判定を一意にするため）
   - 依存: T-10
-- [ ] T-13: 取込ウィザードUI（`/sessions/new`）
+- [x] T-13: 取込ウィザードUI（`/sessions/new`）
   - 成果物: 複数GPXファイル選択→lib/gpxで正規化→重ね描き簡易プレビュー（Canvas静止画で可）→艇ラベル入力→Session+Tracks保存
   - 検証: 手動: 合成GPX6本を取り込み、DB保存後 `/sessions` 一覧に出る。壊れたGPXでエラーメッセージが出て保存されない
   - **検証結果（2026-07-24）**: `frontend/src/app/sessions/new/page.tsx`（ウィザード本体）＋`SessionPreviewCanvas.tsx`（重ね描き静止画プレビュー、lib/replayとは別実装）を実装。lib/gpx（T-11）の`parseGpx`/`computeSessionStart`/`normalizeToGrid`をそのまま利用し、ファイル単位でパース失敗を検知してエラー表示（該当ファイルのみエラー表示・保存ボタンは全体を無効化＝壊れたGPXが1本でもあれば保存されない）。T-12のAPI契約どおり`POST /api/sessions`→各艇`POST /api/sessions/:id/tracks`の順で保存し、成功後`/sessions?teamId=`へ遷移。T-13検証で要求される一覧確認のため、範囲内の最小ページとして`/sessions`（一覧）も同時に実装（ARCH.md §4のフロント主要ページ一覧に記載済みのページ）。teamIdはGET /api/teams（既存公開エンドポイント）から選択する方式（「自分のチーム」を返す専用APIが存在しないため。questions/newのboatType選択と同じパターン）。**この環境にDocker/PostgreSQLが無くbackendコンテナ（DNS名`backend`）に到達できないため、ブラウザでの実POST（DB書き込み込み）のE2E手動確認は実施不可**。実施した検証: ①`npx tsc --noEmit`エラー0 ②`npm run build`成功（`/sessions`, `/sessions/new`とも生成される動的ルートとして出力を確認） ③既存`npx vitest run`（lib/gpx T-11テスト10件）全PASS＝回帰なし ④一時テスト（コミット対象外・実行後削除）でqa-engineer用意の6艇fixture（`__fixtures__/boat1〜6_clean*.gpx`）を実際に`parseGpx`→`computeSessionStart`→`normalizeToGrid`に通し、ウィザードと同じ計算（durationSec=18、6グリッドとも`lat.length===lon.length===pointCount`）が成立することを確認。**DB書き込みを伴うE2E（GPX取込→`/sessions`一覧表示→壊れたGPXでの保存拒否の実ブラウザ確認）はCIで検証**（GitHub ActionsでのDocker+Postgres環境が前提。T-90でCI構築時にこのシナリオのE2Eテストを含めることを推奨）
   - 依存: T-11, T-12
-- [ ] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
+- [x] T-14: 再生エンジン＋再生ページ（`/sessions/[id]`）
   - 成果物: `lib/replay/`（ReplayClock: rAF+ref／CanvasRenderer: ローカル平面投影・艇マーカー・テール・スケールバー）＋再生/一時停止/1x/4x/8x/シークバー/艇の表示切替UI（UI同期≦10Hz）。SPIKE-01は参照のみ・コピー禁止
   - 検証: 合成6艇セッションでPC実測: 60fps近傍（DevToolsで確認）・シーク体感即応・gaps区間が破線表示。数値はTASKS追記欄に記録
   - **検証結果（2026-07-24）**: `frontend/src/lib/replay/`（`geo.ts`=投影＋gaps判定の純関数、`ReplayClock.ts`=rAF+ref時刻管理、`CanvasRenderer.ts`=命令的描画、いずれも新規実装・spike/はコード参照のみで未コピー）＋`frontend/src/app/sessions/[id]/page.tsx`（再生ページ）を実装。UIパネル同期はrAFループ内で100ms間隔（=10Hz）に間引き、シーク操作のみ即時反映。
@@ -75,7 +75,7 @@
     - ③**実ブラウザでの性能実測**: この環境にDocker/PostgreSQLが無くbackendに接続できないため、SPIKE-01のgen-gpx.js（使い捨てスクリプト、コピー不可の対象外＝データ生成のみでロジックは含まない）で実規模データ（2時間・1Hz・6艇・7200点/艇、うち1艇に30秒ギャップ2箇所）を生成し、T-11の本番`parseGpx`/`normalizeToGrid`で正規化した上で使い捨てのモックAPIサーバ（Node標準httpのみ・新規依存なし・コミット対象外）に載せ、Playwright（環境にプリインストール済み）で`/sessions/[id]`を実ブラウザ（Headless Chromium）で操作して計測。結果: 再生中のrAFフレーム間隔が1x/4x/8xいずれもp50=p95=16.7ms・平均60.0fps（ディスプレイ同期16.7msに張り付き＝描画コストがフレーム予算に対して無視できるレベル。SPIKE-01のPC実測=render p95 0.2msと整合）。シーク応答（値変更→2rAF後の再描画完了まで）は17〜31ms（4サンプル、目標「シーク1秒以内」に対し十分高速）。gaps区間の破線表示はスクリーンショット（ズーム）で目視確認済み（艇3・tSec=1810=gap[1800,1829]内で実線→破線への切り替わりを確認）。console errorは1件（`ERR_CONNECTION_RESET`、モックサーバ未提供の付随リソース起因と推定・再生ロジックと無関係）
     - 艇の表示切替（チェックボックスでON/OFF）・シークバー・速度切替(1x/4x/8x)は同スクリーンショット/操作で動作確認済み
   - 依存: T-12（T-13と並行可。seedデータで先行開発）
-- [ ] T-15: タイムライン注釈（API＋UI）
+- [x] T-15: タイムライン注釈（API＋UI）
   - 成果物: **注釈CRUD API（POST /api/sessions/:id/annotations、PATCH/DELETE /api/annotations/:id。本タスクが唯一の担当）**＋再生ページのタイムラインピン表示・現在時刻で追加（tSec自動キャプチャ、艇はタップで任意付与）・ピンクリックでシーク・一覧サイドパネル
   - 検証: supertest（権限含む）＋手動: 注釈追加→リロード後も表示→ピンからシーク
   - **検証結果（2026-07-24）**: `backend/src/lib/validateAnnotationPayload.ts`（tSec∈[0,durationSec]・body≦2000字の構造検証）＋`backend/src/routes/sessions.ts`に`POST /:id/annotations`追加＋新規`backend/src/routes/annotations.ts`（`PATCH/DELETE /api/annotations/:id`、author本人 or Team adminのみ＝`requireTeamMember.ts`に追加した`isAuthorOrTeamAdmin`で判定）。フロントは`frontend/src/app/sessions/[id]/page.tsx`にタイムラインピン（シークバー直下、`tSec/durationSec`の位置にクリック可能な丸ボタン、クリックでシーク）・現在時刻に注釈追加するフォーム（艇の任意紐付けはタップ操作ではなくプルダウン選択に簡略化＝UI実装上の裁定で、ARCH変更ではない）・注釈一覧サイドパネル（クリックでシーク）を追加。
@@ -86,27 +86,36 @@
 
 > **T-13/T-14/T-15 の完了取り消し（2026-07-25 §7再点検）**
 > 完了マークは2026-07-24時点のもので、UI-DESIGN §7「実装時の必須修正」10項目（本ファイル注記7で完了条件に昇格したのは2026-07-25＝**マーク後**）に対する点検を経ていない。
-> 実装コードを10項目に照らして再点検した結果は以下。**3件充足・7件未達**のため、機能面のみの完了マークを取り消す。
+> 実装コードを10項目に照らして再点検した結果は以下（2026-07-25時点の初回判定は**3件充足・7件未達**）のため、機能面のみの完了マークを取り消す。
 >
 > | # | §7項目 | 判定 | 根拠 |
 > |---|---|---|---|
 > | 1 | セッションカードのリンク化 | OK | `sessions/page.tsx` カード全体が`<Link>` |
-> | 2 | モバイルDOM順 | 未達 | レグUI自体が未実装（T-25）。比較（艇の表示）がメモ入力より後ろ（`aside`が最後） |
+> | 2 | モバイルDOM順 | **修正済（2026-07-26再点検でOK確認）** | `.replay-main`（canvas→再生コントロール→タイムライン→レグ）→`.replay-aside`（艇の表示→比較→反省メモ）のDOM順は既にb8a5150で成立済み（`.replay-layout`はflex縦積みでDOM順=表示順）。実装者2026-07-26が現状コードを再点検した結果、既に§4.6の要求順を満たしていることを確認、コード変更なし（T-25のアコーディオン化と合わせて再検証） |
 > | 3 | スクラブのキーボード操作 | **修正済** | `input[type=range]`で操作可能だったが±1秒刻みだったため、←→=±5秒／Shift=±30秒を実装＋`aria-valuetext` |
-> | 4 | ファイル入力 | 未達 | 実`<input type="file">`＋`<label for>`はOK（a11yは充足）だが、§2のドロップゾーンUI自体が未実装 |
+> | 4 | ファイル入力 | **修正済** | 実`<input type="file">`＋`<label for>`はOK（a11yは充足）＋b8a5150で`/sessions/new`にドラッグ&ドロップの受け口（`onDrop`/`onDragOver`）を追加済み |
 > | 5 | labelの関連付け | OK | `s-title`/`s-type`/`s-team`/`s-venue`/`s-gpx`に`htmlFor`、艇ラベルは`aria-label` |
 > | 6 | ステータス通知 | **修正済** | `role`が1つも無く、共有失敗時に`window.prompt()`（ブロッキングダイアログ）を使っていた。`role="status"`/`role="alert"`へ置換し`prompt()`を撤去 |
 > | 7 | 操作対象サイズ24px | **修正済** | 注釈ピンが8×8pxのまま。透明ヒット領域24×24pxに拡張＋`aria-label` |
-> | 8 | 色以外の識別 | 未達 | `CanvasRenderer`は色のみで艇を識別（`setLineDash`はギャップ表現用で艇識別ではない）。常時ラベルなし |
-> | 9 | ダークテーマのコントラスト | **前提解消（本体は引き続き未達）** | 2026-07-25「DS適用」でDS rev.3自体をfrontendへ適用済み（下記参照）。Canvas背景の生hex・`BOAT_COLORS`独自8色は解消。ただし§7 #9が本来求める「accent上の白文字コントラスト調整」自体はDSトークン側の是正であり本タスクの対象外のため**未実施**（下記DS適用ログ参照） |
+> | 8 | 色以外の識別 | **修正済** | b8a5150で`BOAT_COLORS`を6色化（重複なし）＋`shortBoatLabel`による常時ラベル描画を追加（`setLineDash`はgaps表現専用のまま維持） |
+> | 9 | ダークテーマのコントラスト | **修正済（2026-07-26確認）** | b8a5150で`--color-accent`のdark値を`#2f9fd1`(3.0:1)→`#177bae`(white-on-accent 4.69:1)へ是正済み（`frontend/src/app/globals.css:116`のコメントに算出根拠あり）。§7 #9が求めるDSトークン側の是正は完了 |
 > | 10 | `<html lang="ja">` | **修正済** | `layout.tsx`が`lang="en"`のままだった |
 >
 > - 2026-07-25のコミットで修正したのは 3・6・7・10（検証: `npx tsc --noEmit`エラー0／`npx vitest run` 21件PASS／`npm run build`成功）。
-> - **残り（2・4・8）を満たした時点で再度[x]にする**（9は下記の通り前提のみ解消・本体は別途）。
-> - 未整備の検証手段: frontendに`@testing-library/react`が無く、a11y属性の回帰を自動で捕まえられない。導入をT-90（CI）に含める。
+> - 2026-07-25の別コミット（b8a5150・Team Lead退避コミット）で 4・8・9（本体）も解消済み（下記DS適用ログ・コミットメッセージ参照）。
+> - **2026-07-26・implementer再点検で2も充足済みと確認**（コード変更なし。b8a5150時点の`.replay-layout`/`.replay-aside`構成が既に§4.6のDOM順を満たしていた）。
+> - **10項目すべて充足を確認したため、下記「完了マーク復帰」でT-13/T-14/T-15を[x]に戻す。**
+> - 未整備の検証手段: frontendに`@testing-library/react`が無く、a11y属性の回帰を自動で捕まえられない。導入をT-90（CI）に含める（未解消のまま。導入見送りの経緯はT-90検証結果欄参照）。
 >
 > **DS適用（2026-07-25・implementer/T-26と同時実施）**: `frontend/src/app/globals.css`の`:root`トークンをdesign-system/styles.css・theme.json準拠の値に差し替え（旧v1"Claude-paper"の変数名はDSトークンへのエイリアスとして残し、`.form-page`/`.container`/`.btn`等の既存クラスは無改造で配色だけ差替）。外部フォント読み込み（Google Fonts）を撤去しDS指定のシステムフォントスタックへ統一。`prefers-color-scheme`・`[data-theme]`によるダークテーマトークンを新規追加（旧globals.cssにはダークモードが存在しなかった）。`CanvasRenderer.ts`の`BOAT_COLORS`独自8色をDSの`--color-boat-1..4`（ダーク値）に統一しスケールバー色もDS水面上インク相当に変更。`sessions/[id]/page.tsx`のリプレイCanvas背景を生hex`#eef3f5`から`var(--gradient-water-deep)`に変更（UI-DESIGN §4「常時ダークな海図面」に一致）。`sessions/new/SessionPreviewCanvas.tsx`の同種の生hex背景・独自色もgetComputedStyle経由のDSトークン読み取りに変更（この画面は常時ダークではないためライト/ダーク双方に追従）。検証: `npx tsc --noEmit`エラー0／`npx vitest run`23件PASS／`npm run build`成功／`next start`+claude-in-chromeで`/login`・`/handbook`を実描画確認（DSアクセント色反映・コンソールエラー0件）。
->   - **§7 #9本体（accent色のコントラスト是正）は未実施**: `--color-accent`のdark値(#2f9fd1)は白文字との組でコントラスト比3.0:1（design-system/theme.json記載の既知値）。UI-DESIGN §7 #9の指示どおり「DSトークン側の修正はdesign-system更新として1コミットで行う」対象であり、本タスク（frontend適用）のスコープ外のため据え置き。対応要否・実施担当はTeam Lead/architect判断を仰ぐ。
+>   - **§7 #9本体（accent色のコントラスト是正）は2026-07-25のb8a5150（Team Lead退避コミット）で解消**: `--color-accent`のdark値を`#2f9fd1`(3.0:1)→`#177bae`(white-on-accent 4.69:1)へ是正。上記表#9も修正済みへ更新済み。
+>
+> **完了マーク復帰（2026-07-26・implementer）**: 上記10項目の再点検により**全10項目が充足**（1/3/5/6/7/10は従来通りOK・2/4/8/9は本セッションで充足確認）したため、T-13/T-14/T-15の完了マークを`[x]`に戻す。根拠の対応関係:
+> - 項目2（モバイルDOM順）: 2026-07-25時点のb8a5150で既に成立していたコードを2026-07-26に再点検してOK確認（コード変更なし）
+> - 項目4（ファイル入力＝ドロップゾーン）・8（色以外の識別＝6色+常時ラベル）・9（ダークコントラスト＝accent是正）: いずれも2026-07-25 b8a5150で実装済みだったが55fps実測未了で退避コミットのまま検証が止まっていたため、本タスク（T-20 fps実測・T-25モバイル対応）と合わせて2026-07-26に動作・数値を実測して確認
+> - T-13の成果物（取込ウィザード）はb8a5150による変更を含まないため、2026-07-24検証結果がそのまま有効
+> - T-14（再生エンジン・55fps系）は本ファイル下部T-20欄の2026-07-26 fps実測（実DB+実ブラウザ）で再確認
+> - T-15（注釈CRUD＋UI）はT-16検証時の実DB E2E（2026-07-24, `annotationVisibleAfterReload=true`）がそのまま有効、UI a11y部分（role/24pxタップ等）は上記表の3・6・7で充足確認済み
 
 - [x] T-16: 部内共有の仕上げ（URLクエリ最小＋認可確認）
   - 成果物: `?t=&boats=` の読み書き（一時停止/シーク確定時のみreplaceState）。共有ボタン（現URLコピー）
@@ -126,9 +135,13 @@
 
 ### S2: 〔E2〕MVP完成（PRD §5の残項目）
 
-- [ ] T-20: 2艇比較ハイライト
+- [x] T-20: 2艇比較ハイライト
   - 成果物: 2艇を選ぶと他艇が減光・選択艇が強調（**間隔距離(m)のライブ表示はMVPから除外**=Codexレビュー2026-07-24のYAGNI指摘採用。PRD §5の要件は「2艇ハイライト比較」のみで距離表示は含まない。反省会で距離の需要が実証されたら将来タスクとして起票）
   - 検証: **6艇合成GPXフィクスチャ**（SPIKE-01流用）で2艇の選択/解除を切り替えながら再生し、**PCでChrome DevTools Performanceパネル計測により55fps以上を維持**すること。計測値をこのファイルに追記
+  - **検証結果（2026-07-26）**: 描画側の強調/減光ロジック（alpha・lineWidth・markerRadius）はb8a5150で実装済み（`t20-boat-identification.test.ts`にBOAT_COLORS/shortBoatLabelの回帰テストあり）。本タスクで残っていた**55fps実測**を実施。
+    - 手順: この環境で稼働中の`docker-compose`（実Postgres＋実backend＋実frontend、ports: backend 8001/frontend 3001）に対し、ユーザー登録＋既存T10テストチームへの`TeamMember`直接INSERT（`docker compose exec db psql`、teamId=1・role=admin）でログイン可能な状態を作成。`spike/gen-gpx.js`で生成した6艇×7200点(2h・1Hz)の実規模GPXを、`npx --yes playwright`（プロジェクトに新規依存追加はせずnpxのキャッシュ経由。ブラウザバイナリは`npx playwright install chromium`で取得）経由の実ブラウザ操作で`/sessions/new`から**実際にアップロード**→保存→`/sessions/[id]`（実データ・実backend、モックなし）で2艇を「比較する2艇」チェックボックスでON/OFFを切り替えながら1x/4x/8xそれぞれ3秒間rAFフレーム間隔を計測。
+    - 結果: 1x = 181frames/3s・平均60.06fps・p95フレーム間隔17.3ms（p95fps 57.8）／4x = 181frames・平均60.18fps・p95 17.3ms（57.8fps）／8x = 181frames・平均60.15fps・p95 17.5ms（57.1fps）。**いずれも要求の55fps以上を満たす**（p95ベースで57.1〜57.8fps）。スクリーンショットで比較選択(2/2)状態のハイライト/減光を目視確認済み。
+    - 使い捨てスクリプト（コミット対象外・scratchpadに保存）: `measure-t20.js`。テストデータ（`T20 fps計測用セッション`のSession/Track、docker-compose開発DB内）は削除せず残置（他実装者のT-26時の残置テストユーザーと同様、実害なし・記録のみ）。
   - 依存: T-14
 - [ ] T-21: レグ頭出し（RQ-10: マーク指定→共通境界算出＋手動補正）
   - 成果物: マップ上でマーク座標を手動指定→基準艇の最近傍通過時刻からSession.legsを自動算出→タイムライン上で境界を手動ドラッグ補正→レグジャンプボタン＋`?leg=`対応（境界算出アルゴリズムの詳細はRQ-10「方向decided・詳細保留」につき本タスク実装時に確定。仮定が崩れたらRESEARCH.md §4経由で再調査）
@@ -155,10 +168,14 @@
   - **検証結果（2026-07-25）**: `articles/questions/feed/learn/reference/boat/tag/teams/sailors/users`の全ページ・専用コンポーネント（ArticleCard/BookmarkButton/LikeButton/IntelligenceFeed/PickUpReference/ReferenceCard/ReferenceSidebar/RelatedReferences/ClassFocusTile/ClassFlag/ClassSidebar/RightSidebar/CommandPalette/CommandPaletteProvider/未使用だった旧Navbar/SkeletonCard）・検索UI・`lib/mock-references.ts`を削除（`archive/v2-frontend`へ退避済みの内容と同一。前提のアーカイブブランチは`git branch`で存在確認済み、作り直していない）。ログイン/登録は存続し成功後の遷移先を`/sessions`へ変更（UI-DESIGN §1）。ルート`/`はv2 Bentoホームを廃し、ログイン状態で`/sessions`or`/login`へ振り分ける入口に縮小。layout.tsxのmetadata（title/description）とナビ（Sessions/Handbookの2項目）を更新、`<html lang="ja">`は既存のまま維持。TopBarは検索コマンドパレットを除去しログアウトボタンに変更。login/register未対応だった§7 #5(label htmlFor)・#6(role="alert")もあわせて適用。
     - ①`npx tsc --noEmit`エラー0 ②`npx vitest run`23件PASS（回帰なし、T-11/T-14のテストのみで元々v2ページのテストは無かった） ③`npm run build`成功、ルートが19→8（`/`, `/_not-found`, `/handbook`, `/login`, `/register`, `/sessions`, `/sessions/[id]`, `/sessions/new`）に縮小 ④`grep -rn 'href="/\(articles\|questions\|feed\|learn\|reference\|boat\|tag\|teams\|sailors\|users\)'` 0件（削除ページへのリンク切れなし） ⑤**ログイン→/sessions遷移の実E2E**: この環境はDocker Desktopが稼働しておりdocker-compose（`sailvlog-frontend-1`/`sailvlog-backend-1`/`sailvlog-db-1`、bind mountでホストの変更を即反映）が別セッションにより起動済みだったため、それをそのまま使い実ブラウザ（claude-in-chrome）で検証: `POST /api/auth/register`でテストユーザー作成→`/login`で実際にフォーム入力しログインボタンをクリック→URLが`http://localhost:3001/sessions`へ遷移し、Sessionsページ（チーム選択・Import GPXボタン）が表示されることを確認（`/sessions`の認証ガードがログイン失敗時は`/login`へ即戻す実装のため、遷移が保持された時点でログイン成功も確認済み）
   - 依存: T-13, T-14（/sessionsが存在しない状態で消すと空アプリになるため）
-- [ ] T-25: スマホ閲覧調整
+- [x] T-25: スマホ閲覧調整
   - 成果物: 再生ページのレスポンシブ対応（縦画面レイアウト・タッチシーク）。B-2の結果がFAILならADR-001縮退策①〜③を適用
   - 検証: オーナーのスマホ実機で30fps以上・操作可能（B-2と同基準）
-  - 依存: T-17, B-2
+  - **検証結果（2026-07-26）**: **B-2（オーナー実機計測）はTeam Lead waive済み**（本ファイル冒頭ブロッカー欄参照）のため、実機の代わりにPlaywrightのモバイルviewportエミュレーション（`devices['iPhone 13']`、390×844、タッチ有効）で代替計測した。**実機計測は未実施（B-2待ち）**。
+    - 実装: ①UI-DESIGN §4.6のとおり「比較する2艇」「反省メモ」パネルを`<details>`アコーディオン化し、マウント時に`window.matchMedia("(max-width: 860px)")`が真の場合のみ初期状態を閉に設定（デスクトップは従来どおり常時展開・挙動変更なし）。②Canvas上の左右スワイプで±5秒シーク（`frontend/src/lib/replay/touchSeek.ts`に`computeSwipeSeekStepSec`/`clampSeekTarget`を純関数として切り出し、`t25-touch-seek.test.ts`で7件のユニットテストを追加）。③レグチップ行を横スクロール化（`.replay-legs-row`、`navbar-row-bottom`と同じ`overflow-x:auto`パターン）。
+    - モバイルviewport計測（390×844・iPhone 13エミュレーション、実機ではない）: ①DOM順スクリーンショットで「Canvas→再生コントロール→タイムライン→レグ→艇の表示→比較(折りたたみ)→反省メモ(折りたたみ)」の順を確認（`t25-mobile-top.png`/`t25-mobile-full.png`）。②アコーディオン初期状態=両方とも`open:false`を`details.replay-accordion`のDOM属性で確認、`summary`タップで開閉することも確認。③Canvas上でのtouchstart/touchend（右方向40px）でシークバーの値が`0→5`（+5秒）へ変化することを確認。④再生中のrAFフレーム間隔計測（1x・3秒間）=181frames・平均60.19fps・p95フレーム間隔17.6ms（p95fps 56.8）。**このマシン上のヘッドレスChromium・エミュレーションでの数値であり実機の30fps基準の代替指標**（同一PC上の計測なのでT-20の数値と近いのは想定どおり。実機での挙動はB-3解除後の実機計測で別途確認する必要あり）。
+    - 使い捨てスクリプト（コミット対象外）: `measure-t25.js`。
+  - 依存: T-17, B-2（waive済み・上記参照）
 
 ### S2.5: 〔共有1〕公開昇格＋限定公開URL＋OGP（PRD rev.6でPhase 1へ前倒し。仕様=`SPEC-share1-phase1.md`・設計=ADR-007）
 
@@ -273,3 +290,7 @@
 - （実装者 2026-07-24）`docker compose exec backend npx jest`（デフォルト＝複数ワーカー並列実行）で、qa-engineerのグローバルフック`resetDbHook.ts`（各testの前にDB全体をTRUNCATE）と複数テストファイルの並列実行が競合し、まれに「ユーザーが存在しない」等のFK違反で失敗することを確認（t12-sessions-api.test.ts等では再現・非再現があり、`--runInBand`（直列実行）では常に全PASS）。ロジックバグではなく共有テストDB×並列ワーカーのレース。CI/ローカルで`jest --runInBand`をデフォルトにするか、テストDBをワーカーごとに分離するかの対応要否をqa-engineer(T-90)に判断を委ねる
 - （実装者 2026-07-24）フロントのdocker-compose volumesは`frontend/src`と`frontend/public`のみマウントで、`package.json`/`vitest.config.ts`はイメージビルド時の内容のまま更新されない。ホストでpackage.jsonを編集した後は `docker compose cp frontend/package.json frontend:/app/package.json && docker compose exec frontend npm install`、`docker compose cp frontend/vitest.config.ts frontend:/app/vitest.config.ts` が必要（container再ビルドまたはvolume追加で恒久化を検討。今回はスコープ外につき対症のみ）
 - （実装者 2026-07-24）T-90のテストDB分離（`.env.test`＋`setup/env.ts`）は、`docker compose exec backend npx jest`（コンテナ内実行）だとdocker-compose.ymlが先にDATABASE_URLを開発DB向けに注入済みのため、`dotenv.config()`のデフォルト（既存env上書きしない）で`.env.test`の値が無視され、**開発DB(sailvlog_db)に対してテストが実行される**（テストDB分離が効かない）。ホスト実行・CI実行では発生しない可能性が高いが未確認。qa-engineer(T-90)へ確認・対応要否の判断を委ねる
+
+- （実装者 2026-07-26・T-20/T-25）**このセッションの実行環境はmacOS（Darwin, darwin/arm64）で、以前の発見事項（2026-07-24分）にある`/opt/node22/lib/node_modules/playwright`は存在しない**（別環境=Linuxサンドボックスを前提にした記録だったと判明）。今回はプロジェクトへの新規npm依存追加をせず、`npx --yes playwright`（`~/.npm/_npx/`配下にキャッシュされる、`package.json`は変更されない）＋`npx --yes playwright install chromium`（`~/Library/Caches/ms-playwright/`にブラウザバイナリを取得）で代替した。次回以降Mac環境でPlaywright実測が必要な場合はこの手順を先に試すことを推奨（`require('/Users/<user>/.npm/_npx/<hash>/node_modules/playwright')`のようにキャッシュパスを直接requireする必要がある。`npx playwright --version`実行後に`find ~/.npm/_npx -iname playwright -type d`でハッシュ付きパスを特定できる）。
+- （実装者 2026-07-26・T-20/T-25）docker-compose（backend:8001/frontend:3001/db:5433、開発DB `sailvlog_db`）が既に稼働中だったため、これを使ってfps実測用のテストユーザー（`t2025impl@example.com`, User.id=4）を1件登録し、既存のT10テストチーム（teamId=1）へ`docker compose exec db psql -U sailvlog_user -d sailvlog_db`で`TeamMember`をadmin権限で直接INSERTして参加させた。実データ（6艇×7200点の実規模GPX、`spike/gen-gpx.js`生成物）を実際にウィザードからアップロードしたテストセッションが8件（id 2〜9、タイトル「T20 fps計測用セッション」）開発DBに残置している（実害なし・T-26時の残置テストユーザーと同様の扱い。削除は行っていない）。
+- （実装者 2026-07-26・T-20実測スクリプトのデバッグメモ）rAFフレーム間隔計測の初回実装で「`if (t < durMs)`（tはページロードからの絶対タイムスタンプ）」を継続条件にしてしまい、ページ滞在時間が3000msを超えた2回目以降の計測（4x/8x）が1フレームで即終了するバグを作り込んだ。`performance.now()`の`t`はrAFコールバック引数では*絶対値*であり、計測開始時刻を`start`として`t - start < durMs`のように相対化する必要がある（"3秒間計測する"つもりが暗黙に"ページ表示から3秒以内"になっていた、という典型的な絶対/相対時刻の取り違え）。次回rAFベースの区間計測を書くときは要注意。

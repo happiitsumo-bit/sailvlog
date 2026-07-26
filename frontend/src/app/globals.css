@@ -3469,6 +3469,40 @@ button { font-family: inherit; cursor: pointer; }
     width: 100%;
     min-width: 0;
   }
+  /* §4.6: レグチップ行は横スクロール（navbar-row-bottomと同じ挙動） */
+  .replay-legs-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .replay-legs-row::-webkit-scrollbar { display: none; }
+  /* nowrap化するとmarginLeft:autoが横スクロール分の空白を生むため、モバイルでは通常のgap間隔に戻す */
+  .replay-leg-add-btn {
+    margin-left: 0 !important;
+  }
+}
+
+/* §4.6: 「比較する2艇」「反省メモ」の折りたたみアコーディオン（T-25）。
+   <summary>がタップ対象になるため最低24px高（WCAG 2.2 Target Size, §7項目7と同基準）を確保する。 */
+.replay-accordion {
+  margin-top: 0.5rem;
+}
+.replay-accordion > summary {
+  list-style: none;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+.replay-accordion > summary::-webkit-details-marker { display: none; }
+.replay-accordion > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.4rem;
+  color: var(--fg-mute);
+  transition: transform 0.15s ease;
+}
+.replay-accordion[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 /* ===== GPXドロップゾーン（/sessions/new）— UI-DESIGN §3・§7項目4 =====
