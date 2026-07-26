@@ -256,7 +256,7 @@
 - [ ] T-92: リリース＋計測準備（release-manager）
   - 成果物: PRD §6の成功指標①〜③を数えるSQL（アップロード数・注釈数の集計クエリ）をdocsに記載。knowledge還流（RESEARCH.md §5の候補を/tilへ）
   - 検証: SQLがNeon上で動き数値が返る
-  - **検証結果（2026-07-26）**: `docs/dev-org/METRICS.md`作成。ローカルPostgreSQL（Docker）で各指標のSQLを実行確認: ①アップロード数（Session COUNT）= 1 ②反省会使用回数（月別distinct sessions）= 2026-07月に1セッション ③注釈総数（Annotation COUNT）= 1。すべてエラー0で数値返却確認。**Neon上での検証は未実施（B-3ブロック中）**。計測SQLの文法はPostgreSQL 13+標準（FILTER句・TO_CHAR）のためNeon互換性問題なし。knowledge還流は担当外（Team Lead指示により除外）
+  - **検証結果（2026-07-26・Team Lead差し戻し対応版）**: Team Lead指摘5件の修正完了。修正内容: ①指標①は分子のみ出力（分母=部内記録の実施日数）と明記＋率算出式記載 ②指標②は部内記録を正式計測方法、SQLは参考値と位置づけ（注釈ゼロ=使用なしではない） ③共有1→2条件①は`publishedAt IS NOT NULL`で昇格済み全数対象に修正 ④条件③は「0回以上」削除＋`publicViewCount > 0`明記 ⑤運用手順「ダッシュボード」→「スプレッドシート等の部内記録」に修正 ⑥団体名をプレースホルダ化、Phase 1開始日・終了日をプレースホルダに変更。修正版SQL検証（ローカルPostgreSQL）: ①range:2026-07-15〜31 total=2(practice=2,race=0) ②月別集計 2026-07:2セッション,3注釈 ③累計 3注釈,2セッション ④昇格済み:0件 ⑤閲覧記録:0件。全SQL エラー0で数値返却。**Neon未検証（B-3ブロック中）。knowledge還流は担当外（除外）。**
   - 依存: T-91
 
 ## バックログ（MVP計画外。実施条件の成立まで着手禁止）
