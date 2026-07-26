@@ -11,8 +11,12 @@ import { LocalProjection, RenderTrack, project, splitByGapRuns } from "./geo";
 // 旧実装はindex % 4で5・6艇目が1・2艇目と同一色になっていた（プロジェクタ投影・遠目識別の要件に反する）。
 // 色以外の識別（色覚多様性・プロジェクタの色再現差への耐性＝UI-DESIGN §7項目8）は、
 // 6色化だけに頼らず drawBoatLabel() の常時ラベル表示でも担保する。
+// 「6色＋常時ラベル、線種は艇識別に使わない」はARCH.md ADR-008（6艇の識別ルール裁定）が正本。
+// UI-DESIGN.md §7項目8の「色＋線種」表記との食い違いはADR-008・UI-DESIGN rev.6で実装側を正として解消済み
+// （REVIEW.md R-13）。BOAT_COLORSとtheme.jsonのドリフトは t20-boat-identification.test.ts で検知する
+// （REVIEW.md R-12対応・TASKS.md T-27）。
 // setLineDash はテール描画のgaps（欠測区間）表現専用であり、艇識別には使わない
-// （同じ視覚チャネルを2つの意味に重ねると意味が衝突するため。§7項目8のレビュー指摘）。
+// （同じ視覚チャネルを2つの意味に重ねると意味が衝突するため。ADR-008・§7項目8のレビュー指摘）。
 export const BOAT_COLORS = ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a", "#a679e0", "#e2569a"];
 
 export interface RenderFrameOptions {

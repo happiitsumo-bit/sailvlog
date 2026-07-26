@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { BOAT_COLORS, shortBoatLabel } from "../CanvasRenderer";
+import theme from "../../../../../design-system/theme.json";
 
 describe("BOAT_COLORS（6艇同時再生対応・§7項目8/Team Lead指摘 2026-07-25）", () => {
   it("6艇分の色を持つ（4色のみだとindex%4で5・6艇目が1・2艇目と重複する回帰を防ぐ）", () => {
@@ -14,6 +15,10 @@ describe("BOAT_COLORS（6艇同時再生対応・§7項目8/Team Lead指摘 2026
     const indices = [0, 1, 2, 3, 4, 5];
     const colors = indices.map((i) => BOAT_COLORS[i % BOAT_COLORS.length]);
     expect(new Set(colors).size).toBe(6);
+  });
+
+  it("design-system/theme.json の color.sailvlog.boats.dark と完全一致する（T-27/REVIEW.md R-12: 正本とのドリフト防止。トークン正本を1色変えるとこのテストが落ちる）", () => {
+    expect(BOAT_COLORS).toEqual(theme.color.sailvlog.boats.dark);
   });
 });
 
