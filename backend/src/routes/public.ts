@@ -5,6 +5,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../database";
 import { checkRateLimit, shouldCountView } from "../lib/rateLimiter";
 import { serializePublicSession } from "../lib/serializePublicSession";
+import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
@@ -27,7 +28,9 @@ function clientIp(req: Request): string {
 }
 
 // GET /api/public/sessions/:slug — 認証不要
-router.get("/sessions/:slug", async (req: Request, res: Response): Promise<void> => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+// （このルートは未認証で誰でも叩けるため、安全網の必要性が特に高い）
+router.get("/sessions/:slug", wrap(async (req: Request, res: Response): Promise<void> => {
   const ip = clientIp(req);
 
   if (!checkRateLimit(ip)) {
@@ -99,6 +102,6 @@ router.get("/sessions/:slug", async (req: Request, res: Response): Promise<void>
   }
 
   res.status(200).json(serializePublicSession(session, tracks, annotations));
-});
+}));
 
 export default router;

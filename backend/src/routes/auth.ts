@@ -2,11 +2,13 @@ import { Router, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../database";
+import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
 // POST /api/auth/register
-router.post("/register", async (req: Request, res: Response): Promise<void> => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+router.post("/register", wrap(async (req: Request, res: Response): Promise<void> => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
@@ -33,10 +35,10 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
   });
 
   res.status(201).json({ user, token });
-});
+}));
 
 // POST /api/auth/login
-router.post("/login", async (req: Request, res: Response): Promise<void> => {
+router.post("/login", wrap(async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -64,6 +66,6 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     user: { id: user.id, username: user.username, email: user.email },
     token,
   });
-});
+}));
 
 export default router;

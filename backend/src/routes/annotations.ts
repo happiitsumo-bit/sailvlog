@@ -3,11 +3,13 @@ import prisma from "../database";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { isAuthorOrTeamAdmin } from "../middleware/requireTeamMember";
 import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
+import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
 // PATCH /api/annotations/:id — body更新（ARCH.md §4。author本人 or Team admin のみ）
-router.patch("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+router.patch("/:id", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
     res.status(400).json({ error: "不正な注釈IDです" });
@@ -38,10 +40,10 @@ router.patch("/:id", authMiddleware, async (req: AuthRequest, res: Response): Pr
 
   const updated = await prisma.annotation.update({ where: { id }, data: { body } });
   res.json({ annotation: updated });
-});
+}));
 
 // DELETE /api/annotations/:id — 削除（ARCH.md §4。author本人 or Team admin のみ）
-router.delete("/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
     res.status(400).json({ error: "不正な注釈IDです" });
@@ -62,6 +64,6 @@ router.delete("/:id", authMiddleware, async (req: AuthRequest, res: Response): P
 
   await prisma.annotation.delete({ where: { id } });
   res.status(204).send();
-});
+}));
 
 export default router;

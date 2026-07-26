@@ -11,6 +11,7 @@ import {
 import { validateTrackPayload } from "../lib/validateTrackPayload";
 import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
 import { validatePublishPayload } from "../lib/validatePublishPayload";
+import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.post(
   "/",
   authMiddleware,
   requireTeamMemberByBody(),
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  wrap(async (req: AuthRequest, res: Response): Promise<void> => {
     const { title, type, startedAt, durationSec, teamId, venue, notes } = req.body;
 
     if (typeof title !== "string" || title.trim().length === 0 || title.length > MAX_TITLE_LEN) {
@@ -73,11 +74,11 @@ router.post(
     });
 
     res.status(201).json({ session });
-  }
+  })
 );
 
 // GET /api/sessions?teamId= — チームのセッション一覧（メタのみ）
-router.get("/", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
   const teamId = Number(req.query.teamId);
   if (!Number.isInteger(teamId)) {
     res.status(400).json({ error: "teamId は必須です" });
@@ -99,14 +100,14 @@ router.get("/", authMiddleware, async (req: AuthRequest, res: Response): Promise
   });
 
   res.json({ sessions });
-});
+}));
 
 // GET /api/sessions/:id — 詳細（tracksはgridJson込み・rawGpx除外、annotations込み）
 router.get(
   "/:id",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const id = req.sessionRecord!.id;
 
     const [sessionRow, tracks, annotations] = await Promise.all([
@@ -133,7 +134,7 @@ router.get(
     const { publicViewCount: _publicViewCount, ...session } = sessionRow ?? {};
 
     res.json({ session: sessionRow ? session : null, tracks, annotations });
-  }
+  })
 );
 
 // PATCH /api/sessions/:id — title/notes/marks/legsの更新（レグ境界の保存・補正）
@@ -141,7 +142,7 @@ router.patch(
   "/:id",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const { title, notes, marks, legs } = req.body;
     const data: Record<string, unknown> = {};
 
@@ -162,7 +163,7 @@ router.patch(
     });
 
     res.json({ session });
-  }
+  })
 );
 
 // DELETE /api/sessions/:id — uploader本人 または Team admin のみ（Track/Annotationカスケード）
@@ -170,7 +171,7 @@ router.delete(
   "/:id",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
     if (!allowed) {
       res.status(403).json({ error: "削除できるのはアップロード者本人またはチーム管理者のみです" });
@@ -178,7 +179,7 @@ router.delete(
     }
     await prisma.session.delete({ where: { id: req.sessionRecord!.id } });
     res.status(204).send();
-  }
+  })
 );
 
 // POST /api/sessions/:id/tracks — 艇1つぶんのトラック投稿（構造検証込み。ARCH.md §4）
@@ -186,7 +187,7 @@ router.post(
   "/:id/tracks",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const sessionId = req.sessionRecord!.id;
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     if (!session) {
@@ -208,7 +209,7 @@ router.post(
     // gridJson/rawGpxを除くメタのみ返す（ARCH.md §4）
     const { gridJson: _g, rawGpx: _r, ...meta } = track;
     res.status(201).json({ track: meta });
-  }
+  })
 );
 
 // POST /api/sessions/:id/annotations — 注釈追加（T-15, ARCH.md §4。本エンドポイントが唯一の作成担当）
@@ -216,7 +217,7 @@ router.post(
   "/:id/annotations",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const sessionId = req.sessionRecord!.id;
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     if (!session) {
@@ -252,7 +253,7 @@ router.post(
     });
 
     res.status(201).json({ annotation });
-  }
+  })
 );
 
 // POST /api/sessions/:id/publish — 公開昇格（T-30, ARCH.md §4/ADR-007）。
@@ -261,7 +262,7 @@ router.post(
   "/:id/publish",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const sessionId = req.sessionRecord!.id;
 
     const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
@@ -325,7 +326,7 @@ router.post(
       visibility: session.visibility,
       publishedAt: session.publishedAt,
     });
-  }
+  })
 );
 
 // POST /api/sessions/:id/unpublish — 公開取り消し（T-30）。publicSlugを破棄しvisibilityを"team"へ戻す。
@@ -333,7 +334,7 @@ router.post(
   "/:id/unpublish",
   authMiddleware,
   requireSessionTeamMember(),
-  async (req: SessionScopedRequest, res: Response): Promise<void> => {
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
     if (!allowed) {
       res.status(403).json({ error: "取り消せるのはアップロード者本人またはチーム管理者のみです" });
@@ -346,7 +347,7 @@ router.post(
     });
 
     res.status(200).json({ visibility: session.visibility });
-  }
+  })
 );
 
 export default router;

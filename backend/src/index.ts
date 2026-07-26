@@ -1,9 +1,4 @@
 import "dotenv/config";
-// Quality Gate Major修正: Express 4 + Node 20ではasyncハンドラ内の未処理rejectionが
-// next(err)へ渡らずプロセスごと終了する。express-async-errorsをexpressより先にimportすることで
-// Router.get/post等をパッチし、asyncハンドラの例外を自動的にnext(err)へ回すようにする
-// （個別ルートのtry/catchを全部書き換える必要がない安全網。既存のtry/catch付きルートには影響しない）。
-import "express-async-errors";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 
@@ -68,15 +63,25 @@ app.all("/api/posts/*", gone);
 app.all("/api/courses", gone);
 app.all("/api/courses/*", gone);
 
-// Quality Gate Major修正: DB例外等でプロセスが落ちるのを防ぐグローバルエラーハンドラ。
-// express-async-errors経由でnext(err)に渡ってきた例外・同期的にthrowされた例外の両方をここで受け止め、
-// 確実に500応答へ落とす（プロセスは継続する）。ルート個別のtry/catchはこれを置き換えるものではなく、
-// 「catchし忘れた場合の安全網」として最後段に置く。
+// Quality Gate Major2修正（依存ゼロ・Team Lead裁定2026-07-26）: DB例外等でプロセスが落ちるのを防ぐ
+// グローバルエラーハンドラ。各ルートは lib/asyncHandler.ts の wrap() で async ハンドラを包んでおり、
+// reject した Promise は wrap() 内の .catch(next) 経由でここへ届く（同期的なthrowも同様に届く）。
+// 確実に500応答へ落とす（プロセスは継続する）。
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Unhandled error:", err);
   if (res.headersSent) return;
   res.status(500).json({ error: "Internal Server Error" });
+});
+
+// 保険（多重防御）: wrap()の適用漏れや、Express層の外（タイマー等）で起きた未処理rejection/例外で
+// プロセスが落ちるのを防ぐ。個別リクエストへの500応答は保証できない（レスポンスに紐づく情報がないため）が、
+// 「1回の例外でサーバ全体が落ちてcold startになる」という最悪ケースは防ぐ。
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection (process kept alive):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (process kept alive):", err);
 });
 
 if (require.main === module) {

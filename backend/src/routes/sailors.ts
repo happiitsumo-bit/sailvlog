@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../database";
 import { authMiddleware } from "../middleware/auth";
+import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
@@ -20,7 +21,8 @@ const sailorSelect = {
 // GET /api/sailors — セーラー一覧 + 検索
 // Quality Gate Blocker修正と同種の指摘: 未認証でメンバーのspecialty/affiliation/experienceYears等が
 // 取得できていたため authMiddleware を追加（teams.ts:40-70 の指摘と同種）。
-router.get("/", authMiddleware, async (req: Request, res: Response) => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+router.get("/", authMiddleware, wrap(async (req: Request, res: Response) => {
   const { q, boatType, page = "1", limit = "24" } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
@@ -47,10 +49,10 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
   ]);
 
   res.json({ sailors, total, page: Number(page) });
-});
+}));
 
 // GET /api/sailors/:username — セーラー詳細 (users/:usernameと別に用意)
-router.get("/:username", authMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.get("/:username", authMiddleware, wrap(async (req: Request, res: Response): Promise<void> => {
   const sailor = await prisma.user.findUnique({
     where: { username: req.params.username },
     select: sailorSelect,
@@ -59,6 +61,6 @@ router.get("/:username", authMiddleware, async (req: Request, res: Response): Pr
   if (!sailor) { res.status(404).json({ error: "セーラーが見つかりません" }); return; }
 
   res.json(sailor);
-});
+}));
 
 export default router;

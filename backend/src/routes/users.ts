@@ -1,11 +1,13 @@
 import { Router, Request, Response } from "express";
 import prisma from "../database";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
 // GET /api/users/me — 自分のプロフィール取得（/:username より先に登録する必要がある）
-router.get("/me", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+router.get("/me", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId },
     select: {
@@ -16,12 +18,13 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res: Response): Promi
   });
   if (!user) { res.status(404).json({ error: "ユーザーが見つかりません" }); return; }
   res.json(user);
-});
+}));
 
 // GET /api/users/:username — プロフィール
 // Quality Gate Blocker修正と同種の指摘: 未認証でspecialty/affiliation/experienceYears等が
 // 取得できていたため authMiddleware を追加（teams.ts:40-70 の指摘と同種）。
-router.get("/:username", authMiddleware, async (req: Request, res: Response): Promise<void> => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+router.get("/:username", authMiddleware, wrap(async (req: Request, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { username: req.params.username },
     select: {
@@ -54,10 +57,11 @@ router.get("/:username", authMiddleware, async (req: Request, res: Response): Pr
   }
 
   res.json(user);
-});
+}));
 
 // PUT /api/users/me — 自分のプロフィール更新
-router.put("/me", authMiddleware, async (req: AuthRequest, res: Response) => {
+// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+router.put("/me", authMiddleware, wrap(async (req: AuthRequest, res: Response) => {
   const { bio, avatarUrl, specialty, affiliation, experienceYears, boatTypeId } = req.body;
 
   const user = await prisma.user.update({
@@ -78,6 +82,6 @@ router.put("/me", authMiddleware, async (req: AuthRequest, res: Response) => {
   });
 
   res.json(user);
-});
+}));
 
 export default router;
