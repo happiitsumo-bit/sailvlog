@@ -256,6 +256,7 @@
 - [ ] T-92: リリース＋計測準備（release-manager）
   - 成果物: PRD §6の成功指標①〜③を数えるSQL（アップロード数・注釈数の集計クエリ）をdocsに記載。knowledge還流（RESEARCH.md §5の候補を/tilへ）
   - 検証: SQLがNeon上で動き数値が返る
+  - **検証結果（2026-07-26）**: `docs/dev-org/METRICS.md`作成。ローカルPostgreSQL（Docker）で各指標のSQLを実行確認: ①アップロード数（Session COUNT）= 1 ②反省会使用回数（月別distinct sessions）= 2026-07月に1セッション ③注釈総数（Annotation COUNT）= 1。すべてエラー0で数値返却確認。**Neon上での検証は未実施（B-3ブロック中）**。計測SQLの文法はPostgreSQL 13+標準（FILTER句・TO_CHAR）のためNeon互換性問題なし。knowledge還流は担当外（Team Lead指示により除外）
   - 依存: T-91
 
 ## バックログ（MVP計画外。実施条件の成立まで着手禁止）
