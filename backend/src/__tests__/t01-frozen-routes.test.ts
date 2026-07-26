@@ -52,7 +52,15 @@ describe("T-01 存続ルート", () => {
     const unauth = await request(app).get("/api/teams");
     expect(unauth.status).toBe(401);
 
-    const loginRes = await request(app).post("/api/auth/login").send({ email, password });
+    // テスト間はbeforeEachでDBがリセットされるため、このテスト用に自前で登録する
+    // （前のテストで作ったユーザーは既に消えている）。
+    const teamsTestEmail = `t01-teams-${Date.now()}@example.com`;
+    await request(app)
+      .post("/api/auth/register")
+      .send({ username: `t01teams${Date.now()}`, email: teamsTestEmail, password });
+    const loginRes = await request(app).post("/api/auth/login").send({ email: teamsTestEmail, password });
+    expect(loginRes.body.token).toBeDefined();
+
     const authed = await request(app)
       .get("/api/teams")
       .set("Authorization", `Bearer ${loginRes.body.token}`);
