@@ -27,6 +27,10 @@ services:
       JWT_EXPIRES_IN: 7d
       PORT: 8000
       CORS_ORIGIN: http://localhost:3001,http://localhost:3000
+      # R-03: 公開ビュー(/p/[slug])のx-forwarded-client-ipヘッダを信頼するための共有シークレット
+      # (backend/.env.example参照)。ローカル開発専用のダミー値。frontend側にも同じ値を設定する
+      # 必要がある(Codex担当・frontend/直下のdocker-compose設定はこのコミットでは変更していない)。
+      INTERNAL_PROXY_SECRET: dev-only-internal-proxy-secret-change-me
     depends_on:
       db:
         condition: service_healthy

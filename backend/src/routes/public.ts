@@ -2,6 +2,7 @@
 // 「本スライスの安全性の要」。既存 GET /api/sessions/:id のレスポンス整形は再利用せず、
 // 専用のホワイトリスト・シリアライザ(serializePublicSession)を使う。
 import { Router, Request, Response } from "express";
+import crypto from "crypto";
 import prisma from "../database";
 import { checkRateLimit, shouldCountView } from "../lib/rateLimiter";
 import { serializePublicSession } from "../lib/serializePublicSession";
@@ -18,12 +19,44 @@ function notFound(res: Response): void {
 // req.ip は常に「Next.jsサーバー1台のIP」になり、レート制限/閲覧数カウントが実質1ユーザー分に
 // 潰れる（発見事項参照）。frontend/src/lib/publicSession.ts が転送する x-forwarded-client-ip
 // （Next側で受け取った本来のx-forwarded-for/x-real-ipの先頭値）があればそれを優先する。
-// 限界: backendへ直接到達できる呼び出し元はこのヘッダを任意に詐称できる（Next経由を強制しない）。
-// 本番(Render)でもbackendは公開URLを持つため同じ限界が残るが、Major1の実害
-// （1台のIPに潰れて機能しないこと）は解消できるため、詐称リスクは発見事項に明記の上で許容する。
+//
+// Team Lead指摘(R-03残穴): 上記ヘッダは、backendのポートへ直接到達できる呼び出し元なら誰でも
+// 詐称できてしまう。publicViewCountはPRD §6で共有1→共有2のゲート判定に使う数値であり、
+// 「ヘッダを回すだけでレート制限を回避し、閲覧数を偽装できる」のは看過できないリスクと判断された。
+// 対策: Next.jsサーバーのみが知る共有シークレットを別ヘッダ(x-internal-proxy-secret)で同送させ、
+// 一致した場合のみ x-forwarded-client-ip を採用する。
+//
+// 【Codexへの申し送り: フロント側が満たすべきヘッダ仕様】
+//   - ヘッダ名: `x-internal-proxy-secret`（クライアントIPを積む `x-forwarded-client-ip` とは別ヘッダ）
+//   - 値: 環境変数 `INTERNAL_PROXY_SECRET` の値をそのまま文字列で送る（バックエンドの
+//     `process.env.INTERNAL_PROXY_SECRET` と完全一致する文字列。ハッシュ化や加工は不要）
+//   - 送信元: frontend/src/lib/publicSession.ts の `fetchPublicSession`（サーバーコンポーネントの
+//     fetchのみ。ブラウザから直接backendを叩く経路は無いので、ブラウザにこのシークレットが
+//     渡ることは無い＝NEXT_PUBLIC_ プレフィックスを付けてはいけない）
+//   - 未設定時の挙動（安全側のデフォルト）: backend側で `INTERNAL_PROXY_SECRET` が未設定、
+//     もしくはヘッダ値が不一致の場合は `x-forwarded-client-ip` を一切信用せず、`req.ip` に
+//     フォールバックする（＝docker-compose公開ポート越しにbackendへ直接投げても、
+//     クライアントIP詐称もレート制限回避もできない）
+function proxySecretMatches(req: Request): boolean {
+  const expected = process.env.INTERNAL_PROXY_SECRET;
+  if (!expected) return false; // 未設定なら常に不一致扱い(安全側)
+  const provided = req.header("x-internal-proxy-secret");
+  if (!provided) return false;
+
+  const expectedBuf = Buffer.from(expected);
+  const providedBuf = Buffer.from(provided);
+  // 長さが違うとtimingSafeEqualが例外を投げるため先にlengthを揃える(定数時間比較を維持する目的で
+  // 「不一致」を早期returnせず、同じ長さのダミーバッファと比較してから結果を返す)
+  if (expectedBuf.length !== providedBuf.length) {
+    crypto.timingSafeEqual(expectedBuf, expectedBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
+}
+
 function clientIp(req: Request): string {
   const forwarded = req.header("x-forwarded-client-ip");
-  if (forwarded) return forwarded;
+  if (forwarded && proxySecretMatches(req)) return forwarded;
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 

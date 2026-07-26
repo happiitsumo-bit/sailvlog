@@ -189,22 +189,87 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
   // backendに到着するため、素のreq.ipだけをキーにすると「1分61回開かれた時点で全公開URLが
   // 全員に404」になる。frontend/src/lib/publicSession.ts が転送する x-forwarded-client-ip を
   // backendが優先して使うことで、実クライアント単位にレート制限が効くことを検証する。
-  test("④-b レート制限: x-forwarded-client-ip が異なれば同一req.ipでも別バケットとして扱われる", async () => {
+  //
+  // Team Lead指摘(R-03残穴)修正: このヘッダは共有シークレット(x-internal-proxy-secret)が
+  // 一致した場合のみ信頼される。以下のテストではNext.jsサーバーになりすまして正しいシークレットを
+  // 同送し、「一致時は転送ヘッダが採用される」ことを検証する(INTERNAL_PROXY_SECRETは
+  // beforeAll/afterAllでこのdescribeブロック限定で設定・復元する)。
+  const TEST_PROXY_SECRET = "t31-test-proxy-secret";
+  let originalProxySecret: string | undefined;
+
+  beforeAll(() => {
+    originalProxySecret = process.env.INTERNAL_PROXY_SECRET;
+    process.env.INTERNAL_PROXY_SECRET = TEST_PROXY_SECRET;
+  });
+
+  afterAll(() => {
+    if (originalProxySecret === undefined) delete process.env.INTERNAL_PROXY_SECRET;
+    else process.env.INTERNAL_PROXY_SECRET = originalProxySecret;
+  });
+
+  test("④-b レート制限: 正しい共有シークレット付きなら x-forwarded-client-ip が異なるだけで同一req.ipでも別バケットとして扱われる", async () => {
     const { slug } = await createPublishedSession();
 
     let lastA;
     for (let i = 0; i < 61; i++) {
       lastA = await request(app)
         .get(`/api/public/sessions/${slug}`)
-        .set("x-forwarded-client-ip", "203.0.113.1");
+        .set("x-forwarded-client-ip", "203.0.113.1")
+        .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
     }
     expect(lastA!.status).toBe(429);
 
     // 別クライアントIPを名乗ればまだ枠が残っている(同一req.ipのまま、ヘッダだけ変える)
     const otherClient = await request(app)
       .get(`/api/public/sessions/${slug}`)
-      .set("x-forwarded-client-ip", "203.0.113.2");
+      .set("x-forwarded-client-ip", "203.0.113.2")
+      .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
     expect(otherClient.status).toBe(200);
+  }, 30000);
+
+  test("④-c R-03: 共有シークレットが無いと x-forwarded-client-ip は無視され、req.ip(supertestは同一)で丸められる", async () => {
+    const { slug } = await createPublishedSession();
+
+    // シークレットを付けずに61回、クライアントIPを詐称してもバケットは req.ip 由来の1つに丸まる
+    let last;
+    for (let i = 0; i < 61; i++) {
+      last = await request(app)
+        .get(`/api/public/sessions/${slug}`)
+        .set("x-forwarded-client-ip", `203.0.113.${i}`); // シークレット無し・IPは毎回変える
+    }
+    expect(last!.status).toBe(429); // 詐称ヘッダは信用されず、素のreq.ipバケットで429に達する
+  }, 30000);
+
+  test("④-d R-03: 共有シークレットが不一致だと x-forwarded-client-ip は無視される", async () => {
+    const { slug } = await createPublishedSession();
+
+    let last;
+    for (let i = 0; i < 61; i++) {
+      last = await request(app)
+        .get(`/api/public/sessions/${slug}`)
+        .set("x-forwarded-client-ip", `198.51.100.${i}`)
+        .set("x-internal-proxy-secret", "wrong-secret-value");
+    }
+    expect(last!.status).toBe(429);
+  }, 30000);
+
+  test("④-e R-03: INTERNAL_PROXY_SECRET が未設定(環境変数側)なら、正しそうなシークレットヘッダを送っても信用しない(安全側フォールバック)", async () => {
+    const saved = process.env.INTERNAL_PROXY_SECRET;
+    delete process.env.INTERNAL_PROXY_SECRET;
+    try {
+      const { slug } = await createPublishedSession();
+      let last;
+      for (let i = 0; i < 61; i++) {
+        last = await request(app)
+          .get(`/api/public/sessions/${slug}`)
+          .set("x-forwarded-client-ip", `192.0.2.${i}`)
+          .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
+      }
+      expect(last!.status).toBe(429);
+    } finally {
+      if (saved === undefined) delete process.env.INTERNAL_PROXY_SECRET;
+      else process.env.INTERNAL_PROXY_SECRET = saved;
+    }
   }, 30000);
 
   test("publicViewCountは同一IP・同一スラッグ5分以内は加算されない(2回叩いても+1のみ)", async () => {
