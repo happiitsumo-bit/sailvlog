@@ -6,7 +6,6 @@
 // （ARCH.md §4・SPEC-share1-phase1.md §5.2。T-31の禁止キー非含有テストで自動検証する）
 
 type PublicSessionRow = {
-  id: number;
   title: string;
   type: string;
   startedAt: Date;
@@ -43,7 +42,6 @@ export function serializePublicSession(
 ) {
   return {
     session: {
-      id: session.id,
       title: session.title,
       type: session.type,
       startedAt: session.startedAt,
