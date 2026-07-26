@@ -176,6 +176,11 @@
     - モバイルviewport計測（390×844・iPhone 13エミュレーション、実機ではない）: ①DOM順スクリーンショットで「Canvas→再生コントロール→タイムライン→レグ→艇の表示→比較(折りたたみ)→反省メモ(折りたたみ)」の順を確認（`t25-mobile-top.png`/`t25-mobile-full.png`）。②アコーディオン初期状態=両方とも`open:false`を`details.replay-accordion`のDOM属性で確認、`summary`タップで開閉することも確認。③Canvas上でのtouchstart/touchend（右方向40px）でシークバーの値が`0→5`（+5秒）へ変化することを確認。④再生中のrAFフレーム間隔計測（1x・3秒間）=181frames・平均60.19fps・p95フレーム間隔17.6ms（p95fps 56.8）。**このマシン上のヘッドレスChromium・エミュレーションでの数値であり実機の30fps基準の代替指標**（同一PC上の計測なのでT-20の数値と近いのは想定どおり。実機での挙動はB-3解除後の実機計測で別途確認する必要あり）。
     - 使い捨てスクリプト（コミット対象外）: `measure-t25.js`。
   - 依存: T-17, B-2（waive済み・上記参照）
+- [ ] T-27: 6艇識別ルール裁定（ARCH ADR-008）のフォローアップ — 艇色トークンの同期ガードテスト＋コード内根拠コメントの更新
+  - 背景: ③Quality Gateで「UI-DESIGN §4.2（4色＋破線）vs 実装（6色＋常時ラベル）」の食い違いを architect が裁定し、**実装側を正**とした（ARCH ADR-008・UI-DESIGN rev.6）。機能実装の変更は**不要**（現行`CanvasRenderer.ts`はADR-008準拠）。残るのは正本間のドリフト防止
+  - 成果物: ①`frontend/src/lib/replay/__tests__/t20-boat-identification.test.ts` に「`BOAT_COLORS` が `design-system/theme.json` の `color.sailvlog.boats.dark` と完全一致する」テストを追加（theme.jsonを直接importして突き合わせる。現行テストは6色・重複なしの検算のみで、トークン正本とのドリフトを捕まえられない=REVIEW.md R-12と同型の弱点）②`CanvasRenderer.ts` 冒頭コメント（8〜15行目）の根拠引用を「Team Lead指摘」からARCH ADR-008へ更新し、「setLineDashはgaps専用」の記述にADR-008参照を追記（コード変更は**コメントのみ**。BOAT_COLORSの値・ロジックは変更しない）
+  - 検証: `npx vitest run` 全件PASS（新テスト含む）。theme.json側の艇色を1色変えるとテストが落ちることを一時変更で確認してから戻す
+  - 依存: なし（frontend単独・小タスク。backend並行作業と競合しない）
 
 ### S2.5: 〔共有1〕公開昇格＋限定公開URL＋OGP（PRD rev.6でPhase 1へ前倒し。仕様=`SPEC-share1-phase1.md`・設計=ADR-007）
 

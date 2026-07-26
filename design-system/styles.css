@@ -170,7 +170,7 @@ ol {
   --color-boat-2: #e0392f; /* 相手艇 */
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
-  --color-boat-5: #7a4bc4; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+  --color-boat-5: #7a4bc4; /* 6艇同時再生対応。値の正本はtheme.json boats（根拠: ARCH ADR-008。破線は欠測表現に予約のため色数で識別） */
   --color-boat-6: #c23e83;
 
   /* --- Color: Nautical Chart（海図の視覚言語。等深線・グリッド用の低彩度トーン） --- */
@@ -273,9 +273,7 @@ ol {
     --color-boat-2: #ff5b52;
     --color-boat-3: #f0a72e;
     --color-boat-4: #34c07a;
-    --color-boat-5: #a679e0; /* 2026-07-26補完: ライトのみ5・6が追加されていた片肺状態を解消（値はtheme.json boats.darkと同一。ARCH ADR-008） */
-    --color-boat-6: #e2569a;
-    --color-boat-5: #a679e0; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+    --color-boat-5: #a679e0; /* 6艇同時再生対応。値の正本はtheme.json boats（根拠: ARCH ADR-008。破線は欠測表現に予約のため色数で識別） */
     --color-boat-6: #e2569a;
 
     --color-chart-grid: rgba(47, 159, 209, 0.16);
@@ -358,7 +356,7 @@ ol {
   --color-boat-2: #ff5b52;
   --color-boat-3: #f0a72e;
   --color-boat-4: #34c07a;
-  --color-boat-5: #a679e0; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+  --color-boat-5: #a679e0; /* 6艇同時再生対応。値の正本はtheme.json boats（根拠: ARCH ADR-008。破線は欠測表現に予約のため色数で識別） */
   --color-boat-6: #e2569a;
 
   --color-chart-grid: rgba(47, 159, 209, 0.16);
@@ -438,7 +436,7 @@ ol {
   --color-boat-2: #e0392f;
   --color-boat-3: #d98a12;
   --color-boat-4: #1fa363;
-  --color-boat-5: #7a4bc4; /* 2026-07-25追加: 6艇同時再生対応（Team Lead指摘） */
+  --color-boat-5: #7a4bc4; /* 6艇同時再生対応。値の正本はtheme.json boats（根拠: ARCH ADR-008。破線は欠測表現に予約のため色数で識別） */
   --color-boat-6: #c23e83;
 
   --color-chart-grid: rgba(11, 106, 158, 0.10);
