@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { getUser, clearAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function TopBar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,6 +21,10 @@ export default function TopBar() {
     router.push("/login");
     router.refresh();
   }
+
+  // T-33: 公開ビュー `/p/[slug]` はログイン導線を強制しない認証不要ページ（UI-DESIGN §5.3）。
+  // アプリ全体のTopBar（Login/Joinリンク）はここでは描画しない。
+  if (pathname?.startsWith("/p/")) return null;
 
   return (
     <header className="app-topbar">

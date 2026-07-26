@@ -6,6 +6,9 @@ import { NAV_ITEMS } from "@/config/navigation";
 
 export default function BottomTabBar() {
   const pathname = usePathname();
+  // T-33: 公開ビュー `/p/[slug]` は部内ナビゲーション（Sessions/Handbookタブ）を出さない
+  // 読み取り専用ページ（UI-DESIGN §5.3・編集系UI/内部導線は一切描画しない）。
+  if (pathname?.startsWith("/p/")) return null;
   return (
     <nav className="bottom-tab-bar" aria-label="Main navigation">
       <div className="bottom-tab-bar-inner">

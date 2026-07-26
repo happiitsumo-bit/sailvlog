@@ -220,9 +220,21 @@
       - 検証後、`POST /:id/unpublish`で該当セッションを`team`へ戻しテストデータをクリーンな状態に復元済み。使い捨てPlaywrightスクリプト（`t32-verify.js`/`t32-perm-check.js`/`t32-debug*.js`/`t32-list-check.js`）はscratchpad配下・コミット対象外
     - **発見事項**: バックエンドに「呼び出しユーザー自身のteam role」を1回で返す専用API（例: `GET /api/sessions/:id`のレスポンスに`myRole`を含める等）が無いため、Team admin判定は`GET /api/teams`→`GET /api/teams/:slug`の2段呼び出しで代替した（`frontend/src/lib/teamRole.ts`）。uploader本人のケースはこの往復が発生しないため実用上のコストは限定的だが、Team admin判定のたびに一覧+詳細の2リクエストが発生する点は将来「セッション詳細に自分のroleを含める」バックエンドAPI改修で解消できる（backend/はスコープ外のため実装せず記録のみ）。
   - 依存: T-30, UI-DESIGN rev.5 §5
-- [ ] T-33: 公開ビュー `/p/[slug]`〔共有1〕
+- [x] T-33: 公開ビュー `/p/[slug]`〔共有1〕
   - 成果物: 認証不要の読み取り専用ページ。`lib/replay/` を**そのまま再利用**（描画コードを分岐も複製もしない）。学びの要約→Canvas→再生コントロール→タイムライン（公開注釈のみピン）→公開メモ一覧→「sailvlogとは」説明ブロックの順。編集系UI（メモ追加・公開ボタン・削除）は**描画しない**
   - 検証: 手動/E2E: ログアウト状態で開ける／非公開注釈がDOMにもレスポンスにも出ない／編集UIが存在しない／スマホ縦画面で崩れない
+  - **検証結果（2026-07-26）**: 実装＝`frontend/src/lib/publicSession.ts`（サーバー側フェッチ。Docker内部の`API_URL`を使い分け、`cache:"no-store"`で取り消し直後の404切替を保証）＋`frontend/src/app/p/[slug]/page.tsx`（サーバーコンポーネント。404は`next/navigation`の`notFound()`で既存の共通`app/not-found.tsx`に委譲＝一律404の思想をフロントにも適用）＋`frontend/src/app/p/[slug]/PublicReplayView.tsx`（クライアントコンポーネント。`@/lib/replay`の`ReplayClock`/`computeProjection`/`renderFrame`/`BOAT_COLORS`を`/sessions/[id]`と全く同じ呼び出し方でそのまま再利用。比較強調は常に空集合を渡すことで機能自体を無効化、レグ表示・注釈追加・削除・公開ボタンは実装しない）。
+    - **発見事項→その場で修正**: ルートlayout.tsx（`app/layout.tsx`）が全ページ共通で`<TopBar/>`（Login/Joinリンク）と`<BottomTabBar/>`（Sessions/Handbookタブ）を描画する構造だったため、そのままでは公開ビューにも部内ログイン導線・内部ナビゲーションが漏れ出す（UI-DESIGN §5.3「ログイン導線を強制しない」・SPEC §3.2に抵触）。ルート構成の大規模な作り直し（route group分割）はスコープが大きくなるため避け、`TopBar.tsx`/`BottomTabBar.tsx`（いずれも既に`"use client"`）に`usePathname()`で`/p/`始まりなら`null`を返す1行を追加する最小差分で解消（他ページの表示は無変更であることをPlaywrightで確認済み、下記参照）。
+    - **`npx tsc --noEmit`**: エラー0。**`npm run build`**: `✓ Compiled successfully`、**9ルート**生成（`/p/[slug]`が新規追加され8→9。既存8ルートは変化なし）。**`npx vitest run`**: 6 files / **54 passed**（T-32時点から回帰なし。T-33は新規ロジック追加なしのため新規ユニットテストは無し＝UIの結合検証はPlaywrightで実施）。
+    - **Playwright実DB検証**（`docker compose`稼働中backend/db/frontendに対し、T-32検証で作ったセッション(id=2, team=1)を再利用。トラック1艇・公開注釈1件(id=2「テスト注釈A」)・非公開注釈1件(id=3「テスト注釈B」)の状態で`POST /:id/publish`しunlisted URLを発行）:
+      1. **ログアウト状態で開ける**: 新規ブラウザコンテキスト（localStorageにtoken/userを一切セットしない）から`/p/{slug}`にアクセスしHTTPステータス**200**を確認
+      2. **DOM順**: `.container`直下の子要素を走査し `public-view-header → page-header → public-summary-card(学びの要約) → CANVAS → 再生コントロール(再生/速度ボタン) → タイムライン(input[range]) → 公開メモ一覧 → #public-about` の順を確認（UI-DESIGN §5.3のDOM順と一致）
+      3. **非公開注釈がDOMにもレスポンスにも出ない**: `curl /api/public/sessions/:slug`のJSONに「テスト注釈B」が含まれないこと、ブラウザの`page.content()`（レンダリング後のHTML全文）にも「テスト注釈B」が含まれないことの両方を確認。公開注釈「テスト注釈A」は両方に存在
+      4. **編集UIが存在しない**: 「現在時刻...に議論を残す」フォーム・「公開する」ボタン・「削除」ボタンがいずれも0件（`getByRole`/テキスト検索）
+      5. **スマホ縦画面(390×844, iPhone 13相当)で崩れない**: `document.documentElement.scrollWidth > clientWidth`が`false`（横スクロールなし）をPlaywrightで確認、スクリーンショット`t33-mobile.png`（scratchpad・コミット対象外）で目視確認
+      6. **ログイン導線・内部ナビゲーションの非表示**: `.app-topbar`・`.bottom-tab-bar`・「Login」リンクがいずれも0件であることを確認。同じPlaywrightセッションで`/login`へ遷移し`.app-topbar`が1件（＝他ページの表示は無変更）であることも確認し、修正が公開ビュー限定であることを担保
+      7. **404の一律性**: 存在しないスラッグ`/p/does-not-exist-slug-xyz`が**404**（`curl -o /dev/null -w "%{http_code}"`）
+      - 検証後、`POST /:id/unpublish`でテストセッションを`team`へ復元済み。使い捨てPlaywrightスクリプト（`t33-verify.js`/`t33-domorder.js`/`t33-chrome-check.js`/`t33-shot.js`）はscratchpad配下・コミット対象外
   - 依存: T-31, T-14（再生エンジン）
 - [ ] T-34: OGP＋公開E2E〔共有1〕 — **ここで共有1完成**
   - 成果物: `/p/[slug]` の `generateMetadata`（title・description=学びの要約冒頭100字・`og:image`=静的1枚・`unlisted` は `robots: noindex`）＋静的OG画像1枚（海図面＋ロゴ。動的生成はバックログ）
