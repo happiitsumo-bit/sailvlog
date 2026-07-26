@@ -45,7 +45,17 @@
   - [ ] REVIEW.md の Blocker が 0 件（Major は対応 or 明示的に受容の記録）
   - [ ] テストが存在し全てグリーン（実行ログ添付。「通るはず」は不可）
   - [ ] クリーン環境でセットアップ→起動が成功
-- 通過記録: {日付} / テスト: {N件 pass} / 備考:
+- 通過記録: **未通過（2026-07-26 時点で継続中）** / テスト: backend 83 pass・frontend 54 pass（いずれもTeam Lead実測） / 備考:
+  - **初回判定 2026-07-26: FAIL**（code-reviewer の `REVIEW.md`＝Blocker 1 / Major 5 / Minor 8）
+  - **Blocker R-01（未認証で部員名簿を列挙できる）: 解消・Team Lead実測検証済み。** `GET /api/teams`・`/api/sailors`・`/api/users/:u` を認証必須化。curl実測で未認証401／JWT付き200を確認。回帰テスト `t95-auth-required-blocker.test.ts` 追加
+  - Major R-02（`publicViewCount` の部内API漏出）: 解消（レスポンスから除外・実測確認）
+  - Major R-04（async例外でプロセス停止）: 解消。ただし**対応中に新規npm依存 `express-async-errors` が無断追加され backend が起動不能になる事故が発生**（実装ルール6違反）。Team Lead が依存を却下し、依存ゼロの `lib/asyncHandler.ts`＋グローバルエラーハンドラ＋`unhandledRejection`/`uncaughtException` の多重防御へ差し替えて解消
+  - Major R-03（レート制限キーが実質1IPに潰れる／計測破壊）: **backend側 解消。** `x-forwarded-client-ip` は共有シークレット `x-internal-proxy-secret`（`crypto.timingSafeEqual` 比較・**未設定時は信頼しない安全側フォールバック**）一致時のみ採用。`.env.example` を新設（実値はコミットせず）。**フロント側でのシークレット同送は未実施＝Codex担当**
+  - **Major R-05（公開中セッションへの追加が再同意なしで外部公開される／プライバシー）: 未解消。** 採用案A（フロントで警告＋明示確認）は**フロントエンド実装＝Codex担当**。backend側は「認可境界の欠陥ではなくUXの問題・永続化すべき状態が無い」として変更不要と判断（TASKS.md 発見事項に根拠を記録）
+  - **Major R-06（429/5xxを「存在しない」に潰し、生きている公開URLが404表示になる）: 未解消。** フロントエンドのみの問題＝Codex担当
+  - Minor 8件: 未着手（③の判定で緩めてよいのはMinorのみ＝Gate運用ルール4）
+  - **判定: 引き続き FAIL。** Blocker は0になったが **Major 3件（R-03のフロント半分・R-05・R-06）が未対応**。オーナー指示（2026-07-26）によりフロントエンド実装は外部担当（Codex）へ移管したため、Team Lead はその完了を待って再判定する
+  - 設計面の副産物: ③の監査で仕様と実装の食い違い（UI-DESIGN §4.2「4色＋破線」vs 実装「6色＋常時ラベル」）が発覚し、architect が **ADR-008** で裁定（実装側を正・破線は欠測表現に予約）。UI-DESIGN rev.6・design-system の全4テーマブロックを整合させ、フォローアップを **T-27** として起票
 
 ## ④ Demo Gate — 「人に見せられるか」
 
