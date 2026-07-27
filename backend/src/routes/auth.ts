@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../database";
 import { wrap } from "../lib/asyncHandler";
+import { checkAuthRateLimit } from "../lib/rateLimiter";
 
 const router = Router();
 
@@ -41,7 +42,16 @@ router.post("/register", wrap(async (req: Request, res: Response): Promise<void>
 }));
 
 // POST /api/auth/login
+// M-04修正（2026-07-27, REVIEW-backend-2.md）: レート制限が無く、bcrypt cost 12と組み合わさって
+// 単一インスタンスを飽和させられる/総当たりが無制限にできる問題があった。IP単位60秒10回に制限する
+// （根拠はlib/rateLimiter.tsのコメント参照）。
 router.post("/login", wrap(async (req: Request, res: Response): Promise<void> => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  if (!checkAuthRateLimit(ip)) {
+    res.status(429).json({ error: "リクエストが多すぎます。しばらくしてから再度お試しください" });
+    return;
+  }
+
   const { email, password } = req.body;
 
   if (!email || !password) {
