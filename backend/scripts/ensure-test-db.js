@@ -26,8 +26,27 @@ if (!testUrl) {
 
 const target = new URL(testUrl);
 const dbName = target.pathname.replace(/^\//, "");
-if (!dbName || dbName === "postgres") {
-  console.error(`[test-db] 危険な設定を検出: DATABASE_URL が "${dbName}" を指しています。専用のテストDB名にしてください。`);
+
+// B-01修正（2026-07-27, REVIEW-backend-2.md）: 従来は「DB名が空 or "postgres" でないこと」
+// しか見ておらず、Neonの本番DB名（例: "sailvlog"や"neondb"）はこのガードを素通りしていた。
+// 「テスト用の設定として妥当か」を多層で検証し、1つでも満たさなければ即中断する。
+const allowedTestHosts = new Set(["localhost", "127.0.0.1", "db"]);
+if (!allowedTestHosts.has(target.hostname)) {
+  console.error(
+    `[test-db] 危険な設定を検出: DATABASE_URL の接続先ホストが "${target.hostname}" です。\n` +
+      `  テスト実行はローカル/Docker内のテスト専用DB（localhost・127.0.0.1・db のいずれか）に対してのみ許可されます。\n` +
+      `  本番やクラウド上のDB（Neon等）に対して pretest（マイグレーション適用）や jest の resetDb()（全テーブルTRUNCATE）が\n` +
+      `  実行されるのを防ぐためのガードです。backend/.env.test の DATABASE_URL を確認してください。\n` +
+      `  正しい設定例: postgresql://user:pass@localhost:5433/sailvlog_test`
+  );
+  process.exit(1);
+}
+if (!dbName || dbName === "postgres" || !dbName.endsWith("_test")) {
+  console.error(
+    `[test-db] 危険な設定を検出: DATABASE_URL が "${dbName || "(空)"}" を指しています。\n` +
+      `  テスト専用DBであることが名前からも分かるよう、DB名は "_test" で終わる必要があります。\n` +
+      `  正しい設定例: postgresql://user:pass@localhost:5433/sailvlog_test`
+  );
   process.exit(1);
 }
 
