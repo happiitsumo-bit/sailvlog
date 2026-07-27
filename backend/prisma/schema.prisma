@@ -379,6 +379,11 @@ model Track {
   createdAt  DateTime @default(now())
 
   annotations Annotation[]
+
+  // m-03修正（2026-07-27, REVIEW-backend-2.md）: sessionIdにインデックスが無く、セッション詳細・
+  // 公開ビューの度にシーケンシャルスキャンになっていた。PostgreSQLではPrismaはFKに自動でインデックスを
+  // 張らないため明示する（Annotationには既に@@index([sessionId, tSec])がある）。
+  @@index([sessionId])
 }
 
 model Annotation {
