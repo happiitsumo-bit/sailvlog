@@ -93,10 +93,32 @@ router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Pr
     return;
   }
 
+  // M-02修正（2026-07-27, REVIEW-backend-2.md）: 以前はselect無しのfindMany+includeで
+  // Sessionの全スカラーカラム（publicViewCount・publishedById等）が返っていた。
+  // publicViewCountはPRD §6により「APIにも画面にも出さない」非KPI項目（詳細側
+  // GET /api/sessions/:id は既にR-02で除外済みだったが、一覧側だけ取りこぼしていた）。
+  // 「除外するものを列挙」ではなく「含めるものだけを列挙する」方式（公開API
+  // serializePublicSession.tsと同じ規律）に直すことで、将来カラムが増えても
+  // 同じ取りこぼしが構造的に起きないようにする。一覧に不要なnotes/marks/legs/
+  // publicSlug/learningSummary/publishedAt/publishedById/publicViewCountは
+  // そもそもクエリに含めない（frontend/src/types/index.ts の SessionSummary が
+  // 要求するフィールドのみ）。
   const sessions = await prisma.session.findMany({
     where: { teamId },
     orderBy: { startedAt: "desc" },
-    include: { _count: { select: { tracks: true, annotations: true } } },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      startedAt: true,
+      durationSec: true,
+      venue: true,
+      createdAt: true,
+      teamId: true,
+      uploaderId: true,
+      visibility: true,
+      _count: { select: { tracks: true, annotations: true } },
+    },
   });
 
   res.json({ sessions });
