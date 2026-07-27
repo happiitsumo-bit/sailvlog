@@ -269,7 +269,7 @@
 > **【Team Lead waive 記録 2026-07-25】** S2.5冒頭の waive 記録と**同一の対象・同一の理由**で、S3の集約条件についても waive する（対象: T-02・T-17・T-23・T-24・B-2＝T-25の実機計測部分／理由: B-3未作成と実艇練習という外部・人間依存／オーナー確認: セッション内AskUserQuestion回答 2026-07-25）。
 > なおT-90のCIは、GitHubリモート（`origin` = happiitsumo-bit/sailvlog）が存在するため**deliverablesルールどおり構築対象に含む**（デプロイ許可とCI構築は別物）。
 
-- [ ] T-90: テスト整備＋CI（qa-engineer）
+- [x] T-90: テスト整備＋CI（qa-engineer）
   - 成果物: lib/gpx・セッションAPI・認可の回帰テストを整理し、GitHub ActionsでPush時実行
   - **品質要件（deliverablesルールをここに転記して自己完結化。外部パス `~/.claude/rules/deliverables.md` は実行環境から解決できないため）**:
     1. 製品コード（パース・API・認可等の機能実装）には**回帰を捕まえるテストを最低1本**同時に用意する
@@ -298,6 +298,44 @@
     - **副作用と復旧**: 検証中に`next dev`が動いている同一frontendコンテナで`npm run build`（本番ビルド）を実行したため`.next`が競合し、devサーバーが`TypeError: Cannot read properties of undefined (reading 'call')`で500を返す状態になった。`docker compose restart frontend`で復旧し`/`が200へ戻ることを確認済み（他レーンの作業への実害は無かったが、Q&Aセクションに「壊れたときの確認手順」としてこの事象と復旧法を明記した）。
     - 未検証として残した箇所: ①「第三者（オーナー以外の部員）がREADMEだけで閲覧まで到達できる」の実地確認はオーナー/部員による実施が前提のため未実施 ②`docs/README.md`は他レーン由来の未コミット差分（mockups行の追加のみ）が残っていたため、内容を変更せずそのまま保持（本タスクでは触っていない）。
     - デモ素材担当への申し送り: README冒頭のプレースホルダ（「ここにデモGIF/スクリーンショットが入ります」の行）に、`/sessions/[id]`の複数艇再生＋タイムライン注釈が伝わる素材を差し込んでください。挿入後はプレースホルダ文言を削除し、画像パスに置き換えてください（存在確認のうえコミットすること）。
+  - **検証結果（2026-07-27・qa-engineer継続、担当範囲=REVIEW.md「テスト・CIの評価」の未カバー経路埋め＋27件todoの精査）**:
+    - **27 todoの判断**: `sessions-api.todo.test.ts`（`test.todo`27件、T-12/T-15の実装前スキャフォールド）を精査した結果、**全27件が既に`t12-sessions-api.test.ts`・`t15-annotations-api.test.ts`の実テストとして1対1で実装済み**（項目名を突き合わせ確認）。実装されずに惰性で残っていたtodoは0件。ファイル自体が「実装待ち」の意味を失った死んだ足場のため**削除**（`git rm backend/src/__tests__/sessions-api.todo.test.ts`）。
+    - **REVIEW.md「テスト・CIの評価」#1〜#4への対応**:
+      1. 部内API `publicViewCount` 漏洩: `GET /api/sessions/:id`はMajor3修正で既に除外済みだったが、**`GET /api/sessions?teamId=`（一覧）は select 無しの `findMany` のままで同じ非KPI項目が漏れている**ことをコードレビューで発見（`routes/sessions.ts:96-100`）。`t97-response-hardening.test.ts`に**バグを再現・固定する形で追加**（現状FAIL・意図的に残置。下記「発見したバグ」参照）。
+      2. 公開中セッションへのトラック追加即時反映（R-05）: Team Lead裁定（2026-07-26記載）どおり「backend現状維持」が正式な仕様であることを踏まえ、`t98-publish-lifecycle.test.ts`に**現在の挙動を仕様として固定する回帰テスト**を追加（トラック追加後、昇格ダイアログを経ずに公開ペイロードへ即反映されることを確認。将来この挙動が意図せず変わった場合に検知できる）。
+      3. unpublish→publishでの前回isPublic選択の引き継ぎ: `t98-publish-lifecycle.test.ts`に追加。再公開時に`publicAnnotationIds`を渡さないと前回公開注釈も非公開へ戻ることを固定（publish処理の「毎回全件false→選択分のみtrue」という1行に安全性が依存している事実を明示するテスト）。
+      4. backendのCI `tsc --noEmit`/`npm run build`: 本日中に別コミット（`309b035`）で追加済みであることを確認（担当範囲外だが状態確認のみ実施）。
+    - **追加でカバーした危険な経路（qa-engineer判断による優先度順の追加分）**:
+      - カスケード削除の完全性: 既存テストはTrackのみ確認していたため、`t97-response-hardening.test.ts`でAnnotationも同時に削除されることを追加確認。公開中(unlisted)セッション削除後、公開URLが「取り消し済み」と同一の404レスポンスになることも確認。
+      - エラー時の内部情報非漏洩: `t96`のグローバルエラーハンドラ検証を深掘りし、DB例外発生時の500レスポンスにスタックトレース・SQL文・ファイルパス・`prisma`文字列が含まれず、固定の汎用メッセージ(`{"error":"Internal Server Error"}`)のみであることを固定。
+      - マスアサインメント防御: `POST /api/sessions`で`uploaderId`/`publicViewCount`/`publicSlug`/`visibility`を混入しても無視されること、`PATCH /api/sessions/:id`で`visibility`/`publicSlug`/`publishedAt`を混入しても無視されることを確認（IDOR/権限昇格の初歩的な防御線）。
+      - 認可マトリクスの穴埋め: `GET /api/sessions?teamId=`に対する非TeamMember(IDOR)403・未認証401のテストが存在しなかったため追加。
+      - 入力境界（`t99-input-boundaries.test.ts`）: `durationSec`の0/負数/null/文字列/小数/配列/上限超過/上下限ちょうど、`teamId`の存在しないID・型違い・null、`tSec`の下限0/上限durationSecちょうど/負数/小数/文字列型違い、`body`のnull/空白のみ/2000字ちょうど境界、不正なID形式(`/api/sessions/not-a-number`)を追加。
+    - **発見したバグ（未修正・報告のみ。backendコード自体は変更していない）**: `GET /api/sessions?teamId=`（`routes/sessions.ts:96-100`）が`select`無しの`findMany`のため、`publicViewCount`（PRD §6の非KPI項目・GET /:idでは既に除外済み）が部内メンバー全員に見える。Major3修正がGET /:id限定だったための取りこぼしと考えられる。**`t97-response-hardening.test.ts`の「[既知の未修正: バグ再現テスト]」は意図的にFAILのまま残置**（`select`を明示的に絞ればGREENになる1行修正で、実装はimplementer/Team Lead判断に委ねる）。
+    - **参考として報告のみ（テスト追加はスコープ外・時間対効果で見送り）**: `routes/teams.ts`の`GET /:slug/articles`・`GET /:slug/questions`はBlocker修正（T-95）の対象に含まれず未認証のまま残っている。v3では作らない機能（PRD §5「作らないもの」）でArticle/Questionテーブルは実質空だが、認可の一貫性という観点ではteams.ts本体（`/`・`/:slug`）と同じ穴が同居している。410凍結にするか認証必須化するかはarchitect/Team Lead判断が必要（R-01と同種だが実害は低いと考える）。
+    - **テストのテスト（バグ注入確認）**: `lib/validateAnnotationPayload.ts`の`tSec`範囲チェック（`(tSec as number) > durationSec`）を一時的に`>= durationSec`に書き換え、`t99-input-boundaries.test.ts`の「tSec=durationSec(上限ちょうど)は201」が期待201・実際400で即FAILすることを確認。直後に復元し全PASSに戻ることも確認（差分はコミットに含めていない）。
+    - **実行結果（実出力・`docker compose exec backend npx jest --runInBand`）**: 削除(todo 1suite)＋新規追加(3suites)で **12 suites / 115 passed / 1 failed / 0 todo**（既存84 passed全件を維持した上で+31、todoは0に整理。所要26.9秒）。唯一のFAILは上記「発見したバグ」を意図的に固定したテストで、隠さず記載する。
+      ```
+      FAIL src/__tests__/t97-response-hardening.test.ts
+        ● GET /api/sessions?teamId= (T-90 追加) › [既知の未修正: バグ再現テスト] 一覧レスポンスにpublicViewCountが含まれない — 現状FAIL
+          expect(received).not.toContain(expected)
+          Expected substring: not "publicViewCount"
+          Received string: "{\"sessions\":[{...,\"publicViewCount\":3,\"teamId\":1,\"uploaderId\":1,...}]}"
+      PASS src/__tests__/t99-input-boundaries.test.ts
+      PASS src/__tests__/t98-publish-lifecycle.test.ts
+      PASS src/__tests__/t12-sessions-api.test.ts
+      PASS src/__tests__/t30-publish-api.test.ts
+      PASS src/__tests__/t31-public-api.test.ts
+      PASS src/__tests__/t15-annotations-api.test.ts
+      PASS src/__tests__/t95-auth-required-blocker.test.ts
+      PASS src/__tests__/t01-frozen-routes.test.ts
+      PASS src/__tests__/t96-global-error-handler.test.ts
+      PASS src/__tests__/health.test.ts
+      PASS src/__tests__/t10-session-track-annotation.test.ts
+      Test Suites: 1 failed, 11 passed, 12 total
+      Tests:       1 failed, 115 passed, 116 total
+      ```
+    - 触っていないもの: `frontend/`一切・`backend/src/`の製品コード・`REVIEW.md`/`REVIEW-backend-2.md`/`ARCH.md`/`UI-DESIGN.md`/`design-system/`（architect/code-reviewerが同時作業中のため）。新規npm依存の追加なし。
   - 依存: MVP完了集約条件（上記）
 - [ ] T-92: リリース＋計測準備（release-manager）
   - 成果物: PRD §6の成功指標①〜③を数えるSQL（アップロード数・注釈数の集計クエリ）をdocsに記載。knowledge還流（RESEARCH.md §5の候補を/tilへ）
