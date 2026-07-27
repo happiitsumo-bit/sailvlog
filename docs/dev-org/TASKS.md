@@ -10,7 +10,7 @@
 | ID | 内容 | 待ち先 | ブロックする対象 |
 |---|---|---|---|
 | B-1 | **主役確定サブゲート**（詳細は下記セクション。2週間並行検証 → 判定記入で完了） | オーナー＋Team Lead | S1以降の〔E2〕タスク全部。**S0〔共通〕はブロックされない** |
-| B-2 | **スマホ実機計測**（手順: `spike/README.md`。基準: 30fps/シーク1s/ロード5s/クラッシュなし） | オーナー | T-25（スマホ閲覧調整）と**S1完了判定**。FAIL時はADR-001の縮退策をS2に積み直す |
+| B-2 | **スマホ実機計測**（手順: `spike/README.md`。基準: 30fps/シーク1s/ロード5s/クラッシュなし）。**2026-07-25 Team Lead waive済み**（S2.5冒頭のwaive記録参照。解除条件=B-3完了後にオーナー同席で実機計測） | オーナー | T-25（スマホ閲覧調整）と**S1完了判定**。FAIL時はADR-001の縮退策をS2に積み直す |
 | B-3 | Neon / Render / Vercel の無料アカウント作成 | オーナー（数分） | T-02 |
 
 〔共通〕= A主役に転んでも必要 /〔E2〕= E2主役確定後にのみ着手。
@@ -177,11 +177,21 @@
     - モバイルviewport計測（390×844・iPhone 13エミュレーション、実機ではない）: ①DOM順スクリーンショットで「Canvas→再生コントロール→タイムライン→レグ→艇の表示→比較(折りたたみ)→反省メモ(折りたたみ)」の順を確認（`t25-mobile-top.png`/`t25-mobile-full.png`）。②アコーディオン初期状態=両方とも`open:false`を`details.replay-accordion`のDOM属性で確認、`summary`タップで開閉することも確認。③Canvas上でのtouchstart/touchend（右方向40px）でシークバーの値が`0→5`（+5秒）へ変化することを確認。④再生中のrAFフレーム間隔計測（1x・3秒間）=181frames・平均60.19fps・p95フレーム間隔17.6ms（p95fps 56.8）。**このマシン上のヘッドレスChromium・エミュレーションでの数値であり実機の30fps基準の代替指標**（同一PC上の計測なのでT-20の数値と近いのは想定どおり。実機での挙動はB-3解除後の実機計測で別途確認する必要あり）。
     - 使い捨てスクリプト（コミット対象外）: `measure-t25.js`。
   - 依存: T-17, B-2（waive済み・上記参照）
-- [ ] T-27: 6艇識別ルール裁定（ARCH ADR-008）のフォローアップ — 艇色トークンの同期ガードテスト＋コード内根拠コメントの更新
+- [x] T-27: 6艇識別ルール裁定（ARCH ADR-008）のフォローアップ — 艇色トークンの同期ガードテスト＋コード内根拠コメントの更新
   - 背景: ③Quality Gateで「UI-DESIGN §4.2（4色＋破線）vs 実装（6色＋常時ラベル）」の食い違いを architect が裁定し、**実装側を正**とした（ARCH ADR-008・UI-DESIGN rev.6）。機能実装の変更は**不要**（現行`CanvasRenderer.ts`はADR-008準拠）。残るのは正本間のドリフト防止
   - 成果物: ①`frontend/src/lib/replay/__tests__/t20-boat-identification.test.ts` に「`BOAT_COLORS` が `design-system/theme.json` の `color.sailvlog.boats.dark` と完全一致する」テストを追加（theme.jsonを直接importして突き合わせる。現行テストは6色・重複なしの検算のみで、トークン正本とのドリフトを捕まえられない=REVIEW.md R-12と同型の弱点）②`CanvasRenderer.ts` 冒頭コメント（8〜15行目）の根拠引用を「Team Lead指摘」からARCH ADR-008へ更新し、「setLineDashはgaps専用」の記述にADR-008参照を追記（コード変更は**コメントのみ**。BOAT_COLORSの値・ロジックは変更しない）
   - 検証: `npx vitest run` 全件PASS（新テスト含む）。theme.json側の艇色を1色変えるとテストが落ちることを一時変更で確認してから戻す
+  - **検証結果（2026-07-26実施・2026-07-27 architect監査で完了マーク補完）**: コミット `41608db` で成果物①②とも実施済みを確認（①t20テストがtheme.jsonを直接import・②CanvasRenderer.ts冒頭コメントがADR-008を正本として引用、いずれも現行コードで確認）。theme.json側を1色変えてテストが落ちることの一時変更確認もコミットメッセージに記録済み。architect監査時に `npx vitest run` を再実行し **6 files / 55 passed**（同期ガードテスト含む全PASS）を実測。チェックボックスだけが未更新だったため補完
   - 依存: なし（frontend単独・小タスク。backend並行作業と競合しない）
+- [ ] T-28: 部内セッションAPIの応答select化 — `publicViewCount` の全経路除外（2026-07-27 architect監査で起票。REVIEW.md R-02の残り半分）
+  - 背景: ARCH §3は `publicViewCount` を「**APIにも画面にも出さない**」と定めるが、R-02対応（2026-07-26）は Team Lead指示により `GET /api/sessions/:id` のみ除外した。**`GET /api/sessions`（一覧）・`POST /api/sessions`・`PATCH /api/sessions/:id`・`POST /:id/unpublish` 直前の update 戻り値経由の各レスポンスには現在も含まれている**（`findMany`/`create`/`update` がselect無しで全カラム返却のため。qa-engineerが `t97` で一覧経路の漏洩を意図的FAILテストとして固定済み=コミット `cfcc65c`）
+  - 成果物: ①`backend/src/routes/sessions.ts` の一覧/作成/更新（および必要なら unpublish）のレスポンスを明示的な `select`（またはレスポンス直前の除外）に変更し、`publicViewCount` をどの部内レスポンスにも含めない。R-02提案どおり「含めるものだけ列挙」を部内APIにも適用するのが望ましい ②**（architect裁定 2026-07-27）** qa-engineer報告（T-90検証結果末尾）の `GET /api/teams/:slug/articles`・`GET /api/teams/:slug/questions` は**410凍結にする**（認証必須化ではなく）。根拠: これらは凍結機能（Article/Question=ADR-003）のコンテンツ列挙であり、機能単位の凍結方針に従うのが一貫する。ADR-009（認証必須化）の対象は「v3でも現用する閲覧系」のみ
+  - 検証: `t97` の意図的FAILテストがPASSに転じる＋一覧/作成/更新レスポンスに `publicViewCount` キー非含有のテストを整備＋`/api/teams/:slug/articles`・`/:slug/questions` が410を返すテスト（`t01-frozen-routes` に追加が自然）。backend全テストグリーン
+  - 依存: なし（backend単独。実装は implementer 担当 — architectはコード変更しない）
+- [ ] T-29: 公開ビュー系フロントの残Major対応〔Codex担当・③Quality Gate再判定の解除条件〕（2026-07-27 architect監査で起票。GATES ③の未解消3件をタスク台帳へ正式登録）
+  - 成果物: ①**R-03フロント半分**: `frontend/src/lib/publicSession.ts` のサーバー側fetchに `x-internal-proxy-secret` ヘッダを同送（値は環境変数 `INTERNAL_PROXY_SECRET`。**NEXT_PUBLIC_ プレフィックス禁止**。ヘッダ仕様の正本は `backend/src/routes/public.ts` 冒頭コメント＝ARCH ADR-010） ②**R-05**: 公開中セッションへのトラック追加・公開済み注釈の編集時に警告＋明示確認（「このセッションは公開中です。追加した航跡もすぐ外から見えます」。Team Lead裁定=案A・フロントのみ、backend変更なし） ③**R-06**: `fetchPublicSession` のステータス区別 — 404のみ `notFound()`、429/5xx/ネットワーク例外は「一時的に表示できません」の再試行案内（存在の秘匿と障害の秘匿を混ぜない） ④付随: `frontend/src/lib/teamRole.ts` 冒頭コメントの「既存の一般公開エンドポイント」記述をADR-009（認証必須化済み）に合わせて更新（コメントのみ）
+  - 検証: ①docker-composeで `INTERNAL_PROXY_SECRET` 一致時に転送IPが別バケット扱いになること（既存 `t31` ④-b系テストの前提が実通信で成立） ②公開中セッションでのトラック追加時に確認UIが出ること（手動/Playwright） ③backendを止めた状態・429状態で `/p/[slug]` が404でなくエラー案内を表示すること
+  - 依存: T-31（backend側は実装済み）。**着手・完了の判定はTeam Lead（③Quality Gate再判定の入力）**
 
 ### S2.5: 〔共有1〕公開昇格＋限定公開URL＋OGP（PRD rev.6でPhase 1へ前倒し。仕様=`SPEC-share1-phase1.md`・設計=ADR-007）
 

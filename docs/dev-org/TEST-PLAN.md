@@ -28,6 +28,8 @@
 
 **運用ルール**: T-11/T-12/T-15が実装され次第、対応する`*.todo.test.ts`の`test.todo(...)`を実`test(...)`に差し替える。todoのまま放置して「テストがある体」にしない（deliverables原則「実行していないテスト結果の報告」禁止）。
 
+> **更新（2026-07-27）**: 上表の「状態」列は2026-07-24時点のスナップショット。以後、todoスキャフォールドは全て実テスト化または削除済み（`sessions-api.todo.test.ts` はt12/t15と1対1重複と確認の上で削除＝コミット `cfcc65c`）。現況は backend 12 suites（t01/t10/t12/t15/t30/t31/t95〜t99 ほか）・frontend 6 files 55件。t97に**意図的FAILのバグ再現テスト1件**（部内一覧APIの `publicViewCount` 漏洩＝TASKS T-28で修正予定）が残置されている。
+
 ## 3. テスト基盤
 
 - **フレームワーク**: backend = Jest + ts-jest + Supertest（implementerがT-01のverification目的で先に導入済み。qa-engineerはVitestを提案していたが、二重ツール化を避けるため既存選択に合流した）。frontend(lib/gpx) = Vitest（jsdom環境。Next.js本体には影響しない独立ツール）
@@ -55,5 +57,6 @@
 ## 6. 発見事項・implementerへの申し送り
 
 - `Session.visibility`フィールド（`@default("team")`）がARCH.md §3のスキーマ定義には無いが、実装では追加されている（`docs/dev-org/PRD-rev4-sharing-layer.md`の前方互換対応と思われる）。スコープ外の可能性があるため、architect/Team Leadでの追認要否を確認してください（qa-engineerからは指摘のみ。実装修正はしません）
+  - **解決（2026-07-27 architect監査）**: ARCH.md §3 に `visibility` は記載済み（共有1=ADR-007で実効化・enum化しない理由もADR-007に記録）。追認完了、この申し送りはクローズ
 - T-11（`frontend/src/lib/gpx/`）着手時は、本ファイルの`__tests__/normalize.todo.test.ts`と`__fixtures__/*.gpx`をそのまま使えます。フィクスチャの命名・意図はテストファイル冒頭のコメント参照
 - T-12着手時は`backend/src/__tests__/fixtures/trackPayloads.ts`のビルダーをそのまま使えます（ARCH §4の数値境界を1関数=1違反でカバー済み）
