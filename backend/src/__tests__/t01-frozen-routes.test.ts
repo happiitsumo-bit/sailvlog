@@ -1,8 +1,10 @@
 // T-01: 凍結ルートの410化スモークテスト
 // 検証対象: 凍結エンドポイントが410、auth/login・GET /teams は生存（200のまま）
 import request from "supertest";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
+
+const getServer = setupTestServer();
 
 describe("T-01 凍結ルート", () => {
   const frozenGetPaths = [
@@ -15,12 +17,12 @@ describe("T-01 凍結ルート", () => {
   ];
 
   test.each(frozenGetPaths)("GET %s は410を返す", async (path) => {
-    const res = await request(app).get(path);
+    const res = await request(getServer()).get(path);
     expect(res.status).toBe(410);
   });
 
   test("フォロー系（凍結）は410を返す", async () => {
-    const res = await request(app).post("/api/users/someone/follow");
+    const res = await request(getServer()).post("/api/users/someone/follow");
     expect(res.status).toBe(410);
   });
 });
@@ -35,12 +37,12 @@ describe("T-01 存続ルート", () => {
   });
 
   test("register→login が200/201のまま", async () => {
-    const registerRes = await request(app)
+    const registerRes = await request(getServer())
       .post("/api/auth/register")
       .send({ username: `t01smoke${Date.now()}`, email, password });
     expect(registerRes.status).toBe(201);
 
-    const loginRes = await request(app).post("/api/auth/login").send({ email, password });
+    const loginRes = await request(getServer()).post("/api/auth/login").send({ email, password });
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.token).toBeDefined();
   });
@@ -49,19 +51,19 @@ describe("T-01 存続ルート", () => {
   // （未認証で全チームslug＋部員名簿まで取得できていたため）。「存続ルート」であることの検証は
   // 維持しつつ、期待値をBlocker修正後の仕様に合わせる。
   test("GET /api/teams は認証済みなら200のまま（未認証は401）", async () => {
-    const unauth = await request(app).get("/api/teams");
+    const unauth = await request(getServer()).get("/api/teams");
     expect(unauth.status).toBe(401);
 
     // テスト間はbeforeEachでDBがリセットされるため、このテスト用に自前で登録する
     // （前のテストで作ったユーザーは既に消えている）。
     const teamsTestEmail = `t01-teams-${Date.now()}@example.com`;
-    await request(app)
+    await request(getServer())
       .post("/api/auth/register")
       .send({ username: `t01teams${Date.now()}`, email: teamsTestEmail, password });
-    const loginRes = await request(app).post("/api/auth/login").send({ email: teamsTestEmail, password });
+    const loginRes = await request(getServer()).post("/api/auth/login").send({ email: teamsTestEmail, password });
     expect(loginRes.body.token).toBeDefined();
 
-    const authed = await request(app)
+    const authed = await request(getServer())
       .get("/api/teams")
       .set("Authorization", `Bearer ${loginRes.body.token}`);
     expect(authed.status).toBe(200);

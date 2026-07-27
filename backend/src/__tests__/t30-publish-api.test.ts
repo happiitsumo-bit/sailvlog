@@ -1,12 +1,14 @@
 // T-30: 公開昇格のスキーマ＋API（POST /api/sessions/:id/publish, POST /api/sessions/:id/unpublish）
 // のsupertest。SPEC-share1-phase1.md §5.1 / ARCH.md §4 の検証欄を網羅する。
 import request from "supertest";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
+
+const getServer = setupTestServer();
 
 async function registerUser(tag: string): Promise<{ userId: number; token: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email: `${unique}@example.com`, password: "password123" });
   return { userId: res.body.user.id, token: res.body.token };
@@ -31,7 +33,7 @@ async function createSessionAsMember(): Promise<{
   const uploader = await registerUser("uploader");
   const team = await createTeam("s");
   await addMember(uploader.userId, team.id);
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/sessions")
     .set("Authorization", `Bearer ${uploader.token}`)
     .send({ title: "第1回練習", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 3600, teamId: team.id });
@@ -39,7 +41,7 @@ async function createSessionAsMember(): Promise<{
 }
 
 async function addAnnotation(sessionId: number, token: string, tSec = 10) {
-  const res = await request(app)
+  const res = await request(getServer())
     .post(`/api/sessions/${sessionId}/annotations`)
     .set("Authorization", `Bearer ${token}`)
     .send({ tSec, body: "テスト注釈" });
@@ -49,7 +51,7 @@ async function addAnnotation(sessionId: number, token: string, tSec = 10) {
 describe("POST /api/sessions/:id/publish (T-30)", () => {
   test("正常系(unlisted): 201系(200)でpublicSlug/publicUrl/visibility/publishedAtが返る", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "上マーク回航後の展開が遅れた", publicAnnotationIds: [] });
@@ -68,7 +70,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("正常系(public): visibility=publicで200", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "public", learningSummary: "学びの要約テキスト" });
@@ -79,7 +81,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("learningSummaryが空文字は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "" });
@@ -88,7 +90,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("learningSummaryが401字以上は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "あ".repeat(401) });
@@ -97,7 +99,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("learningSummaryが400字＋末尾空白1つは200（R-08: フロントtrim後判定とサーバ側判定を一致させる）", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: `${"あ".repeat(400)} ` });
@@ -106,7 +108,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("visibilityが不正な値は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "team", learningSummary: "学びの要約" });
@@ -118,7 +120,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
     const other = await createSessionAsMember();
     const otherAnnotationId = await addAnnotation(other.sessionId, other.uploader.token);
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約", publicAnnotationIds: [otherAnnotationId] });
@@ -130,7 +132,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
     const other = await registerUser("otherMember");
     await addMember(other.userId, teamId, "member");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${other.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約" });
@@ -142,7 +144,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
     const admin = await registerUser("admin");
     await addMember(admin.userId, teamId, "admin");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${admin.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約" });
@@ -154,7 +156,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
     const idA = await addAnnotation(sessionId, uploader.token, 5);
     const idB = await addAnnotation(sessionId, uploader.token, 15);
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約", publicAnnotationIds: [idA] });
@@ -168,7 +170,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("未認証(JWTなし)は401", async () => {
     const { sessionId } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約" });
     expect(res.status).toBe(401);
@@ -176,7 +178,7 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 
   test("存在しないセッションIDは404", async () => {
     const { uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/999999/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約" });
@@ -187,12 +189,12 @@ describe("POST /api/sessions/:id/publish (T-30)", () => {
 describe("POST /api/sessions/:id/unpublish (T-30)", () => {
   test("unpublish後にpublicSlugがnullになりvisibilityがteamに戻る", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    await request(app)
+    await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約" });
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/unpublish`)
       .set("Authorization", `Bearer ${uploader.token}`);
     expect(res.status).toBe(200);
@@ -205,16 +207,16 @@ describe("POST /api/sessions/:id/unpublish (T-30)", () => {
 
   test("再公開すると前と異なるスラッグが発行される", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const first = await request(app)
+    const first = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約1" });
 
-    await request(app)
+    await request(getServer())
       .post(`/api/sessions/${sessionId}/unpublish`)
       .set("Authorization", `Bearer ${uploader.token}`);
 
-    const second = await request(app)
+    const second = await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "public", learningSummary: "学びの要約2" });
@@ -224,14 +226,14 @@ describe("POST /api/sessions/:id/unpublish (T-30)", () => {
 
   test("非uploader・非adminのunpublishは403", async () => {
     const { sessionId, uploader, teamId } = await createSessionAsMember();
-    await request(app)
+    await request(getServer())
       .post(`/api/sessions/${sessionId}/publish`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ visibility: "unlisted", learningSummary: "学びの要約" });
 
     const other = await registerUser("otherMember2");
     await addMember(other.userId, teamId, "member");
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/unpublish`)
       .set("Authorization", `Bearer ${other.token}`);
     expect(res.status).toBe(403);

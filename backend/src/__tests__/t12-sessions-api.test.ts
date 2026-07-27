@@ -2,7 +2,7 @@
 // ARCH.md §4のセッション/トラック系エンドポイント（annotations系はT-15の担当・対象外）。
 // フィクスチャは qa-engineer 用意の fixtures/trackPayloads.ts をそのまま使う。
 import request from "supertest";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
 import {
   validTrackPayload,
@@ -18,9 +18,11 @@ import {
   payloadWithOversizedRawGpx,
 } from "./fixtures/trackPayloads";
 
+const getServer = setupTestServer();
+
 async function registerUser(tag: string): Promise<{ userId: number; token: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email: `${unique}@example.com`, password: "password123" });
   return { userId: res.body.user.id, token: res.body.token };
@@ -56,7 +58,7 @@ async function createSessionAsMember(): Promise<{
   const uploader = await registerUser("uploader");
   const team = await createTeam("s");
   await addMember(uploader.userId, team.id);
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/sessions")
     .set("Authorization", `Bearer ${uploader.token}`)
     .send(validSessionBody(team.id));
@@ -69,7 +71,7 @@ describe("POST /api/sessions (T-12)", () => {
     const team = await createTeam("a");
     await addMember(user.userId, team.id);
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post("/api/sessions")
       .set("Authorization", `Bearer ${user.token}`)
       .send(validSessionBody(team.id));
@@ -84,7 +86,7 @@ describe("POST /api/sessions (T-12)", () => {
     const team = await createTeam("b");
     // addMemberしない
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post("/api/sessions")
       .set("Authorization", `Bearer ${user.token}`)
       .send(validSessionBody(team.id));
@@ -94,7 +96,7 @@ describe("POST /api/sessions (T-12)", () => {
 
   test("未認証(JWTなし)は401", async () => {
     const team = await createTeam("c");
-    const res = await request(app).post("/api/sessions").send(validSessionBody(team.id));
+    const res = await request(getServer()).post("/api/sessions").send(validSessionBody(team.id));
     expect(res.status).toBe(401);
   });
 
@@ -109,7 +111,7 @@ describe("POST /api/sessions (T-12)", () => {
       const body: Record<string, unknown> = validSessionBody(team.id);
       delete body[field];
 
-      const res = await request(app)
+      const res = await request(getServer())
         .post("/api/sessions")
         .set("Authorization", `Bearer ${user.token}`)
         .send(body);
@@ -122,7 +124,7 @@ describe("POST /api/sessions (T-12)", () => {
 describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
   test("正常payload(validTrackPayload)は201で、gridJson/rawGpxを除いたメタのみ返す", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(validTrackPayload());
@@ -135,7 +137,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("lat.length !== lon.length !== pointCount は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithLengthMismatch());
@@ -144,7 +146,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("latが[-90,90]範囲外は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithLatOutOfRange());
@@ -153,7 +155,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("lonが[-180,180]範囲外は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithLonOutOfRange());
@@ -162,7 +164,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("gapsの要素でend<startは400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithGapStartAfterEnd());
@@ -171,7 +173,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("gapsのendがpointCount以上は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithGapEndOutOfBounds());
@@ -180,7 +182,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("gapsのstartが負は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithGapStartNegative());
@@ -189,7 +191,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("gaps=[[0,pointCount-1]]の境界ぎりぎり正常系は201", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithGapAtBoundary());
@@ -198,7 +200,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("startSec+pointCountがdurationSecを超えると400", async () => {
     const { sessionId, uploader, durationSec } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadExceedingDuration(durationSec));
@@ -207,7 +209,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("gridJsonが2MB超は413", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithOversizedGridJson());
@@ -216,7 +218,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 
   test("rawGpxが5MB超は413", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(payloadWithOversizedRawGpx());
@@ -226,7 +228,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
   test("非TeamMemberのPOSTは403", async () => {
     const { sessionId } = await createSessionAsMember();
     const outsider = await registerUser("outsider");
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${outsider.token}`)
       .send(validTrackPayload());
@@ -237,7 +239,7 @@ describe("POST /api/sessions/:id/tracks 構造検証 (T-12, ARCH §4)", () => {
 describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
   test("GET: 同TeamMemberは200でtracks(gridJson込み・rawGpx除外)とannotationsを取得できる", async () => {
     const { sessionId, teamId, uploader } = await createSessionAsMember();
-    await request(app)
+    await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(validTrackPayload());
@@ -245,7 +247,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
     const member2 = await registerUser("member2");
     await addMember(member2.userId, teamId);
 
-    const res = await request(app)
+    const res = await request(getServer())
       .get(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${member2.token}`);
 
@@ -259,7 +261,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
   test("GET: 非TeamMemberは403", async () => {
     const { sessionId } = await createSessionAsMember();
     const outsider = await registerUser("outsider2");
-    const res = await request(app)
+    const res = await request(getServer())
       .get(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${outsider.token}`);
     expect(res.status).toBe(403);
@@ -267,7 +269,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
   test("GET: 存在しないidは404", async () => {
     const { uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .get(`/api/sessions/999999`)
       .set("Authorization", `Bearer ${uploader.token}`);
     expect(res.status).toBe(404);
@@ -275,12 +277,12 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
   test("DELETE: uploader本人は204でTrack/Annotationごとカスケード削除される", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    await request(app)
+    await request(getServer())
       .post(`/api/sessions/${sessionId}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(validTrackPayload());
 
-    const res = await request(app)
+    const res = await request(getServer())
       .delete(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`);
     expect(res.status).toBe(204);
@@ -294,7 +296,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
     const other = await registerUser("otherMember");
     await addMember(other.userId, teamId, "member");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .delete(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${other.token}`);
     expect(res.status).toBe(403);
@@ -302,7 +304,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
   test("PATCH: title/notes/marks/legsの更新が200で反映される", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ title: "改題後", notes: "反省会メモ", marks: [{ label: "上", lat: 35.3, lon: 139.4 }], legs: [{ label: "L1", startSec: 0 }] });
@@ -316,7 +318,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
   // M-06修正（REVIEW-backend-2.md）: notes/marks/legsが以前は無検証で素通ししていた回帰テスト。
   test("PATCH: legs が配列でない場合は400（不正な形を保存させない）", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ legs: "L1" });
@@ -326,7 +328,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
   test("PATCH: legs[].startSec が負の数の場合は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ legs: [{ label: "L1", startSec: -1 }] });
@@ -336,7 +338,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
   test("PATCH: marks[].lat が範囲外の場合は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ marks: [{ label: "上", lat: 999, lon: 139.4 }] });
@@ -346,7 +348,7 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
   test("PATCH: notes が文字列でない場合は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ notes: { nested: "object" } });

@@ -11,12 +11,14 @@
 // 定義できない機能のため410凍結（v3 frontend利用ゼロ・ADR-003と同方式）に変更した。
 // このテストは新仕様を検証する。
 import request from "supertest";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
+
+const getServer = setupTestServer();
 
 async function registerUser(tag: string): Promise<{ userId: number; token: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email: `${unique}@example.com`, password: "password123" });
   return { userId: res.body.user.id, token: res.body.token };
@@ -39,10 +41,10 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     await addMember(userId, myTeam.id);
     await createTeam("other"); // 自分は非所属
 
-    const unauth = await request(app).get("/api/teams");
+    const unauth = await request(getServer()).get("/api/teams");
     expect(unauth.status).toBe(401);
 
-    const auth = await request(app).get("/api/teams").set("Authorization", `Bearer ${token}`);
+    const auth = await request(getServer()).get("/api/teams").set("Authorization", `Bearer ${token}`);
     expect(auth.status).toBe(200);
     const slugs = auth.body.teams.map((t: { slug: string }) => t.slug);
     expect(slugs).toContain(myTeam.slug);
@@ -55,14 +57,14 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     await addMember(userId, team.id);
     const outsider = await registerUser("teams-detail-outsider");
 
-    const unauth = await request(app).get(`/api/teams/${team.slug}`);
+    const unauth = await request(getServer()).get(`/api/teams/${team.slug}`);
     expect(unauth.status).toBe(401);
 
-    const auth = await request(app).get(`/api/teams/${team.slug}`).set("Authorization", `Bearer ${token}`);
+    const auth = await request(getServer()).get(`/api/teams/${team.slug}`).set("Authorization", `Bearer ${token}`);
     expect(auth.status).toBe(200);
     expect(auth.body.members[0].user.username).toBeDefined();
 
-    const outsiderRes = await request(app)
+    const outsiderRes = await request(getServer())
       .get(`/api/teams/${team.slug}`)
       .set("Authorization", `Bearer ${outsider.token}`);
     expect(outsiderRes.status).toBe(404);
@@ -73,25 +75,25 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     const team = await createTeam("articles");
     await addMember(userId, team.id);
 
-    const unauthArticles = await request(app).get(`/api/teams/${team.slug}/articles`);
+    const unauthArticles = await request(getServer()).get(`/api/teams/${team.slug}/articles`);
     expect(unauthArticles.status).toBe(410);
 
-    const authArticles = await request(app)
+    const authArticles = await request(getServer())
       .get(`/api/teams/${team.slug}/articles`)
       .set("Authorization", `Bearer ${token}`);
     expect(authArticles.status).toBe(410);
 
-    const questions = await request(app).get(`/api/teams/${team.slug}/questions`);
+    const questions = await request(getServer()).get(`/api/teams/${team.slug}/questions`);
     expect(questions.status).toBe(410);
   });
 
   test("GET /api/sailors — 凍結済み（410。認証有無を問わない）", async () => {
     const { token } = await registerUser("sailors-list");
 
-    const unauth = await request(app).get("/api/sailors");
+    const unauth = await request(getServer()).get("/api/sailors");
     expect(unauth.status).toBe(410);
 
-    const auth = await request(app).get("/api/sailors").set("Authorization", `Bearer ${token}`);
+    const auth = await request(getServer()).get("/api/sailors").set("Authorization", `Bearer ${token}`);
     expect(auth.status).toBe(410);
   });
 
@@ -100,10 +102,10 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     const { token } = await registerUser("sailors-detail-caller");
     const targetUser = await prisma.user.findUnique({ where: { id: target.userId } });
 
-    const unauth = await request(app).get(`/api/sailors/${targetUser!.username}`);
+    const unauth = await request(getServer()).get(`/api/sailors/${targetUser!.username}`);
     expect(unauth.status).toBe(410);
 
-    const auth = await request(app)
+    const auth = await request(getServer())
       .get(`/api/sailors/${targetUser!.username}`)
       .set("Authorization", `Bearer ${token}`);
     expect(auth.status).toBe(410);
@@ -114,15 +116,15 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     const { token } = await registerUser("users-detail-caller");
     const targetUser = await prisma.user.findUnique({ where: { id: target.userId } });
 
-    const unauth = await request(app).get(`/api/users/${targetUser!.username}`);
+    const unauth = await request(getServer()).get(`/api/users/${targetUser!.username}`);
     expect(unauth.status).toBe(410);
 
-    const auth = await request(app)
+    const auth = await request(getServer())
       .get(`/api/users/${targetUser!.username}`)
       .set("Authorization", `Bearer ${token}`);
     expect(auth.status).toBe(410);
 
-    const me = await request(app).get("/api/users/me").set("Authorization", `Bearer ${token}`);
+    const me = await request(getServer()).get("/api/users/me").set("Authorization", `Bearer ${token}`);
     expect(me.status).toBe(200);
   });
 
@@ -133,7 +135,7 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
   test("PUT /api/users/me — 凍結の巻き込みを受けず200で自分のプロフィールを更新できる", async () => {
     const { token } = await registerUser("users-put-me");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .put("/api/users/me")
       .set("Authorization", `Bearer ${token}`)
       .send({ bio: "PUT /me が410に飲まれていないことの確認" });
@@ -153,7 +155,7 @@ describe("M3-05: POST/PATCH /api/sessions のレスポンスにpublicViewCount�
     const team = await createTeam("m305-post");
     await addMember(uploader.userId, team.id);
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post("/api/sessions")
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ title: "M3-05確認用", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 600, teamId: team.id });
@@ -167,14 +169,14 @@ describe("M3-05: POST/PATCH /api/sessions のレスポンスにpublicViewCount�
     const uploader = await registerUser("m305-patch");
     const team = await createTeam("m305-patch");
     await addMember(uploader.userId, team.id);
-    const createRes = await request(app)
+    const createRes = await request(getServer())
       .post("/api/sessions")
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ title: "PATCH前", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 600, teamId: team.id });
     const sessionId = createRes.body.session.id as number;
     await prisma.session.update({ where: { id: sessionId }, data: { publicViewCount: 7 } });
 
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ title: "M3-05 PATCH確認用" });

@@ -1,8 +1,7 @@
 // T-31: 公開取得API＋漏洩防止テスト（GET /api/public/sessions/:slug）— 本スライスの安全性の要。
 // ARCH.md §4 / SPEC-share1-phase1.md §5.2 / 実装ルール9（ADR-007）の検証欄を網羅する。
 import request from "supertest";
-import type { Server } from "http";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
 import { _resetRateLimiterForTests, _resetViewThrottleForTests } from "../lib/rateLimiter";
 import { awaitPendingBackgroundWork } from "../routes/public";
@@ -21,7 +20,7 @@ const FORBIDDEN_KEYS = ["rawGpx", "email", "teamId", "notes", "publicViewCount"]
 // 300回超のサーバ生成/破棄がループの中で短い間隔で積み重なり、生成/破棄のレース由来で
 // 稀に応答がルートハンドラを経由せず返る個体が混ざる。frozen clockは「時計のズレ」という
 // 別仮説を潰すには正しかったが、真因はここではなかった。t100と同じ緩和策
-// (サーバ生成をbeforeAllで1回に集約しrequest(server)を使う)をこのファイル全体に適用する。
+// (サーバ生成をbeforeAllで1回に集約しrequest(getServer())を使う)をこのファイル全体に適用する。
 async function withFrozenClock<T>(fn: () => Promise<T>): Promise<T> {
   const frozenNow = Date.now();
   const spy = jest.spyOn(Date, "now").mockReturnValue(frozenNow);
@@ -51,7 +50,7 @@ function findForbiddenKeys(value: unknown, path = "$"): string[] {
 async function registerUser(tag: string): Promise<{ userId: number; token: string; email: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `${unique}@example.com`;
-  const res = await request(server)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email, password: "password123" });
   return { userId: res.body.user.id, token: res.body.token, email };
@@ -76,13 +75,13 @@ async function createPublishedSession(opts?: {
   const team = await createTeam("s");
   await addMember(uploader.userId, team.id);
 
-  const sessionRes = await request(server)
+  const sessionRes = await request(getServer())
     .post("/api/sessions")
     .set("Authorization", `Bearer ${uploader.token}`)
     .send({ title: "第1回練習", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 3600, teamId: team.id, notes: "部内限定の生々しいメモ" });
   const sessionId = sessionRes.body.session.id as number;
 
-  const trackRes = await request(server)
+  const trackRes = await request(getServer())
     .post(`/api/sessions/${sessionId}/tracks`)
     .set("Authorization", `Bearer ${uploader.token}`)
     .send({
@@ -98,21 +97,21 @@ async function createPublishedSession(opts?: {
   const publicAnnotationIds: number[] = [];
   const privateAnnotationIds: number[] = [];
   for (let i = 0; i < (opts?.publicAnnotations ?? 1); i++) {
-    const r = await request(server)
+    const r = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ tSec: 10 + i, body: `公開される注釈${i}`, trackId });
     publicAnnotationIds.push(r.body.annotation.id);
   }
   for (let i = 0; i < (opts?.privateAnnotations ?? 1); i++) {
-    const r = await request(server)
+    const r = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ tSec: 20 + i, body: "反省会限定の生の発言（非公開のはず）" });
     privateAnnotationIds.push(r.body.annotation.id);
   }
 
-  const publishRes = await request(server)
+  const publishRes = await request(getServer())
     .post(`/api/sessions/${sessionId}/publish`)
     .set("Authorization", `Bearer ${uploader.token}`)
     .send({
@@ -132,15 +131,9 @@ async function createPublishedSession(opts?: {
   };
 }
 
-let server: Server;
-
-beforeAll(() => {
-  server = app.listen(0);
-});
-
-afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-});
+// implementer (T-101, 2026-07-28): 個別のbeforeAll/afterAllによるサーバ管理はhelpers/testServer.tsへ
+// 集約した（下記getServer参照）。調査経緯のコメントは資産として残す。
+const getServer = setupTestServer();
 
 beforeEach(() => {
   _resetRateLimiterForTests();
@@ -150,7 +143,7 @@ beforeEach(() => {
 describe("GET /api/public/sessions/:slug (T-31)", () => {
   test("公開セッションを未認証で200取得できる", async () => {
     const { slug } = await createPublishedSession();
-    const res = await request(server).get(`/api/public/sessions/${slug}`);
+    const res = await request(getServer()).get(`/api/public/sessions/${slug}`);
     expect(res.status).toBe(200);
     expect(res.body.session.learningSummary).toBe("上マーク回航後の展開が遅れた");
     expect(res.body.tracks).toHaveLength(1);
@@ -158,7 +151,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
 
   test("①禁止キー非含有: レスポンスJSONのどの階層にも rawGpx/email/teamId/notes/publicViewCount が出現しない", async () => {
     const { slug, uploaderEmail } = await createPublishedSession();
-    const res = await request(server).get(`/api/public/sessions/${slug}`);
+    const res = await request(getServer()).get(`/api/public/sessions/${slug}`);
     expect(res.status).toBe(200);
 
     const hits = findForbiddenKeys(res.body);
@@ -176,7 +169,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
       publicAnnotations: 2,
       privateAnnotations: 3,
     });
-    const res = await request(server).get(`/api/public/sessions/${slug}`);
+    const res = await request(getServer()).get(`/api/public/sessions/${slug}`);
     expect(res.status).toBe(200);
     expect(res.body.annotations).toHaveLength(2);
 
@@ -191,8 +184,8 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
   });
 
   test("③存在しないスラッグと、非公開(visibility=team)のセッションIDと同型の値は同一の404レスポンス", async () => {
-    const notExist1 = await request(server).get(`/api/public/sessions/does-not-exist-slug-1`);
-    const notExist2 = await request(server).get(`/api/public/sessions/does-not-exist-slug-2`);
+    const notExist1 = await request(getServer()).get(`/api/public/sessions/does-not-exist-slug-1`);
+    const notExist2 = await request(getServer()).get(`/api/public/sessions/does-not-exist-slug-2`);
     expect(notExist1.status).toBe(404);
     expect(notExist2.status).toBe(404);
     expect(notExist1.body).toEqual(notExist2.body);
@@ -203,8 +196,8 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     // publicSlugを破棄してvisibilityを"team"へ戻す(POST /unpublishが行うのと同じ状態遷移)
     await prisma.session.update({ where: { id: sessionId }, data: { visibility: "team", publicSlug: null } });
 
-    const afterUnpublish = await request(server).get(`/api/public/sessions/${slug}`);
-    const nonExistent = await request(server).get(`/api/public/sessions/totally-different-nonexistent`);
+    const afterUnpublish = await request(getServer()).get(`/api/public/sessions/${slug}`);
+    const nonExistent = await request(getServer()).get(`/api/public/sessions/totally-different-nonexistent`);
 
     expect(afterUnpublish.status).toBe(404);
     expect(afterUnpublish.body).toEqual(nonExistent.body);
@@ -216,7 +209,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     let last;
     await withFrozenClock(async () => {
       for (let i = 0; i < 61; i++) {
-        last = await request(server).get(`/api/public/sessions/${slug}`);
+        last = await request(getServer()).get(`/api/public/sessions/${slug}`);
       }
     });
     expect(last!.status).toBe(429);
@@ -250,7 +243,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     let lastA;
     await withFrozenClock(async () => {
       for (let i = 0; i < 61; i++) {
-        lastA = await request(server)
+        lastA = await request(getServer())
           .get(`/api/public/sessions/${slug}`)
           .set("x-forwarded-client-ip", "203.0.113.1")
           .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
@@ -259,7 +252,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     expect(lastA!.status).toBe(429);
 
     // 別クライアントIPを名乗ればまだ枠が残っている(同一req.ipのまま、ヘッダだけ変える)
-    const otherClient = await request(server)
+    const otherClient = await request(getServer())
       .get(`/api/public/sessions/${slug}`)
       .set("x-forwarded-client-ip", "203.0.113.2")
       .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
@@ -273,7 +266,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     let last;
     await withFrozenClock(async () => {
       for (let i = 0; i < 61; i++) {
-        last = await request(server)
+        last = await request(getServer())
           .get(`/api/public/sessions/${slug}`)
           .set("x-forwarded-client-ip", `203.0.113.${i}`); // シークレット無し・IPは毎回変える
       }
@@ -287,7 +280,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     let last;
     await withFrozenClock(async () => {
       for (let i = 0; i < 61; i++) {
-        last = await request(server)
+        last = await request(getServer())
           .get(`/api/public/sessions/${slug}`)
           .set("x-forwarded-client-ip", `198.51.100.${i}`)
           .set("x-internal-proxy-secret", "wrong-secret-value");
@@ -304,7 +297,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
       let last;
       await withFrozenClock(async () => {
         for (let i = 0; i < 61; i++) {
-          last = await request(server)
+          last = await request(getServer())
             .get(`/api/public/sessions/${slug}`)
             .set("x-forwarded-client-ip", `192.0.2.${i}`)
             .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
@@ -319,8 +312,8 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
 
   test("publicViewCountは同一IP・同一スラッグ5分以内は加算されない(2回叩いても+1のみ)", async () => {
     const { sessionId, slug } = await createPublishedSession();
-    await request(server).get(`/api/public/sessions/${slug}`);
-    await request(server).get(`/api/public/sessions/${slug}`);
+    await request(getServer()).get(`/api/public/sessions/${slug}`);
+    await request(getServer()).get(`/api/public/sessions/${slug}`);
     // update自体は非同期(fire-and-forget)なので、sleepではなく「今実行中のバックグラウンド処理が
     // すべて片付いた」ことを状態として待つ(implementer, T-90 flaky根絶)。
     await awaitPendingBackgroundWork();
@@ -347,7 +340,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     );
 
     try {
-      const res = await request(server).get(`/api/public/sessions/${slug}`);
+      const res = await request(getServer()).get(`/api/public/sessions/${slug}`);
       expect(res.status).toBe(200);
 
       // レスポンスが返った時点では、意図的に止めているupdateはまだ完了していない
@@ -366,7 +359,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
 
   test("publicViewCountはレスポンスに含まれない(既存の禁止キーテストと重複だが単独でも確認)", async () => {
     const { slug } = await createPublishedSession();
-    const res = await request(server).get(`/api/public/sessions/${slug}`);
+    const res = await request(getServer()).get(`/api/public/sessions/${slug}`);
     expect(JSON.stringify(res.body)).not.toContain("publicViewCount");
   });
 });
@@ -374,7 +367,7 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
 describe("GET /api/tracks/:id/gpx 未認証時 (T-31)", () => {
   test("⑤未認証は404", async () => {
     const { trackId } = await createPublishedSession();
-    const res = await request(server).get(`/api/tracks/${trackId}/gpx`);
+    const res = await request(getServer()).get(`/api/tracks/${trackId}/gpx`);
     expect(res.status).toBe(404);
   });
 
@@ -382,11 +375,11 @@ describe("GET /api/tracks/:id/gpx 未認証時 (T-31)", () => {
     const uploader = await registerUser("gpxmember");
     const team = await createTeam("gpx");
     await addMember(uploader.userId, team.id);
-    const sessionRes = await request(server)
+    const sessionRes = await request(getServer())
       .post("/api/sessions")
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ title: "GPX確認用", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 60, teamId: team.id });
-    const trackRes = await request(server)
+    const trackRes = await request(getServer())
       .post(`/api/sessions/${sessionRes.body.session.id}/tracks`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({
@@ -397,7 +390,7 @@ describe("GET /api/tracks/:id/gpx 未認証時 (T-31)", () => {
         rawGpx: "<gpx>回帰確認用</gpx>",
       });
 
-    const res = await request(server)
+    const res = await request(getServer())
       .get(`/api/tracks/${trackRes.body.track.id}/gpx`)
       .set("Authorization", `Bearer ${uploader.token}`);
     expect(res.status).toBe(200);
@@ -407,7 +400,7 @@ describe("GET /api/tracks/:id/gpx 未認証時 (T-31)", () => {
   test("回帰確認: 認証済みだが非TeamMemberは従来どおり403", async () => {
     const { trackId } = await createPublishedSession();
     const outsider = await registerUser("gpxoutsider");
-    const res = await request(server)
+    const res = await request(getServer())
       .get(`/api/tracks/${trackId}/gpx`)
       .set("Authorization", `Bearer ${outsider.token}`);
     expect(res.status).toBe(403);

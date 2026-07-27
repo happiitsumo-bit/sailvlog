@@ -28,26 +28,19 @@
 // サーバ生成回数を1回に減らす、副作用の少ない緩和策にとどめる。本番コード・他テストファイルには
 // 触れない。
 import request from "supertest";
-import type { Server } from "http";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import { _resetAuthRateLimiterForTests } from "../lib/rateLimiter";
 
 const PASSWORD = "password123";
 
-let server: Server;
-
-beforeAll(() => {
-  server = app.listen(0);
-});
-
-afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-});
+// implementer (T-101, 2026-07-28): 個別のbeforeAll/afterAllによるサーバ管理はhelpers/testServer.tsへ
+// 集約した（下記getServer参照）。上記の調査経緯コメントは資産として残す。
+const getServer = setupTestServer();
 
 async function registerUser(tag: string): Promise<{ email: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `${unique}@example.com`;
-  const res = await request(server)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email, password: PASSWORD });
   expect(res.status).toBe(201);
@@ -66,7 +59,7 @@ describe("T-100 B3-01: login レート制限のキー設計", () => {
     }
 
     for (const user of users) {
-      const res = await request(server)
+      const res = await request(getServer())
         .post("/api/auth/login")
         .send({ email: user.email, password: PASSWORD });
       expect(res.status).toBe(200);
@@ -78,19 +71,19 @@ describe("T-100 B3-01: login レート制限のキー設計", () => {
     const { email } = await registerUser("bruteforce-target");
 
     for (let i = 0; i < 10; i++) {
-      const res = await request(server)
+      const res = await request(getServer())
         .post("/api/auth/login")
         .send({ email, password: "wrong-password" });
       expect(res.status).toBe(401);
     }
 
-    const eleventh = await request(server)
+    const eleventh = await request(getServer())
       .post("/api/auth/login")
       .send({ email, password: "wrong-password" });
     expect(eleventh.status).toBe(429);
 
     // 正しいパスワードでも、429の間はブロックされたまま（枠が空くまで通らない）
-    const correctButBlocked = await request(server)
+    const correctButBlocked = await request(getServer())
       .post("/api/auth/login")
       .send({ email, password: PASSWORD });
     expect(correctButBlocked.status).toBe(429);
@@ -100,7 +93,7 @@ describe("T-100 B3-01: login レート制限のキー設計", () => {
     const { email } = await registerUser("repeated-success");
 
     for (let i = 0; i < 15; i++) {
-      const res = await request(server)
+      const res = await request(getServer())
         .post("/api/auth/login")
         .send({ email, password: PASSWORD });
       expect(res.status).toBe(200);

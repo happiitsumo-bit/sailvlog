@@ -1,7 +1,7 @@
 // T-15: タイムライン注釈API（POST /api/sessions/:id/annotations, PATCH/DELETE /api/annotations/:id）
 // のsupertest。fixtures/trackPayloads.ts の annotation系ビルダー（qa-engineer用意）を使う。
 import request from "supertest";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
 import {
   validAnnotationPayload,
@@ -9,9 +9,11 @@ import {
   annotationWithBodyTooLong,
 } from "./fixtures/trackPayloads";
 
+const getServer = setupTestServer();
+
 async function registerUser(tag: string): Promise<{ userId: number; token: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email: `${unique}@example.com`, password: "password123" });
   return { userId: res.body.user.id, token: res.body.token };
@@ -36,7 +38,7 @@ async function createSessionAsMember(): Promise<{
   const uploader = await registerUser("uploader");
   const team = await createTeam("s");
   await addMember(uploader.userId, team.id);
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/sessions")
     .set("Authorization", `Bearer ${uploader.token}`)
     .send({ title: "第1回練習", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 7200, teamId: team.id });
@@ -46,7 +48,7 @@ async function createSessionAsMember(): Promise<{
 describe("POST /api/sessions/:id/annotations (T-15)", () => {
   test("正常なtSec/bodyは201", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(validAnnotationPayload());
@@ -59,7 +61,7 @@ describe("POST /api/sessions/:id/annotations (T-15)", () => {
 
   test("tSecがdurationSec範囲外は400", async () => {
     const { sessionId, uploader, durationSec } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(annotationWithTSecOutOfRange(durationSec));
@@ -68,7 +70,7 @@ describe("POST /api/sessions/:id/annotations (T-15)", () => {
 
   test("bodyが2000字超は400", async () => {
     const { sessionId, uploader } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(annotationWithBodyTooLong());
@@ -78,7 +80,7 @@ describe("POST /api/sessions/:id/annotations (T-15)", () => {
   test("非TeamMemberのPOSTは403", async () => {
     const { sessionId } = await createSessionAsMember();
     const outsider = await registerUser("outsider");
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${outsider.token}`)
       .send(validAnnotationPayload());
@@ -87,7 +89,7 @@ describe("POST /api/sessions/:id/annotations (T-15)", () => {
 
   test("未認証(JWTなし)は401", async () => {
     const { sessionId } = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .send(validAnnotationPayload());
     expect(res.status).toBe(401);
@@ -107,7 +109,7 @@ describe("POST /api/sessions/:id/annotations (T-15)", () => {
       },
     });
 
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${sessionId}/annotations`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send(validAnnotationPayload({ trackId: otherTrack.id }));
@@ -118,7 +120,7 @@ describe("POST /api/sessions/:id/annotations (T-15)", () => {
 describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
   async function createAnnotation() {
     const ctx = await createSessionAsMember();
-    const res = await request(app)
+    const res = await request(getServer())
       .post(`/api/sessions/${ctx.sessionId}/annotations`)
       .set("Authorization", `Bearer ${ctx.uploader.token}`)
       .send(validAnnotationPayload());
@@ -127,7 +129,7 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
 
   test("author本人によるPATCHは200でbodyが更新される", async () => {
     const { annotationId, uploader } = await createAnnotation();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/annotations/${annotationId}`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ body: "修正後のメモ" });
@@ -141,7 +143,7 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
     const admin = await registerUser("admin");
     await addMember(admin.userId, teamId, "admin");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/annotations/${annotationId}`)
       .set("Authorization", `Bearer ${admin.token}`)
       .send({ body: "管理者による修正" });
@@ -153,7 +155,7 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
     const other = await registerUser("otherMember");
     await addMember(other.userId, teamId, "member");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/annotations/${annotationId}`)
       .set("Authorization", `Bearer ${other.token}`)
       .send({ body: "他人による修正" });
@@ -162,7 +164,7 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
 
   test("author本人によるDELETEは204", async () => {
     const { annotationId, uploader } = await createAnnotation();
-    const res = await request(app)
+    const res = await request(getServer())
       .delete(`/api/annotations/${annotationId}`)
       .set("Authorization", `Bearer ${uploader.token}`);
     expect(res.status).toBe(204);
@@ -176,7 +178,7 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
     const other = await registerUser("otherMember2");
     await addMember(other.userId, teamId, "member");
 
-    const res = await request(app)
+    const res = await request(getServer())
       .delete(`/api/annotations/${annotationId}`)
       .set("Authorization", `Bearer ${other.token}`);
     expect(res.status).toBe(403);
@@ -184,7 +186,7 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
 
   test("存在しない注釈IDのPATCHは404", async () => {
     const { uploader } = await createAnnotation();
-    const res = await request(app)
+    const res = await request(getServer())
       .patch(`/api/annotations/999999`)
       .set("Authorization", `Bearer ${uploader.token}`)
       .send({ body: "x" });

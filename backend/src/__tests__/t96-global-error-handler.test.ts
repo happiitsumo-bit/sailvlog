@@ -4,12 +4,14 @@
 // GET /api/sessions?teamId= はtry/catchを持たない素のasyncハンドラで、
 // 「個別のtry/catchを持たないルートでも安全網が効く」ことの検証に適している。
 import request from "supertest";
-import app from "../index";
+import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
+
+const getServer = setupTestServer();
 
 async function registerUser(tag: string): Promise<{ userId: number; token: string }> {
   const unique = `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const res = await request(app)
+  const res = await request(getServer())
     .post("/api/auth/register")
     .send({ username: `u${unique}`.slice(0, 30), email: `${unique}@example.com`, password: "password123" });
   return { userId: res.body.user.id, token: res.body.token };
@@ -33,7 +35,7 @@ describe("T-96 Major修正: グローバルエラーハンドラでプロセス�
 
     const consoleErrSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const failing = await request(app).get(`/api/sessions?teamId=${team.id}`).set(
+    const failing = await request(getServer()).get(`/api/sessions?teamId=${team.id}`).set(
       "Authorization",
       `Bearer ${token}`
     );
@@ -43,7 +45,7 @@ describe("T-96 Major修正: グローバルエラーハンドラでプロセス�
     consoleErrSpy.mockRestore();
 
     // プロセスが生きていること・後続リクエストが正常応答することを確認する
-    const following = await request(app).get(`/api/sessions?teamId=${team.id}`).set(
+    const following = await request(getServer()).get(`/api/sessions?teamId=${team.id}`).set(
       "Authorization",
       `Bearer ${token}`
     );
