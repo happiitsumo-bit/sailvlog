@@ -88,22 +88,30 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8001/api/teams  # → 
 
 ## テストの実行
 
+> **重要（2026-07-28 更新）**: backendのテストは **ホスト側から実行**します。`docker compose exec backend npm test` は**意図的に失敗する設計**になりました（理由は下の「テスト運用のルール」参照）。
+
 ```bash
-# backend（Jest。DBはdocker-composeのdbサービスを使用。--runInBand必須の理由はQ&A参照）
-docker compose exec backend npm test
+# backend（Jest。DBはdocker-composeのdbサービスをホストの5433経由で使用）
+cd backend && npm test
 
 # frontend（Vitest。GPX/リプレイエンジンの純関数テスト）
-docker compose exec frontend npm test
+cd frontend && npm test
 
 # frontendの型チェック・ビルド確認
-docker compose exec frontend npx tsc --noEmit
-docker compose exec frontend npm run build
+cd frontend && npx tsc --noEmit && npm run build
 ```
 
-実行結果（2026-07-26 検証時点）:
+実行結果（2026-07-28 検証時点・Team Lead が10回連続実行して確認）:
 
-- backend: `8 suites / 73 passed / 27 todo / 0 failed`（所要 約17秒）
-- frontend: `6 files / 54 passed`
+- backend: `14 suites / 133 passed / 0 failed`（所要 約40秒）
+- frontend: `6 files / 55 passed`
+
+### テスト運用のルール（守らないと壊れます）
+
+1. **テストは同時に2つ以上走らせない。** テストDBを共有しており、各テストの前に全テーブルを `TRUNCATE` するため、2つのjestプロセスが互いのデータを消し合います。CI・ローカルとも1本ずつ実行してください
+2. **`docker compose exec backend npm test` は使わない。** 以前はコンテナの `DATABASE_URL`（＝**開発DB**）が使われ、テストのたびに開発データが消えていました。現在は `.env.test` が必ず優先されるよう修正済みで、その結果コンテナ内からはテストDBに到達できず失敗します（安全側の設計）
+3. **本番DBに対して絶対に実行しない。** `export DATABASE_URL=<本番>` した状態で `npm test` を叩くと本番が全テーブル消去されうるため、接続先ホストとDB名の二重ガードで中断するようにしてあります（`localhost`/`127.0.0.1`/`db` 以外、または `_test` で終わらないDB名は拒否）
+4. **flakyを見つけたら `.skip` で隠さない。** 原因を特定して直します（過去に `supertest` の一時サーバ生成レースで約1/2の確率で落ちる状態を根絶した経緯があります。詳細は `docs/dev-org/TEST-PLAN.md`）
 - `npx tsc --noEmit`: エラー0
 - `npm run build`: 成功（生成される9ルート = `/`, `/handbook`, `/login`, `/register`, `/sessions`, `/sessions/[id]`, `/sessions/new`, `/p/[slug]`, `/_not-found`）
 
