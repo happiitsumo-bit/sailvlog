@@ -10,10 +10,30 @@ interface Bucket {
   count: number;
 }
 
+// m-02修正（2026-07-27, REVIEW-backend-2.md）: buckets/lastViewedAtに破棄処理が無く、
+// プロセスが生きている限りキー（IP、IP:slug）が単調増加していた。
+// 新しい setInterval は増やさない方針にした。理由: ①windowMsが60秒/300秒と短く、
+// アクセスのたびに「期限切れなら全体を軽く掃除する」だけで十分に増加を抑えられる
+// （タイマーを増やすと「タイマーが積み上がってプロセスがexitしにくくなる」という
+// 別の懸念を増やすだけで得るものが無い）。②アクセス頻度がゼロならメモリが増える心配自体が
+// 発生しない（誰も呼ばないRoute=誰もキーを増やさない）ので、遅延掃除で足りる。
+// 掃除コストを毎回払わないよう、確率的に間引いて実行する（SWEEP_PROBABILITY）。
+const SWEEP_PROBABILITY = 0.01; // 期待値としてアクセス100回に1回、Map全体を掃除する
+
 function createFixedWindowLimiter(windowMs: number, limit: number) {
   const buckets = new Map<string, Bucket>();
+  function sweepExpired(now: number): void {
+    for (const [key, bucket] of buckets) {
+      if (now - bucket.windowStart >= windowMs) {
+        buckets.delete(key);
+      }
+    }
+  }
   return {
     check(key: string, now: number = Date.now()): boolean {
+      if (Math.random() < SWEEP_PROBABILITY) {
+        sweepExpired(now);
+      }
       const existing = buckets.get(key);
       if (!existing || now - existing.windowStart >= windowMs) {
         buckets.set(key, { windowStart: now, count: 1 });
@@ -65,6 +85,14 @@ const lastViewedAt = new Map<string, number>();
 
 /** このIP・スラッグの組み合わせで直近5分以内に加算済みならfalse（加算しない）。未加算ならtrueを返し記録する。 */
 export function shouldCountView(ip: string, slug: string, now: number = Date.now()): boolean {
+  // m-02: こちらも同じ確率的遅延掃除で破棄する（新規setInterval無し。上記と同じ理由）。
+  if (Math.random() < SWEEP_PROBABILITY) {
+    for (const [k, lastAt] of lastViewedAt) {
+      if (now - lastAt >= VIEW_THROTTLE_MS) {
+        lastViewedAt.delete(k);
+      }
+    }
+  }
   const key = `${ip}:${slug}`;
   const last = lastViewedAt.get(key);
   if (last !== undefined && now - last < VIEW_THROTTLE_MS) {
