@@ -25,6 +25,9 @@ const gone = (_req: Request, res: Response) => {
 assertJwtSecretConfigured(process.env.JWT_SECRET);
 
 const app = express();
+// m-06修正（2026-07-27, REVIEW-backend-2.md）: X-Powered-By: Express は未認証で誰でも取得できる
+// 指紋情報。実害は小さいが1行で消せるため即実施。
+app.disable("x-powered-by");
 const PORT = process.env.PORT ?? 8000;
 
 const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:3001,http://localhost:3000")
