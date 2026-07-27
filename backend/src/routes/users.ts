@@ -21,43 +21,15 @@ router.get("/me", authMiddleware, wrap(async (req: AuthRequest, res: Response): 
 }));
 
 // GET /api/users/:username — プロフィール
-// Quality Gate Blocker修正と同種の指摘: 未認証でspecialty/affiliation/experienceYears等が
-// 取得できていたため authMiddleware を追加（teams.ts:40-70 の指摘と同種）。
-// Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
-router.get("/:username", authMiddleware, wrap(async (req: Request, res: Response): Promise<void> => {
-  const user = await prisma.user.findUnique({
-    where: { username: req.params.username },
-    select: {
-      id: true,
-      username: true,
-      bio: true,
-      avatarUrl: true,
-      specialty: true,
-      affiliation: true,
-      experienceYears: true,
-      createdAt: true,
-      boatType: { select: { id: true, name: true, slug: true } },
-      _count: { select: { articles: true, followers: true, following: true } },
-      articles: {
-        where: { isPublished: true },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        select: {
-          id: true, title: true, slug: true, createdAt: true,
-          boatType: { select: { name: true, slug: true } },
-          _count: { select: { likes: true } },
-        },
-      },
-    },
-  });
-
-  if (!user) {
-    res.status(404).json({ error: "ユーザーが見つかりません" });
-    return;
-  }
-
-  res.json(user);
-}));
+// B-02修正（2026-07-27, REVIEW-backend-2.md・案B）: authMiddlewareだけでは「ログイン済みの
+// 部外者」を弾けない（registerが誰でも通るため）。無関係な第三者にspecialty/affiliation/
+// experienceYearsを見せない「関係」を定義できないv1機能なので、sailors.ts（同種の指摘）と
+// 揃えてADR-003方式（410 Gone）で凍結する。v3 frontendからの利用はゼロ（grep済み・ヒット0）。
+// 自分自身のプロフィール取得/更新（GET・PUT /api/users/me）は本人限定で第三者への漏洩が
+// 無いため凍結対象外（残す）。
+router.all("/:username", (_req: Request, res: Response) => {
+  res.status(410).json({ error: "このエンドポイントはv3ピボットにより凍結されました" });
+});
 
 // PUT /api/users/me — 自分のプロフィール更新
 // Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
