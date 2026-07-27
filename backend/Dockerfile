@@ -26,6 +26,11 @@ RUN npm run build
 FROM node:20-slim AS production
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+# M3-03修正（2026-07-28, REVIEW-backend-3.md）: assertJwtSecretConfigured()のプレースホルダ検知・
+# 長さチェックはNODE_ENV==="production"のときだけ厳格化する設計にした。Renderのダッシュボード側で
+# NODE_ENVが設定されているか確認できないため、ここで明示的に固定し、デプロイ環境の設定漏れに
+# 依存しない形で本番の厳格チェックを保証する。
+ENV NODE_ENV=production
 
 COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
