@@ -16,7 +16,13 @@ const dotenv = require("dotenv");
 const { Client } = require("pg");
 const { execFileSync } = require("child_process");
 
-dotenv.config({ path: path.resolve(__dirname, "../.env.test") });
+// m3-01修正（2026-07-28, REVIEW-backend-3.md）: setup/env.ts は override: true にしたが、
+// このスクリプトだけ override 無し（既定false）のままだった。シェルに DATABASE_URL 等が
+// 既にexportされていると、pretest（このスクリプト）はシェルのDBを見てmigrate deployし、
+// jest本体（setup/env.ts経由）は.env.testのDBを見る、という食い違いが起きる
+// （症状は「テーブルが存在しません」で原因が分かりにくい。B-01のホスト/DB名ガードにより
+// 事故には至らないが、混乱の元だった）。setup/env.tsと同じくoverride: trueで揃える。
+dotenv.config({ path: path.resolve(__dirname, "../.env.test"), override: true });
 
 const testUrl = process.env.DATABASE_URL;
 if (!testUrl) {

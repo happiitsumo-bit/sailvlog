@@ -58,11 +58,13 @@ describe("GET /api/sessions?teamId= (T-90 追加)", () => {
     expect(res.status).toBe(401);
   });
 
-  // REVIEW.md R-02 / TASKS.md記載: Team Lead裁定は「GET /api/sessions/:id 限定」でpublicViewCount除外を
-  // 修正した。一覧側（GET /api/sessions?teamId=）は select 無しの findMany のままで、同じ非KPI項目が
-  // 部内メンバー全員に見えている。既に:id側は塞がれているため実害の性質は同じ（非KPI原則の一貫性欠如）。
-  // 現状は失敗する（バグを再現・固定するテスト）。TASKS.mdの発見事項に報告済み。実装はimplementerの判断。
-  test("[既知の未修正: バグ再現テスト] 一覧レスポンスにpublicViewCountが含まれない — 現状FAIL", async () => {
+  // REVIEW.md R-02 / TASKS.md記載: 元々はTeam Lead裁定「GET /api/sessions/:id 限定」でpublicViewCount除外を
+  // 修正しており、一覧側（GET /api/sessions?teamId=）はselect無しのfindManyのままで同じ非KPI項目が
+  // 漏れていた（バグ再現テストとして「現状FAIL」の名前で追加していた）。
+  // m3-03修正（2026-07-28, REVIEW-backend-3.md）: M-02修正で一覧側もselectホワイトリストに揃え済みのため
+  // 現在はPASSする。テスト名/コメントが「未修正のバグ再現」のまま残っていると次に読む人が誤読するため、
+  // 修正済みの回帰テストとして書き直す。
+  test("一覧レスポンス(GET /api/sessions?teamId=)にpublicViewCountが含まれない", async () => {
     const { sessionId, teamId, uploader } = await createSessionAsMember();
     // 閲覧数を人為的に発生させておく（0でもキー自体が漏れるかを見るには十分だが、値ありでより明確にする）
     await prisma.session.update({ where: { id: sessionId }, data: { publicViewCount: 3 } });
