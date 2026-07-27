@@ -10,6 +10,28 @@ import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
 
+// qa-engineer/implementer (T-90 flaky根絶, 2026-07-28): 下の「閲覧数加算」は本番では意図的に
+// fire-and-forget（awaitせずレスポンスをブロックしない）。だがテストのbeforeEachが次のTRUNCATEを
+// 発行する前にこの書き込みが必ず片付いている保証がなく、それが決定的でないflaky failureの原因
+// だった（詳細は__tests__/helpers/resetDb.tsとsetup/resetDbHook.tsのコメント参照）。
+// 対策として「今まさに実行中のバックグラウンド処理」をここに登録しておき、テスト側だけが
+// それを待てるようにする。本番の応答経路には一切影響しない（登録・削除がPromiseに追加されるだけ）。
+const pendingBackgroundWork = new Set<Promise<unknown>>();
+
+function trackBackgroundWork(work: Promise<unknown>): void {
+  pendingBackgroundWork.add(work);
+  const clear = (): void => {
+    pendingBackgroundWork.delete(work);
+  };
+  work.then(clear, clear);
+}
+
+// テスト専用: 現在実行中の全バックグラウンド処理(fire-and-forget)の完了を待つ。
+// 本番コードからは呼ばれない(テストのresetDbHook.tsのbeforeEachからのみ使用)。
+export function awaitPendingBackgroundWork(): Promise<unknown> {
+  return Promise.allSettled(Array.from(pendingBackgroundWork));
+}
+
 // 存在しない/非公開/取り消し済みを区別しない一律404（レスポンスボディも同一。ADR-007）
 function notFound(res: Response): void {
   res.status(404).json({ error: "セッションが見つかりません" });
@@ -128,10 +150,14 @@ router.get("/sessions/:slug", wrap(async (req: Request, res: Response): Promise<
   ]);
 
   if (shouldCountView(ip, slug)) {
-    // 加算はレスポンスをブロックしない範囲でベストエフォート（失敗しても閲覧自体は継続させる）
-    prisma.session
-      .update({ where: { id: session.id }, data: { publicViewCount: { increment: 1 } } })
-      .catch(() => undefined);
+    // 加算はレスポンスをブロックしない範囲でベストエフォート（失敗しても閲覧自体は継続させる）。
+    // trackBackgroundWork()での登録はテストの決定的な待ち合わせのためだけに存在し、
+    // レスポンスは従来どおりこのPromiseの完了を待たずに返る。
+    trackBackgroundWork(
+      prisma.session
+        .update({ where: { id: session.id }, data: { publicViewCount: { increment: 1 } } })
+        .catch(() => undefined),
+    );
   }
 
   res.status(200).json(serializePublicSession(session, tracks, annotations));

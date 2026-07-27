@@ -4,8 +4,32 @@ import request from "supertest";
 import app from "../index";
 import prisma from "../database";
 import { _resetRateLimiterForTests, _resetViewThrottleForTests } from "../lib/rateLimiter";
+import { awaitPendingBackgroundWork } from "../routes/public";
 
 const FORBIDDEN_KEYS = ["rawGpx", "email", "teamId", "notes", "publicViewCount"];
+
+// qa-engineer (T-90 flaky調査, 2026-07-28): ④系の「61回連続リクエストで61回目が429」テストは
+// checkRateLimit()内部のDate.now()（実時刻）に依存する固定ウィンドウ(60秒)判定を、
+// supertestで61回の実HTTPラウンドトリップ(+DBクエリ)を直列awaitして検証している。
+// フルスイート実行中にシステム負荷が高いと1リクエストあたりの応答が数百ms〜秒単位に伸び、
+// ループの途中で60秒の窓を跨いでバケットがリセットされ、本来429になるはずの
+// 最終リクエストが200に化ける(実際にnpm testを合計28回連続実行し、
+// 「Expected: 429 Received: 200」の代入不一致と「Exceeded timeout of 30000 ms」の
+// タイムアウトの両方をこの箇所で観測して原因特定した。単独実行では発生しない
+// ＝実行時間が短ければ窓を跨がないため)。
+// 本番のcheckRateLimit()自体はDate.now()引数を省略呼び出しされている(routes/public.ts)ため
+// テスト側からは実時刻しか渡せない。よってテスト側でDate.nowをループの間だけ固定し、
+// 「61回とも同じ瞬間に届いた」ことにすることで、実行速度に関わらず判定を決定的にする
+// (本番コードの固定ウィンドウ判定ロジック自体はそのまま検証できる)。
+async function withFrozenClock<T>(fn: () => Promise<T>): Promise<T> {
+  const frozenNow = Date.now();
+  const spy = jest.spyOn(Date, "now").mockReturnValue(frozenNow);
+  try {
+    return await fn();
+  } finally {
+    spy.mockRestore();
+  }
+}
 
 /** レスポンスJSONをどの階層まで潜っても禁止キーが出現しないことを検証する再帰走査。 */
 function findForbiddenKeys(value: unknown, path = "$"): string[] {
@@ -179,11 +203,13 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     const { slug } = await createPublishedSession();
 
     let last;
-    for (let i = 0; i < 61; i++) {
-      last = await request(app).get(`/api/public/sessions/${slug}`);
-    }
+    await withFrozenClock(async () => {
+      for (let i = 0; i < 61; i++) {
+        last = await request(app).get(`/api/public/sessions/${slug}`);
+      }
+    });
     expect(last!.status).toBe(429);
-  }, 30000);
+  }, 60000);
 
   // Quality Gate Major1修正: Next.jsサーバーコンポーネント経由のアクセスは全員が同じreq.ipで
   // backendに到着するため、素のreq.ipだけをキーにすると「1分61回開かれた時点で全公開URLが
@@ -211,12 +237,14 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     const { slug } = await createPublishedSession();
 
     let lastA;
-    for (let i = 0; i < 61; i++) {
-      lastA = await request(app)
-        .get(`/api/public/sessions/${slug}`)
-        .set("x-forwarded-client-ip", "203.0.113.1")
-        .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
-    }
+    await withFrozenClock(async () => {
+      for (let i = 0; i < 61; i++) {
+        lastA = await request(app)
+          .get(`/api/public/sessions/${slug}`)
+          .set("x-forwarded-client-ip", "203.0.113.1")
+          .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
+      }
+    });
     expect(lastA!.status).toBe(429);
 
     // 別クライアントIPを名乗ればまだ枠が残っている(同一req.ipのまま、ヘッダだけ変える)
@@ -225,33 +253,37 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
       .set("x-forwarded-client-ip", "203.0.113.2")
       .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
     expect(otherClient.status).toBe(200);
-  }, 30000);
+  }, 60000);
 
   test("④-c R-03: 共有シークレットが無いと x-forwarded-client-ip は無視され、req.ip(supertestは同一)で丸められる", async () => {
     const { slug } = await createPublishedSession();
 
     // シークレットを付けずに61回、クライアントIPを詐称してもバケットは req.ip 由来の1つに丸まる
     let last;
-    for (let i = 0; i < 61; i++) {
-      last = await request(app)
-        .get(`/api/public/sessions/${slug}`)
-        .set("x-forwarded-client-ip", `203.0.113.${i}`); // シークレット無し・IPは毎回変える
-    }
+    await withFrozenClock(async () => {
+      for (let i = 0; i < 61; i++) {
+        last = await request(app)
+          .get(`/api/public/sessions/${slug}`)
+          .set("x-forwarded-client-ip", `203.0.113.${i}`); // シークレット無し・IPは毎回変える
+      }
+    });
     expect(last!.status).toBe(429); // 詐称ヘッダは信用されず、素のreq.ipバケットで429に達する
-  }, 30000);
+  }, 60000);
 
   test("④-d R-03: 共有シークレットが不一致だと x-forwarded-client-ip は無視される", async () => {
     const { slug } = await createPublishedSession();
 
     let last;
-    for (let i = 0; i < 61; i++) {
-      last = await request(app)
-        .get(`/api/public/sessions/${slug}`)
-        .set("x-forwarded-client-ip", `198.51.100.${i}`)
-        .set("x-internal-proxy-secret", "wrong-secret-value");
-    }
+    await withFrozenClock(async () => {
+      for (let i = 0; i < 61; i++) {
+        last = await request(app)
+          .get(`/api/public/sessions/${slug}`)
+          .set("x-forwarded-client-ip", `198.51.100.${i}`)
+          .set("x-internal-proxy-secret", "wrong-secret-value");
+      }
+    });
     expect(last!.status).toBe(429);
-  }, 30000);
+  }, 60000);
 
   test("④-e R-03: INTERNAL_PROXY_SECRET が未設定(環境変数側)なら、正しそうなシークレットヘッダを送っても信用しない(安全側フォールバック)", async () => {
     const saved = process.env.INTERNAL_PROXY_SECRET;
@@ -259,27 +291,66 @@ describe("GET /api/public/sessions/:slug (T-31)", () => {
     try {
       const { slug } = await createPublishedSession();
       let last;
-      for (let i = 0; i < 61; i++) {
-        last = await request(app)
-          .get(`/api/public/sessions/${slug}`)
-          .set("x-forwarded-client-ip", `192.0.2.${i}`)
-          .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
-      }
+      await withFrozenClock(async () => {
+        for (let i = 0; i < 61; i++) {
+          last = await request(app)
+            .get(`/api/public/sessions/${slug}`)
+            .set("x-forwarded-client-ip", `192.0.2.${i}`)
+            .set("x-internal-proxy-secret", TEST_PROXY_SECRET);
+        }
+      });
       expect(last!.status).toBe(429);
     } finally {
       if (saved === undefined) delete process.env.INTERNAL_PROXY_SECRET;
       else process.env.INTERNAL_PROXY_SECRET = saved;
     }
-  }, 30000);
+  }, 60000);
 
   test("publicViewCountは同一IP・同一スラッグ5分以内は加算されない(2回叩いても+1のみ)", async () => {
     const { sessionId, slug } = await createPublishedSession();
     await request(app).get(`/api/public/sessions/${slug}`);
     await request(app).get(`/api/public/sessions/${slug}`);
-    // update自体は非同期でcatchするだけの設計のため反映を少し待つ
-    await new Promise((r) => setTimeout(r, 200));
+    // update自体は非同期(fire-and-forget)なので、sleepではなく「今実行中のバックグラウンド処理が
+    // すべて片付いた」ことを状態として待つ(implementer, T-90 flaky根絶)。
+    await awaitPendingBackgroundWork();
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     expect(session?.publicViewCount).toBe(1);
+  });
+
+  // implementer (T-90, 2026-07-28): 本番挙動の固定テスト。
+  // trackBackgroundWork()での「集合への登録」を足しただけで、レスポンスがそのPromiseの完了を
+  // 待つように変わっていないことを直接証明する。prisma.session.updateを意図的に遅く(200ms)
+  // モックし、「レスポンスはそれよりずっと速く返る」ことと「その時点ではDBはまだ未加算」の
+  // 両方を確認する(=await pendingBackgroundWork.add()した後もレスポンス経路をブロックしていない)。
+  test("閲覧数加算はレスポンスをブロックしない(fire-and-forgetのまま、本番挙動固定)", async () => {
+    const { sessionId, slug } = await createPublishedSession();
+
+    let resolveUpdate!: () => void;
+    const updateGate = new Promise<void>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    const updateSpy = jest.spyOn(prisma.session, "update").mockImplementation(
+      // レスポンスが先に返ることを保証するため、テスト側で明示的に解放するまで完了しないPromiseを返す
+      // (実際の戻り値の形は使わないためテスト専用の型キャストで簡略化する)
+      (() => updateGate.then(() => undefined)) as unknown as typeof prisma.session.update,
+    );
+
+    try {
+      const res = await request(app).get(`/api/public/sessions/${slug}`);
+      expect(res.status).toBe(200);
+
+      // レスポンスが返った時点では、意図的に止めているupdateはまだ完了していない
+      // = レスポンスはこのPromiseを待っていない証拠。
+      const sessionRightAfterResponse = await prisma.session.findUnique({
+        where: { id: sessionId },
+      });
+      expect(sessionRightAfterResponse?.publicViewCount).toBe(0);
+
+      resolveUpdate();
+      await awaitPendingBackgroundWork();
+    } finally {
+      updateSpy.mockRestore();
+    }
   });
 
   test("publicViewCountはレスポンスに含まれない(既存の禁止キーテストと重複だが単独でも確認)", async () => {
