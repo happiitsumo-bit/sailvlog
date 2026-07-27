@@ -1,4 +1,4 @@
-// implementer (T-101, 2026-07-28): supertestの`request(app)`はNode組み込みhttpの`http.createServer(app)`から
+// implementer (Team Lead指示・テスト基盤改善, 2026-07-28): supertestの`request(app)`はNode組み込みhttpの`http.createServer(app)`から
 // `listen(0)`まで呼び出し1回ごとに新規ephemeralサーバを生成し、応答後にcloseする（node_modules/supertest/lib/test.js）。
 // この生成/破棄がテストスイート全体で密集すると、低頻度でリクエストがアプリのルートハンドラに到達しないまま
 // 応答が返るレース（症状は常に「期待したステータスの代わりに404」）が起きることをt31/t100で確定済み

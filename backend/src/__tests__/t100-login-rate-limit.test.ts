@@ -33,7 +33,7 @@ import { _resetAuthRateLimiterForTests } from "../lib/rateLimiter";
 
 const PASSWORD = "password123";
 
-// implementer (T-101, 2026-07-28): 個別のbeforeAll/afterAllによるサーバ管理はhelpers/testServer.tsへ
+// implementer (Team Lead指示・テスト基盤改善, 2026-07-28): 個別のbeforeAll/afterAllによるサーバ管理はhelpers/testServer.tsへ
 // 集約した（下記getServer参照）。上記の調査経緯コメントは資産として残す。
 const getServer = setupTestServer();
 
