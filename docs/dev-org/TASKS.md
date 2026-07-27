@@ -42,6 +42,13 @@
   - 成果物: Neon(DB)＋Render(Express/Docker)＋Vercel(Next.js)へ現行アプリをデプロイ。`.env.example` 整備、CORS_ORIGIN・JWT_EXPIRES_IN=2h 設定、migration実行
   - 検証: 公開URLでログイン→チームページ表示がEnd-to-Endで通る（スマホ回線からも確認）。cold start復帰時間を1回記録
   - 依存: T-01, B-3
+  - **進捗（2026-07-27・オーナー本人が着手。Team Lead記録）**: B-3のうち **Neonのアカウント作成とDB作成は完了**（接続文字列取得済み）。Renderでbackendのデプロイを試行したが**3回とも失敗し、T-02は未完了のまま**。waiveは解除していない（公開URLでのE2Eは未達）。判明した原因と対処:
+    1. **Branchが `main` のままだった**（`29e684d`＝ピボット前）→ `v3/replay-mvp` を指定する必要がある。新規サービス作成時に既定へ戻るため2回踏んだ
+    2. **Dockerfileがリポジトリ直下に無い**（モノレポ）→ Render の **Root Directory を `backend`** にする。`backend/Dockerfile` は `COPY package*.json ./` を行うためビルドコンテキストも `backend/` に寄せる必要がある
+    3. **`npm run build`（tsc）が失敗**。`src/routes/auth.ts` の `jwt.sign` で型エラー。@types/jsonwebtoken 9系が `expiresIn` を `number | StringValue` で受けるため環境変数由来の素の `string` を渡せない。**コミット `309b035` で修正済み**
+  - **副産物（本タスクの最大の収穫）**: 上記3の根本原因は **backendのCIに型チェックもビルドも無かったこと**。`ts-node-dev --transpile-only` も `ts-jest`(isolatedModules) も型検査を行わないため、**型エラーを検出する経路がどこにも存在しなかった**（frontendジョブには `tsc --noEmit`/`build`/`test` が揃っていた）。`.github/workflows/test.yml` のbackendジョブに `tsc --noEmit` と `npm run build` を追加して塞いだ（`309b035`）
+  - **未実施・次回の着手条件**: ①Renderの設定（Branch=`v3/replay-mvp` / Root Directory=`backend` / Auto-Deploy=**Off**）②環境変数の投入（`DATABASE_URL` は **`-pooler` を除いた直結URL**。プール経由だとmigrationが失敗するため）③`prisma migrate deploy` を**ローカルから**実行（本番イメージは `npm install --omit=dev` で `prisma` CLI が入らないためRender上では実行不可）④Vercel未着手
+  - **安全上の注意（2026-07-27・REVIEW-backend-2 B-01）**: マイグレーション実行時に `export DATABASE_URL=<本番>` を**使わないこと**。テスト用の `.env.test` はシェルの既存環境変数を上書きしないため、同じシェルで `npm test` を叩くと本番DBが全テーブルTRUNCATEされる。コマンド単位（`DATABASE_URL="..." npx prisma migrate deploy`）で渡す
 
 ### S1: 〔E2〕縦貫通 — 「GPX取込→複数艇再生→注釈→部内共有」の動く最小版（着手条件: B-1サブゲートでE2確定）
 
