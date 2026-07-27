@@ -35,6 +35,11 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+      # 型チェックとビルドはテストより前に置く。ts-node-dev も ts-jest(isolatedModules) も
+      # 型検査を行わないため、これが無いと型エラーが本番ビルド(Dockerのtsc)まで検出されない。
+      # 実際に2026-07-27、auth.ts の jwt.sign の型エラーがRenderの初回デプロイで初めて露見した。
+      - run: npx tsc --noEmit
+      - run: npm run build
       - run: npm test
 
   frontend-lib-tests:
