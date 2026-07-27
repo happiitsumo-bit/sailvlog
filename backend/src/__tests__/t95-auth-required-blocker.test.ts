@@ -125,4 +125,20 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     const me = await request(app).get("/api/users/me").set("Authorization", `Bearer ${token}`);
     expect(me.status).toBe(200);
   });
+
+  // M3-01回帰テスト（2026-07-28, REVIEW-backend-3.md）: router.all("/:username") が
+  // router.put("/me") より先に登録されていたため "me" がusernameとしてマッチし、
+  // 修正コミット自身のコメント「PUT /api/users/me は凍結対象外（残す）」に反して410を返していた。
+  // GET /me のみを検証していた上のテストは、このメソッド違いの取りこぼしを素通ししていた。
+  test("PUT /api/users/me — 凍結の巻き込みを受けず200で自分のプロフィールを更新できる", async () => {
+    const { token } = await registerUser("users-put-me");
+
+    const res = await request(app)
+      .put("/api/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ bio: "PUT /me が410に飲まれていないことの確認" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.bio).toBe("PUT /me が410に飲まれていないことの確認");
+  });
 });
