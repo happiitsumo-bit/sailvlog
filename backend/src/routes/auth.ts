@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../database";
 import { wrap } from "../lib/asyncHandler";
 import { checkAuthRateLimit } from "../lib/rateLimiter";
+import { validateRegisterPayload } from "../lib/validateRegisterPayload";
 
 const router = Router();
 
@@ -19,6 +20,14 @@ router.post("/register", wrap(async (req: Request, res: Response): Promise<void>
 
   if (!username || !email || !password) {
     res.status(400).json({ error: "username, email, password は必須です" });
+    return;
+  }
+
+  // m-05修正（2026-07-27, REVIEW-backend-2.md）: 「存在すること」だけでなく形式・長さも検証する
+  // （根拠は lib/validateRegisterPayload.ts のコメント参照）。
+  const validation = validateRegisterPayload({ username, email, password });
+  if (!validation.ok) {
+    res.status(validation.status).json({ error: validation.error });
     return;
   }
 
