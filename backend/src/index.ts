@@ -25,6 +25,11 @@ const gone = (_req: Request, res: Response) => {
 assertJwtSecretConfigured(process.env.JWT_SECRET);
 
 const app = express();
+// B3-01修正（2026-07-28, REVIEW-backend-3.md）: trust proxy未設定だとRenderのedge/内部プロキシ経由で
+// req.ipが常に内部プロキシ側のIPになり、IP単位のレート制限が全ユーザー1バケットに潰れる
+// （ADR-010と同じ「実クライアントIPの信頼モデル」の論点）。Renderは単一のリバースプロキシを
+// 経由するので、ホップ数1を信頼する設定にし、X-Forwarded-Forの先頭値を実クライアントIPとして使う。
+app.set("trust proxy", 1);
 // m-06修正（2026-07-27, REVIEW-backend-2.md）: X-Powered-By: Express は未認証で誰でも取得できる
 // 指紋情報。実害は小さいが1行で消せるため即実施。
 app.disable("x-powered-by");

@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../database";
 import { wrap } from "../lib/asyncHandler";
-import { checkAuthRateLimit } from "../lib/rateLimiter";
+import { peekAuthEmailRateLimit, recordAuthEmailFailure, checkAuthIpRateLimit } from "../lib/rateLimiter";
 import { validateRegisterPayload } from "../lib/validateRegisterPayload";
 
 const router = Router();
@@ -52,16 +52,25 @@ router.post("/register", wrap(async (req: Request, res: Response): Promise<void>
 
 // POST /api/auth/login
 // M-04修正（2026-07-27, REVIEW-backend-2.md）: レート制限が無く、bcrypt cost 12と組み合わさって
-// 単一インスタンスを飽和させられる/総当たりが無制限にできる問題があった。IP単位60秒10回に制限する
-// （根拠はlib/rateLimiter.tsのコメント参照）。
+// 単一インスタンスを飽和させられる/総当たりが無制限にできる問題があった。
+// B3-01修正（2026-07-28, REVIEW-backend-3.md）: M-04のIP単位10回/60秒は、部室の共有Wi-Fi/大学NAT
+// 配下で反省会当日に部員全員を巻き込んで弾く欠陥があった（詳細はlib/rateLimiter.tsのコメント）。
+// email単位を総当たり対策の本体にし、IP単位はDoSの蓋としてのみ緩く残す。
 router.post("/login", wrap(async (req: Request, res: Response): Promise<void> => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
-  if (!checkAuthRateLimit(ip)) {
+  const { email, password } = req.body;
+  const emailKey = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+  // IP単位: DoSの蓋（成功/失敗を問わず全試行を消費）。
+  if (!checkAuthIpRateLimit(ip)) {
     res.status(429).json({ error: "リクエストが多すぎます。しばらくしてから再度お試しください" });
     return;
   }
-
-  const { email, password } = req.body;
+  // email単位: 総当たり対策の本体。判定のみ（消費は失敗時にrecordAuthEmailFailureで行う）。
+  if (emailKey && !peekAuthEmailRateLimit(emailKey)) {
+    res.status(429).json({ error: "ログイン試行回数が多すぎます。しばらくしてから再度お試しください" });
+    return;
+  }
 
   if (!email || !password) {
     res.status(400).json({ error: "email と password は必須です" });
@@ -70,16 +79,19 @@ router.post("/login", wrap(async (req: Request, res: Response): Promise<void> =>
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.isActive) {
+    if (emailKey) recordAuthEmailFailure(emailKey);
     res.status(401).json({ error: "メールアドレスまたはパスワードが違います" });
     return;
   }
 
   const valid = await bcrypt.compare(password, user.hashedPassword);
   if (!valid) {
+    if (emailKey) recordAuthEmailFailure(emailKey);
     res.status(401).json({ error: "メールアドレスまたはパスワードが違います" });
     return;
   }
 
+  // ログイン成功はカウントを消費しない（B3-01修正）。
   const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET as string, { expiresIn: JWT_EXPIRES_IN });
 
   res.json({

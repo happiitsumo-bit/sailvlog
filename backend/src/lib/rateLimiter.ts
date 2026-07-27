@@ -42,6 +42,26 @@ function createFixedWindowLimiter(windowMs: number, limit: number) {
       existing.count += 1;
       return existing.count <= limit;
     },
+    // B3-01修正（2026-07-28, REVIEW-backend-3.md）: 「判定だけして消費しない」版。
+    // ログイン成功時にカウントを消費しないため、判定(peek)と消費(recordFailure)を分離する。
+    peek(key: string, now: number = Date.now()): boolean {
+      if (Math.random() < SWEEP_PROBABILITY) {
+        sweepExpired(now);
+      }
+      const existing = buckets.get(key);
+      if (!existing || now - existing.windowStart >= windowMs) {
+        return true;
+      }
+      return existing.count < limit;
+    },
+    record(key: string, now: number = Date.now()): void {
+      const existing = buckets.get(key);
+      if (!existing || now - existing.windowStart >= windowMs) {
+        buckets.set(key, { windowStart: now, count: 1 });
+        return;
+      }
+      existing.count += 1;
+    },
     reset(): void {
       buckets.clear();
     },
@@ -61,22 +81,41 @@ export function _resetRateLimiterForTests(): void {
   publicViewLimiter.reset();
 }
 
-// M-04: POST /api/auth/login 用（IP単位・60秒10回）。
-// 根拠: bcrypt cost 12の比較は1回数百ms・Nodeのスレッドプール(既定4)を専有するため、
-// 正当なユーザーの試行回数（パスワードミス含め数回）を大きく上回りつつ、
-// 総当たり攻撃のコストを実質的に上げる値としてIP単位60秒10回を採用した
-// （公開ビュー用の60回/60秒より厳しくしている。認証・書き込み系は公開GETより
-// コストが高いため、というREVIEW-backend-2.md M-04の指摘に基づく）。
-const authLimiter = createFixedWindowLimiter(60 * 1000, 10);
+// B3-01修正（2026-07-28, REVIEW-backend-3.md）: M-04で入れたIP単位10回/60秒は、
+// ①Render経由だとtrust proxy未設定でreq.ipが内部プロキシの1つのIPに潰れる
+// ②仮に①を直しても、部室の共有Wi-Fi/大学NATは反省会当日「全員が同一グローバルIP」になる、
+// という2段階の理由で「部室に集まって全員ログインする」という本製品の唯一の利用シーンと
+// 正面から衝突していた（public.tsが既に同じ罠を踏んで解決済みだった教訓を適用できていなかった）。
+//
+// 総当たり防止の本質は「1アカウントへの試行回数」であり、共有IP配下の正常ログインを
+// 巻き込む理由がない。よってキーをIPからemail中心に変える:
+//   - emailLimiter: 同一emailへの連続試行を10回/60秒に制限する（総当たり対策の本体）。
+//     ログイン成功はカウントを消費しない（peek/recordを分離し、失敗時のみrecordする）。
+//   - ipLimiter: IP単位は「DoSの蓋」としてのみ機能する緩い上限に変更（60回/60秒）。
+//     部室の共有IPで20人が一斉ログインしても踏まない値。email側と違い成功/失敗を問わず
+//     全試行を消費する単純なcheck()のままでよい（悪意ある大量リクエストの頭打ちが目的のため）。
+const authEmailLimiter = createFixedWindowLimiter(60 * 1000, 10);
+const authIpLimiter = createFixedWindowLimiter(60 * 1000, 60);
 
-/** 呼び出し元IPが直近60秒で10回を超えていなければtrue（カウントを1つ進める）。超えていればfalse。 */
-export function checkAuthRateLimit(ip: string, now: number = Date.now()): boolean {
-  return authLimiter.check(ip, now);
+/** email単位の判定のみ（消費しない）。直近60秒で10回未満ならtrue。 */
+export function peekAuthEmailRateLimit(email: string, now: number = Date.now()): boolean {
+  return authEmailLimiter.peek(email, now);
 }
 
-/** テスト専用: 認証用バケット状態をリセットする。本番コードからは呼ばない。 */
+/** email単位の失敗を1回記録する（ログイン失敗時のみ呼ぶ。成功時は呼ばない）。 */
+export function recordAuthEmailFailure(email: string, now: number = Date.now()): void {
+  authEmailLimiter.record(email, now);
+}
+
+/** IP単位のDoS蓋（60秒60回）。呼び出すたびに1回消費する。 */
+export function checkAuthIpRateLimit(ip: string, now: number = Date.now()): boolean {
+  return authIpLimiter.check(ip, now);
+}
+
+/** テスト専用: 認証用バケット状態(email/IP双方)をリセットする。本番コードからは呼ばない。 */
 export function _resetAuthRateLimiterForTests(): void {
-  authLimiter.reset();
+  authEmailLimiter.reset();
+  authIpLimiter.reset();
 }
 
 // T-31: publicViewCount加算の間引き（同一IP・同一スラッグは5分に1回まで。SPEC §5.4）。
