@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 
+import { assertJwtSecretConfigured } from "./lib/assertJwtSecretConfigured";
 import authRouter from "./routes/auth";
 import usersRouter from "./routes/users";
 import boatTypesRouter from "./routes/boatTypes";
@@ -18,6 +19,10 @@ import publicRouter from "./routes/public";
 const gone = (_req: Request, res: Response) => {
   res.status(410).json({ error: "このエンドポイントはv3ピボットにより凍結されました" });
 };
+
+// M-05修正: JWT_SECRETが未設定・既知のプレースホルダ・短すぎる場合はfail-fastする
+// （テスト・開発を壊さないよう、.env.test/docker-compose.ymlの値をこの検証に通る値へ更新済み）。
+assertJwtSecretConfigured(process.env.JWT_SECRET);
 
 const app = express();
 const PORT = process.env.PORT ?? 8000;

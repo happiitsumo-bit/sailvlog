@@ -23,7 +23,11 @@ services:
       - "8001:8000"
     environment:
       DATABASE_URL: postgresql://sailvlog_user:sailvlog_pass@db:5432/sailvlog_db
-      JWT_SECRET: change_this_secret_in_production
+      # M-05修正（2026-07-27, REVIEW-backend-2.md）: 以前はここが公開リポジトリ上の
+      # プレースホルダ文字列そのままで、backend起動時のガード(assertJwtSecretConfigured)を
+      # 追加したことでこの値では起動を拒否するようになった。ローカルDocker開発専用のダミー値
+      # （本番には使わない）に変更する。
+      JWT_SECRET: dev-only-jwt-secret-change-me-1234567890abcdef
       JWT_EXPIRES_IN: 7d
       PORT: 8000
       CORS_ORIGIN: http://localhost:3001,http://localhost:3000
