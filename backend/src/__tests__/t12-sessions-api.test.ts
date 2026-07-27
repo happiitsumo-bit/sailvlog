@@ -312,4 +312,45 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
     expect(res.body.session.notes).toBe("反省会メモ");
     expect(res.body.session.marks).toEqual([{ label: "上", lat: 35.3, lon: 139.4 }]);
   });
+
+  // M-06修正（REVIEW-backend-2.md）: notes/marks/legsが以前は無検証で素通ししていた回帰テスト。
+  test("PATCH: legs が配列でない場合は400（不正な形を保存させない）", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(app)
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ legs: "L1" });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("PATCH: legs[].startSec が負の数の場合は400", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(app)
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ legs: [{ label: "L1", startSec: -1 }] });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("PATCH: marks[].lat が範囲外の場合は400", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(app)
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ marks: [{ label: "上", lat: 999, lon: 139.4 }] });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("PATCH: notes が文字列でない場合は400", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(app)
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ notes: { nested: "object" } });
+
+    expect(res.status).toBe(400);
+  });
 });

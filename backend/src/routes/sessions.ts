@@ -11,6 +11,7 @@ import {
 import { validateTrackPayload } from "../lib/validateTrackPayload";
 import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
 import { validatePublishPayload } from "../lib/validatePublishPayload";
+import { validateSessionPatchPayload } from "../lib/validateSessionPatchPayload";
 import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
@@ -174,6 +175,14 @@ router.patch(
         return;
       }
       data.title = title.trim();
+    }
+
+    // M-06修正: notes/marks/legsは以前無検証で素通ししていた。legsは公開ページにも出るため
+    // 構造検証を通す（他のJson列と同じ扱いに揃える）。
+    const validation = validateSessionPatchPayload({ notes, marks, legs });
+    if (!validation.ok) {
+      res.status(validation.status).json({ error: validation.error });
+      return;
     }
     if (notes !== undefined) data.notes = notes;
     if (marks !== undefined) data.marks = marks;
