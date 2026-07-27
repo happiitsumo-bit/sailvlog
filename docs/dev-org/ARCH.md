@@ -158,6 +158,16 @@ model Annotation {
 
 **サーバ側再検証（フロントパースを信頼しない）**: lat∈[-90,90]・lon∈[-180,180]・`gridJson.lat.length === gridJson.lon.length === pointCount`（gapsは点列と長さを揃えない別配列。各要素`[start,end]`が`0 ≦ start ≦ end < pointCount`であることを別途境界検証）・startSec+pointCount≦durationSec+誤差・tSec∈[0,durationSec]・rawGpx≦5MB・gridJson≦2MB・body≦2000字。`express.json({ limit: "8mb" })` は `/api/sessions` 配下のみに適用（既存ルートのlimitは変えない）。
 
+**v1由来の存続・凍結ルート（ADR-009 → ADR-012 で確定。実装: `backend/src/routes/teams.ts` `sailors.ts` `users.ts`・コミット `4d14081`・回帰テスト `t95`）**
+
+| I/F | 認証/認可 | 挙動 |
+|---|---|---|
+| `GET /api/teams` | JWT必須 | **自分の所属チームのみ**返す（`members some userId` で絞る。全チーム列挙は不可） |
+| `GET /api/teams/:slug` | JWT必須＋**当該チームのメンバー限定** | メンバーなら部員名簿込みで200。**非メンバーと不存在は区別せず404**（team slugの存在オラクルを作らない） |
+| `GET /api/users/me`・`PUT /api/users/me` | JWT必須・本人のみ | 存続（第三者への漏洩なし）。※既知の不一致: 現行コードは `router.all("/:username")` が `PUT /me` より先に登録されており **PUT /me が410になる**（REVIEW-backend-3.md M3-01・implementer修正待ち。本表は意図した契約を示す） |
+| `GET /api/sailors`・`GET /api/sailors/:username`・`GET /api/users/:username`・`GET /api/teams/:slug/articles`・`GET /api/teams/:slug/questions` | — | **410 Gone**（凍結。ADR-003方式。v3 frontend利用ゼロ・grep確認済み） |
+| `GET /api/boat-types` | 不要 | 公開のまま（艇種マスタのみ・個人情報なし） |
+
 **フロント主要ページ**: `/sessions`（一覧）・`/sessions/new`（取込ウィザード: ファイル選択→DOMParserパース→1Hzグリッド正規化→重ね描きプレビュー→保存）・`/sessions/[id]`（再生ページ。URLクエリ `?t=秒&boats=trackId,...&leg=n` を初期化時に読み、一時停止/シーク確定時のみ `history.replaceState` で書く）・**`/p/[slug]`（共有1の公開ビュー。認証不要・読み取り専用。`lib/replay/` をそのまま再利用し、描画コードは分岐も複製もしない。差分は「渡すデータが絞られている」ことと「編集UIを描画しない」ことだけ。`generateMetadata` でOGPを出力し、`unlisted` は `noindex`）**。
 
 **再生エンジンモジュール境界**（実装者向け）: `frontend/src/lib/gpx/`（パース＋正規化。DOM API以外に依存しない純関数、ユニットテスト対象）と `frontend/src/lib/replay/`（ReplayClock: rAF+refの時刻管理／CanvasRenderer: 投影・艇・テール・スケールバー描画／型定義）。ReactコンポーネントはこれらをuseRef経由で保持し、UIパネルの状態同期は250ms間隔のsetIntervalまたはrAF間引きで行う。SPIKE-01（`spike/`）は**参照のみ・コピー禁止**（使い捨て契約）。
@@ -169,7 +179,7 @@ model Annotation {
 - [x] 認可 — 全session系ルートでTeamMember検証ミドルウェア（新規 `requireTeamMember`）。削除系はuploader/author本人またはTeam admin。**注釈のXSS**: bodyはReactのテキストノードとしてのみ描画（dangerouslySetInnerHTML禁止）
 - [x] 凍結ルートは410 Goneを返す薄いハンドラに置換（404でなく410にして「意図的な凍結」をログで判別可能に）
 - [x] ログ/エラー通知 — M規模につきconsole＋Renderのログビューで可。JWT有効期限30mは反省会（〜2h）に短すぎるため、環境変数で2hに延長（コード変更なし）
-- [x] v1由来の閲覧系ルート（teams/sailors/users）は認証必須（ADR-009・回帰テスト`t95`。2026-07-26のBlocker R-01対応を追認）
+- [x] v1由来の閲覧系ルートの機密境界は「そのチームのメンバーか」— teams系は所属チーム限定（非メンバー404）、sailors/users/:username は410凍結、/users/me のみ本人限定で存続（ADR-009→**ADR-012で上書き**・回帰テスト`t95`。契約の一覧は§4の表）
 - [x] 非同期例外の安全網 — 全asyncハンドラを`wrap()`で包み、グローバルエラーハンドラ＋`process.on`多重防御でプロセス死を防ぐ（ADR-011・検証`t96`）。公開APIの実クライアントIPは共有シークレット一致時のみ信用（ADR-010）
 
 ## 6. ADR（重要な決定の記録）
@@ -227,7 +237,8 @@ model Annotation {
 - **選ばなかった側の最強の擁護論（A案=4色＋破線）:** 「rev.3 DSは4色を意図して選定した。6色目のピンク`#e2569a`はダーク面で`#ff5b52`（赤）と、紫`#a679e0`は`#2f9fd1`（青）と、劣化したプロジェクタや2型色覚では接近する。4色×線種なら色空間の距離を保てる」— 色距離の指摘自体は正当。ただしその解決手段（破線）が欠測表現と衝突する以上、A案は「色の曖昧さ」を「意味の曖昧さ」に置き換えているだけ。色が接近した場合の最終判別はどちらの案でもラベルに帰着し、ラベルが機能するなら6色の方が「一致→即判別」のケースが多い、が反駁。なお C案（マーカー形状差別化）は現在位置ドットには有効だがテール（線）には効かず、新規実装＋新しい視覚語彙の学習コストが発生するため、既に動いている2チャネルで足りる現状ではYAGNI違反として却下
 - **結果として受け入れるデメリット:** rev.3 DSの「艇色は4色」の意図的な絞り込みを撤回し6色に改める（theme.json は改訂済み、`design-system/styles.css` のダークブロック欠落は本ADRと同時に補完）。5・6艇目の色ペア接近リスクは残る（緩和はラベル。実プロジェクタでのデモリハ=④Demo Gateで色の判別性を目視確認する）。Team Leadの6色化指示（2026-07-25）は§4.2の既決裁定を確認せずに出された手続き違反だったが、結論としては本ADRで追認する（手続きの教訓: 既決事項の変更はADR経由で行う）
 
-### ADR-009: v1由来の閲覧系エンドポイント（teams/sailors/users）を認証必須化する
+### ADR-009: v1由来の閲覧系エンドポイント（teams/sailors/users）を認証必須化する 【ADR-012 により上書き】
+> **⚠️ 上書き（2026-07-28・REVIEW-backend-3.md M3-04対応）:** 本ADRの決定は **ADR-012 により覆された**。「認証済みか」は機密境界として不十分だった（registerが開放されているため）。また下記「却下した代替案①410凍結 — フロントが現用中のため不可」は `lib/teamRole.ts`（`GET /api/teams`・`/api/teams/:slug` のみ使用）への判断であって、`sailors`/`users/:username` には元々当てはまらなかった（frontend利用ゼロ・grep確認済み）。経緯を追えるよう本文は当時のまま残す。現行契約は §4 の表と ADR-012 が正
 - **状況:** ③Quality Gate の Blocker R-01（REVIEW.md）。共有1で公開ビュー `/p/[slug]` がチーム名を表示するようになり、`GET /api/teams`（未認証で全チームslug）→ `GET /api/teams/:slug`（未認証で部員全員のusername/specialty/experienceYears等）という2段の未認証呼び出しで**部員名簿が誰でも列挙できる経路**が初めて成立した。v1ではこれらは公開SNS前提の公開エンドポイントであり、部内限定化（ADR-003）の際も「存続ルート」として認証なしのまま残っていた
 - **決定:** `GET /api/teams`・`GET /api/teams/:slug`・`GET /api/sailors`・`GET /api/sailors/:username`・`GET /api/users/:username` に `authMiddleware` を付け、**部内ログイン済みユーザー限定**にする（2026-07-26 実装・Team Lead実測検証済み。回帰テスト `t95-auth-required-blocker.test.ts`）。`GET /api/boat-types` は艇種マスタのみで個人情報を含まないため公開のまま
 - **理由:** ADR-007が変えた脅威モデル（部内→インターネット全体）は、公開ペイロードだけでなく**同一アプリの全ドア**に適用されなければ SPEC §5.2 の保証（メンバー一覧は公開しない）が系全体で成立しない。フロントの利用箇所（`teamRole.ts`・セッション系ページ）はすべてJWT付きで呼んでおり、認証必須化で壊れる正当な利用者が存在しないことを確認済み
@@ -251,6 +262,18 @@ model Annotation {
 - **選ばなかった側の最強の擁護論:** 「`wrap()` は書き忘れたハンドラを守れない。パッチ方式なら全ルートが自動で守られる」— 事実。ただし多重防御（グローバルハンドラ＋process.on）により、適用漏れの最悪ケースでも「プロセス死」には至らない。Express 5移行時にはフレームワーク側でasync捕捉が入り、この問題自体が消える、が反駁
 - **結果として受け入れるデメリット:** 新規ルート追加時に `wrap()` を付ける規律が人力頼み（自動検知はS規模では見送り）
 
+### ADR-012: 名簿系APIの機密境界を「認証済みか」から「そのチームのメンバーか」へ変更する（ADR-009 を上書き）
+- **状況:** 監査ラウンド2（REVIEW-backend-2.md B-02 → REVIEW-backend-3.md M3-04）。ADR-009 は名簿系を `authMiddleware`（=認証済みか）で守ると決定したが、`POST /api/auth/register` は招待コードもメール確認も承認もなくJWTを返すため、**「認証済み」と「部外者でない」は同値ではない**。Team Lead が実測で再現済み（登録直後の部外者アカウントが部員名・specialty・experienceYears を取得できた）。機密境界は「認証済みか」ではなく「そのチームのメンバーという関係にあるか」に置くべきだった
+- **決定**（実装: コミット `4d14081`・回帰テスト `t95-auth-required-blocker.test.ts` を新契約に改訂済み。契約の一覧は §4 の表）:
+  - `GET /api/teams` → **自分の所属チームのみ**返す
+  - `GET /api/teams/:slug` → 非メンバーには**404**（403ではなく404にして「存在するが権限なし」を教えない＝team slugの存在オラクルを作らない。ADR-007の一律404と同じ思想）
+  - `GET /api/sailors`・`GET /api/sailors/:username`・`GET /api/users/:username`・`GET /api/teams/:slug/{articles,questions}` → **410凍結**（ADR-003方式）。sailors/users はチーム横断検索が用途そのものであり、v3で「見せてよい関係」を定義できない。v3 frontend からの利用ゼロ（grep確認済み・ヒット0）
+  - `GET/PUT /api/users/me` は本人限定・第三者への漏洩なしのため存続
+- **却下した代替案:** ①ADR-009 の「authMiddleware を付けるだけ」を維持 — register が無条件開放である限り、部外者は登録1回で「認証済み」になれるため境界として機能しない（Team Lead実測で突破済み） ②register を招待制化して ADR-009 を生かす — sailors/users の名簿機能自体が v3 frontend で使われておらず、使われない機能を守るために登録フローを複雑化するのは順序が逆（凍結解除の需要が出た時点で招待制/明示的な関係の設計とセットで再開する） ③非メンバーに403 — 存在オラクルになるため404に統一
+- **選ばなかった側の最強の擁護論:** 「根本原因は開放された register であり、そちらを閉じれば ADR-009 のままで足りた。機能を殺すのは過剰対応」— 正当。ただし register 閉鎖（招待制）は将来のチーム加入フロー設計とセットでないと決められず、7/31 までに安全側へ倒すには「露出面そのものを消す」方が確実。凍結は410で意図が明示され、復活の判断点も ADR-003/BL-01 の既存の枠組みに乗る、が反駁
+- **影響（API契約の変更・Codex/frontend への申し送り）:** `GET /api/teams` は全チームではなく所属チームのみ返す（現利用箇所 `sessions/page.tsx`・`sessions/new/page.tsx` のチーム選択、`lib/teamRole.ts` の admin判定は、いずれも所属チームだけで成立するため互換）。`GET /api/teams/:slug` は非メンバーに404。`sailors`/`users/:username`/`teams/:slug/{articles,questions}` は410
+- **既知の副作用（未解決・オーナー判断待ち）:** REVIEW-backend-3.md **B3-02** — 新規ユーザーがチームに加入する経路がバックエンドに存在しないため、自チーム限定化により、登録直後のユーザーは `GET /api/teams` が空配列になり**「壊れていることすら見えない」**状態になった（修正前は「全チームが見え、選ぶと403」で壊れ方が見えた）。加入API新設か「オーナーがDB/seedで投入する運用」の明文化かは本ADRの範囲外として**未決のまま明記**する（解決策の実装はオーナー判断待ち）
+
 ## 7. リスクと縮退プラン
 
 - **一番危ない残リスク: スマホ実機性能が未計測のまま設計を確定していること。** PC実測（M5・Headless Chrome）はPASSしたが、PRD要件「スマホでも閲覧」の実機検証はオーナー待ち（B-2）。ただし①主利用文脈はプロジェクタ/PC（PRD§3）②PC側の余裕が極端（p95 0.2ms ≒ 予算16.7msの1/80）で、ミドルレンジスマホがPCの50倍遅くてもPASS圏内、の2点からFAIL確率は低いと見積もる。**検証プラン:** `spike/README.md` の手順でオーナーがS1（TASKS.md 実装スライス1）着手前〜並行に計測（基準: 30fps/シーク1s/ロード5s/クラッシュなし）。FAIL時はSPIKE-01計画の縮退策（①描画間引き→②Path2D差分→③テール上限→④OffscreenCanvas/WebGL=新技術枠を解放）を順に適用。本線（PC）は影響を受けない
@@ -267,5 +290,5 @@ model Annotation {
 - [x] システム構成が1画面で説明できる（§2）
 - [x] データモデルとI/Fが実装者が迷わない粒度である（§3 Prisma具体形・§4 検証値込み）
 - [x] セキュリティ最低ラインを確認した（§5）
-- [x] 重要決定がADRになっている（11件。うち5件はTeam Lead指定の必須5本: 描画方式/保存形式/基盤への載せ方/ホスティング/v2方針差分。ADR-007=共有1、ADR-008=6艇識別、ADR-009〜011=③Quality Gate対応で変わった外部契約・運用前提の追認〈2026-07-27監査で追記〉）
+- [x] 重要決定がADRになっている（12件。うち5件はTeam Lead指定の必須5本: 描画方式/保存形式/基盤への載せ方/ホスティング/v2方針差分。ADR-007=共有1、ADR-008=6艇識別、ADR-009〜011=③Quality Gate対応で変わった外部契約・運用前提の追認〈2026-07-27監査で追記〉、ADR-012=名簿系機密境界の変更＝ADR-009の上書き〈2026-07-28・M3-04対応〉）
 - [x] TASKS.md への分解が完了した
