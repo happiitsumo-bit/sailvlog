@@ -142,3 +142,45 @@ describe("T-95/B-02修正: 名簿系APIの機密境界", () => {
     expect(res.body.bio).toBe("PUT /me が410に飲まれていないことの確認");
   });
 });
+
+// M3-05回帰テスト（2026-07-28, REVIEW-backend-3.md）: GET :id(R-02)・一覧(M-02)では
+// publicViewCountが除外済みだったが、POST/PATCH /api/sessionsだけprisma呼び出しの
+// 戻り値をそのまま返しており同じ指摘が3回目出ていた。共通シリアライザ(lib/serializeSession.ts)
+// への一本化で、この2経路が塞がれたことを固定する。
+describe("M3-05: POST/PATCH /api/sessions のレスポンスにpublicViewCountが含まれない", () => {
+  test("POST /api/sessions のレスポンスにpublicViewCountが含まれない", async () => {
+    const uploader = await registerUser("m305-post");
+    const team = await createTeam("m305-post");
+    await addMember(uploader.userId, team.id);
+
+    const res = await request(app)
+      .post("/api/sessions")
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ title: "M3-05確認用", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 600, teamId: team.id });
+
+    expect(res.status).toBe(201);
+    expect(res.body.session).not.toHaveProperty("publicViewCount");
+    expect(JSON.stringify(res.body)).not.toContain("publicViewCount");
+  });
+
+  test("PATCH /api/sessions/:id のレスポンスにpublicViewCountが含まれない（公開ビュー数がある状態でも）", async () => {
+    const uploader = await registerUser("m305-patch");
+    const team = await createTeam("m305-patch");
+    await addMember(uploader.userId, team.id);
+    const createRes = await request(app)
+      .post("/api/sessions")
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ title: "PATCH前", type: "practice", startedAt: "2026-07-24T05:00:00.000Z", durationSec: 600, teamId: team.id });
+    const sessionId = createRes.body.session.id as number;
+    await prisma.session.update({ where: { id: sessionId }, data: { publicViewCount: 7 } });
+
+    const res = await request(app)
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ title: "M3-05 PATCH確認用" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.session).not.toHaveProperty("publicViewCount");
+    expect(JSON.stringify(res.body)).not.toContain("publicViewCount");
+  });
+});

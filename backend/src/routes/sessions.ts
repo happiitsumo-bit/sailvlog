@@ -12,6 +12,7 @@ import { validateTrackPayload } from "../lib/validateTrackPayload";
 import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
 import { validatePublishPayload } from "../lib/validatePublishPayload";
 import { validateSessionPatchPayload } from "../lib/validateSessionPatchPayload";
+import { serializeSession } from "../lib/serializeSession";
 import { wrap } from "../lib/asyncHandler";
 
 const router = Router();
@@ -74,7 +75,8 @@ router.post(
       },
     });
 
-    res.status(201).json({ session });
+    // M3-05修正: publicViewCountはPRD §6により非公開。共通シリアライザで一貫して除外する。
+    res.status(201).json({ session: serializeSession(session) });
   })
 );
 
@@ -154,9 +156,8 @@ router.get(
 
     // Quality Gate Major修正: publicViewCountはPRD §6により「SQLでのみ参照・UI表示や成功指標にしない」
     // と定められている非KPI項目。部内API(GET /api/sessions/:id)のレスポンスから除外する。
-    const { publicViewCount: _publicViewCount, ...session } = sessionRow ?? {};
-
-    res.json({ session: sessionRow ? session : null, tracks, annotations });
+    // M3-05修正: 除外ロジックをlib/serializeSession.tsに一本化（POST/PATCHと同じ関数を使う）。
+    res.json({ session: sessionRow ? serializeSession(sessionRow) : null, tracks, annotations });
   })
 );
 
@@ -193,7 +194,8 @@ router.patch(
       data,
     });
 
-    res.json({ session });
+    // M3-05修正: publicViewCountはPRD §6により非公開。共通シリアライザで一貫して除外する。
+    res.json({ session: serializeSession(session) });
   })
 );
 
