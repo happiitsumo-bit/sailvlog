@@ -118,6 +118,27 @@ export function _resetAuthRateLimiterForTests(): void {
   authIpLimiter.reset();
 }
 
+// M3-02修正（2026-07-28, REVIEW-backend-3.md）: registerにはレート制限が無く、bcrypt.hash(cost 12)
+// （compareより重い）を毎秒20回叩けばlibuvスレッドプール(既定4)が飽和し、反省会中に公開ページも
+// 巻き込まれて固まりうる、という指摘。registerには「既存アカウント」の概念が無く成功/失敗の区別が
+// 意味を持たないため、loginのようなemail単位の判定/消費分離は不要で、IP単位の単純な固定ウィンドウ
+// でDoSの蓋をかければ足りる（この点はlogin側より単純）。上限は100/60秒とした。
+// 「毎秒20回」という脅威に対しては100/60秒(≒1.7回/秒)でも桁違いに絞れており脅威は解消するが、
+// backendの結合テストは`createSessionAsMember`等のヘルパー経由で1ファイルあたり最大31回程度
+// registerを叩く（t12-sessions-api.test.ts実測）ため、20/60秒のような値だとテストスイート自体が
+// 誤って弾かれる（実測して確認済み）。将来テストが増える余地を見て100とした。
+const registerIpLimiter = createFixedWindowLimiter(60 * 1000, 100);
+
+/** IP単位の登録レート制限。直近60秒で100回を超えていなければtrue（呼ぶたびに1回消費する）。 */
+export function checkRegisterRateLimit(ip: string, now: number = Date.now()): boolean {
+  return registerIpLimiter.check(ip, now);
+}
+
+/** テスト専用: register用バケット状態をリセットする。本番コードからは呼ばない。 */
+export function _resetRegisterRateLimiterForTests(): void {
+  registerIpLimiter.reset();
+}
+
 // T-31: publicViewCount加算の間引き（同一IP・同一スラッグは5分に1回まで。SPEC §5.4）。
 const VIEW_THROTTLE_MS = 5 * 60 * 1000;
 const lastViewedAt = new Map<string, number>();

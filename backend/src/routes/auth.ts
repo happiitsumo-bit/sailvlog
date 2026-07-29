@@ -3,7 +3,12 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../database";
 import { wrap } from "../lib/asyncHandler";
-import { peekAuthEmailRateLimit, recordAuthEmailFailure, checkAuthIpRateLimit } from "../lib/rateLimiter";
+import {
+  peekAuthEmailRateLimit,
+  recordAuthEmailFailure,
+  checkAuthIpRateLimit,
+  checkRegisterRateLimit,
+} from "../lib/rateLimiter";
 import { validateRegisterPayload } from "../lib/validateRegisterPayload";
 
 const router = Router();
@@ -15,7 +20,15 @@ const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? "30m") as jwt.SignOptions[
 
 // POST /api/auth/register
 // Quality Gate Major2修正: wrap()でasyncハンドラの例外をグローバルエラーハンドラへ確実に渡す
+// M3-02修正（2026-07-28, REVIEW-backend-3.md）: レート制限が無く、bcrypt.hash(cost 12)を
+// 高頻度で叩くとlibuvスレッドプールが飽和する（詳細はlib/rateLimiter.tsのコメント）。
 router.post("/register", wrap(async (req: Request, res: Response): Promise<void> => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  if (!checkRegisterRateLimit(ip)) {
+    res.status(429).json({ error: "リクエストが多すぎます。しばらくしてから再度お試しください" });
+    return;
+  }
+
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
