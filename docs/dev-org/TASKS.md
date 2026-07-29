@@ -49,6 +49,7 @@
   - **副産物（本タスクの最大の収穫）**: 上記3の根本原因は **backendのCIに型チェックもビルドも無かったこと**。`ts-node-dev --transpile-only` も `ts-jest`(isolatedModules) も型検査を行わないため、**型エラーを検出する経路がどこにも存在しなかった**（frontendジョブには `tsc --noEmit`/`build`/`test` が揃っていた）。`.github/workflows/test.yml` のbackendジョブに `tsc --noEmit` と `npm run build` を追加して塞いだ（`309b035`）
   - **未実施・次回の着手条件**: ①Renderの設定（Branch=`v3/replay-mvp` / Root Directory=`backend` / Auto-Deploy=**Off**）②環境変数の投入（`DATABASE_URL` は **`-pooler` を除いた直結URL**。プール経由だとmigrationが失敗するため）③`prisma migrate deploy` を**ローカルから**実行（本番イメージは `npm install --omit=dev` で `prisma` CLI が入らないためRender上では実行不可）④Vercel未着手
   - **安全上の注意（2026-07-27・REVIEW-backend-2 B-01）**: マイグレーション実行時に `export DATABASE_URL=<本番>` を**使わないこと**。テスト用の `.env.test` はシェルの既存環境変数を上書きしないため、同じシェルで `npm test` を叩くと本番DBが全テーブルTRUNCATEされる。コマンド単位（`DATABASE_URL="..." npx prisma migrate deploy`）で渡す
+  - **安全上の注意（2026-07-29・m3-04, REVIEW-backend-3.md）**: Renderに `JWT_SECRET` を設定する際は①**32文字以上**かつ既知プレースホルダでないこと（本番=`NODE_ENV=production`では`assertJwtSecretConfigured.ts`が満たさない値でプロセス起動自体を拒否する）②**値を変更すると発行済みJWT（有効期限2h）が全て即座に無効になる**（反省会当日に変更・再デプロイすると、その時点でログイン中の全員が再ログインを強いられる。変更するなら反省会の前後を避ける）の2点を確認すること。同内容を `backend/.env.example` のJWT_SECRETコメントにも記載済み
 
 ### S1: 〔E2〕縦貫通 — 「GPX取込→複数艇再生→注釈→部内共有」の動く最小版（着手条件: B-1サブゲートでE2確定）
 
