@@ -355,4 +355,38 @@ describe("GET/PATCH/DELETE /api/sessions/:id 認可 (T-12)", () => {
 
     expect(res.status).toBe(400);
   });
+
+  // m3-04修正（REVIEW-backend-3.md）: labelが非空文字列であることしか見ておらず、notesには
+  // 4000字上限があるのに非対称で無制限だった回帰テスト。
+  test("PATCH: marks[].label が201文字の場合は400（200文字以内が上限）", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(getServer())
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ marks: [{ label: "あ".repeat(201), lat: 35.3, lon: 139.4 }] });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("PATCH: marks[].label が200文字ちょうどの場合は200で保存される", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const label = "あ".repeat(200);
+    const res = await request(getServer())
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ marks: [{ label, lat: 35.3, lon: 139.4 }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.session.marks[0].label).toBe(label);
+  });
+
+  test("PATCH: legs[].label が201文字の場合は400（200文字以内が上限）", async () => {
+    const { sessionId, uploader } = await createSessionAsMember();
+    const res = await request(getServer())
+      .patch(`/api/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ legs: [{ label: "あ".repeat(201), startSec: 0 }] });
+
+    expect(res.status).toBe(400);
+  });
 });
