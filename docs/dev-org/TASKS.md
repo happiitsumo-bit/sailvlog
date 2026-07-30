@@ -38,7 +38,16 @@
   - 検証: 凍結エンドポイントがcurlで410を返し、`POST /api/auth/login`・`GET /api/teams` が200のまま。この2系統のsupertestスモークテストを新設して通す
   - **検証結果（2026-07-24）**: curl実測 — `/api/articles`,`/api/tags`,`/api/bookmarks`,`/api/questions`,`/api/posts`,`/api/courses`,`POST /api/users/:u/follow` 全て410。`POST /api/auth/login`は既存ユーザーで401(想定どおり)・新規register→loginで200/201。`GET /api/teams`は200。supertest `backend/src/__tests__/t01-frozen-routes.test.ts` 9件全PASS（`docker compose exec backend npx jest t01-frozen-routes`）。フロントNavbar/TopBarの「Feed/Q&A/Learn」ナビリンクと「Write(→/articles/new)」ボタンを除去（凍結ページ自体は残置・res.ok判定で本文表示済みのコンポーネントはグレースフルデグレード確認のみで未改変）
   - 依存: なし
-- [ ] T-02: 0円ホスティング疎通〔共通〕
+- [x] T-02: 0円ホスティング疎通〔共通〕 — **完了（2026-07-30）**
+  - **検証結果（2026-07-30・Team Lead実測 ＋ オーナーによる実機ログイン確認）**: Neon(DB) ＋ Render(Express/Docker) ＋ Vercel(Next.js) の3層が疎通。**公開URL: https://sailvlog.vercel.app** / API: https://sailvlog-rfxx.onrender.com
+    - Neon: `prisma migrate deploy` をローカルから実行してテーブル作成。`POST /api/auth/register` が **201**（読み書き成功）
+    - Render: `/api/health` **200**（0.22秒）／`/api/teams` 未認証 **401**（Blocker R-01/B-02の修正が本番で有効）／`/api/articles`・`/api/sailors` **410**（v2凍結・ADR-012が有効）／JWTの `exp-iat` = **2時間**（`JWT_EXPIRES_IN=2h` が有効）
+    - Vercel: `/` `/login` `/handbook` `/sessions` すべて **200**。JSチャンク（`app/login/page-*.js`）に `sailvlog-rfxx.onrender.com` が焼き込まれていることを実測（`NEXT_PUBLIC_API_URL` が有効）
+    - CORS: `Origin: https://sailvlog.vercel.app` に対し `access-control-allow-origin` が正しく返る
+    - 画面: ログイン画面がDS rev.3適用済みで表示され、ナビゲーションがv3の2項目（Sessions / Handbook）のみ＝T-26のv2削除も本番反映を確認
+    - **オーナーが実機でログインと動作確認を完了**（2026-07-30）。※発見された課題は別途トリアージする
+  - **リリース方式の変更（オーナー裁定 2026-07-30）**: `main` を本番リリースブランチにし、`v3/replay-mvp` からマージして公開した（マージコミット `6900a53`）。理由は、Vercelのプレビューデプロイが Deployment Protection により未ログインでは閲覧できず部員に配れなかったため。**③Quality Gate 未通過のまま公開した判断であり、`GATES.md` ③に記録済み**
+  - **cold start**: 計測時は既にウォーム状態で0.22秒。初回アクセス時の実測は未取得（検証欄の「cold start復帰時間を1回記録」は**未達**。次回アイドル後に取得する）
   - 成果物: Neon(DB)＋Render(Express/Docker)＋Vercel(Next.js)へ現行アプリをデプロイ。`.env.example` 整備、CORS_ORIGIN・JWT_EXPIRES_IN=2h 設定、migration実行
   - 検証: 公開URLでログイン→チームページ表示がEnd-to-Endで通る（スマホ回線からも確認）。cold start復帰時間を1回記録
   - 依存: T-01, B-3
@@ -382,6 +391,16 @@
 9. **未認証で読めるコードを書くときは、含めるものだけを列挙する**（ADR-007）。公開レスポンスに新しい値を足すときは、同時にT-31の禁止キー非含有テストを更新する。「除外し忘れ」が事故になる構造を作らない
 
 ## 発見事項（実装中に見つけたスコープ外の課題）
+
+- （Team Lead 2026-07-30・T-02）**デプロイで踏んだ罠4件。いずれも「エラーメッセージから原因に辿り着けない」種類だったので記録する。**
+  1. **Renderのブランチが既定の `main` になる（2回踏んだ）** — サービス作成時に既定へ戻る。`main` はピボット前（`29e684d`）なのでv3の成果が1つも入らない。ビルドログの `Checking out commit ... in branch main` で気づける
+  2. **Dockerfile Path にディレクトリを指定していた** — `backend/` ではなく `backend/Dockerfile`（ファイル）を指す。モノレポなので Root Directory か Docker Build Context Directory の**どちらか一方**に `backend` を入れる。両方に入れると `backend/backend` を探して失敗する
+  3. **Vercelの Framework Preset が `Other` になっていた（最も分かりにくい）** — インポート時にVercelがモノレポを検出して frontend/backend の2サービス構成を提案し、backendを外す操作の際にプリセットが落ちたと思われる。**デプロイは「Ready」になるのに全パスがプラットフォーム404**（`x-vercel-error: NOT_FOUND`）。「失敗」ではなく「間違ったものを正しくビルドしていた」ため、ログを見ても異常が見えない。判別法: 404の本文が Next.js の404ページではなくプレーンテキストの `NOT_FOUND` なら、ルーティング以前の問題
+  4. **Vercel の Deployment Protection（Standard Protection）が本番にも効いていた** — `/` が `vercel.com/sso-api` へ302し、**Vercelにログインしていない相手には中身が返らない**。プレビューだけの制約と思い込むと詰まる。Settings → Deployment Protection → `Require Log In` をOFFで解除（Hobbyプランでも操作可能）
+  - **CORSは最後に確認すること**: `curl` は通るのでAPIが生きているように見えるが、`Origin` ヘッダを付けないと検証にならない。`curl -H "Origin: <本番URL>" .../api/health` で `access-control-allow-origin` が返るかを見る。また **Renderは環境変数を保存しても自動再起動しない場合がある**（Auto-Deploy Off時）。既定値（`localhost:3001`）でヘッダが返るなら「値の間違い」ではなく「未反映」と切り分けられる
+  - **マイグレーションはローカルから流す**: 本番イメージは `npm ci --omit=dev` で `prisma` CLI が入らないため、RenderのPre-Deploy Commandに書いても失敗する。`export` せず `DATABASE_URL="..." npx prisma migrate deploy` とコマンド単位で渡す（テスト運用ルール3）
+  - **`DATABASE_URL` はNeonの `-pooler` を除いた直結URLを使う**: `schema.prisma` に `directUrl` が無いため、プール経由だとDDLがセッションを跨げずマイグレーションが失敗する
+- （Team Lead 2026-07-30）**作業ツリーに事故由来の未コミット変更を発見し `git stash` で退避した**（`stash@{0}`: "accidental npm i (i/npm/prisma7)"）。内容は `backend/package.json` に `i@^0.3.7`・`npm@^12.0.1` が追加され、`prisma` が `^5.14.0` → `^7.9.1` に上がっていたもの。`@prisma/client` は5系のままなので**メジャー不整合でマイグレーションとクライアント生成が壊れる**。誤った `npm i` の副作用と推定。破棄はしていないので `git stash pop` で復元可能。**不要なら stash を捨てる判断はオーナーに委ねる**
 
 - （実装者 2026-07-25・T-26/DS適用）**このセッションはMac環境でDocker Desktopが稼働しており、`docker-compose.yml`のコンテナ（`sailvlog-frontend-1`/`sailvlog-backend-1`/`sailvlog-db-1`）が別セッションによって既に起動済みだった**（bind mountのためホスト側のfrontend/backendコード変更が即座に反映される）。parallel-dev運用上、複数エージェントが同一ワークツリー・同一コンテナ環境を同居利用している状態を`git worktree list`ではなく`docker ps`で検知した形。破壊的操作（コンテナ再作成・DB reset等）はせず、既存コンテナに対してHTTP経由の読み取り・テストユーザー登録のみ行った。テスト用ユーザー（`t26test<timestamp>@example.com`）を1件、開発用DBに残置（チーム未所属・パスワードはテスト専用文字列のみ・実害なし）。
 - （実装者 2026-07-25・T-26）ログイン成功直後、TopBarの`@username`表示が即座に反映されない（`Login`/`Join`ボタンのまま）ことを実ブラウザE2Eで確認。原因は`TopBar`の`useEffect(() => setUsername(getUser()?.username), [])`が空依存配列でマウント時1回しか走らず、`layout.tsx`のトップバーはNext.js App Routerのルート跨ぎで再マウントされないため（`router.refresh()`はサーバコンポーネントのみ再検証し、この既にマウント済みのクライアントコンポーネントのstateは更新されない）。**この挙動は今回の変更で新規に作ったものではなく、書き換え前のTopBar.tsxも同一のuseEffectパターンだったため、既存の潜在バグ**（`/sessions`への遷移自体・データ取得は正常）。修正には認証状態のグローバル管理（Context等）かpathname変化を監視するuseEffectが必要で、DS適用・T-26どちらのスコープでもないため実装者判断では直さず記録のみ。
