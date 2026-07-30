@@ -1,45 +1,83 @@
 /* =============================================================
-   sailvlog — "Claude-paper" edition
-   Warm cream surfaces · Source Serif 4 · Terracotta accent
+   sailvlog v3 — Design System rev.3（「海図と水面の光」）適用
+   正本: design-system/styles.css / theme.json（docs/dev-org/UI-DESIGN.md §0・§7-9）
+   旧v1"Claude-paper"の値は廃止し、レガシー変数名はDSトークンへのエイリアスとして残す
+   （既存コンポーネントCSS・inline styleを書き換えずに配色だけ差し替えるため）。
+   外部フォント読み込み（Google Fonts）はDS方針により撤去（CSP対策・オフライン耐性・Do/Don't参照）。
    ============================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
-/* ===== Design Tokens ===== */
+/* ===== Design Tokens（design-system/styles.css・theme.json 準拠。ライト） ===== */
 :root {
-  /* Surface — warm paper */
-  --paper:      #F4F0E8;
-  --paper-2:    #EDE7DA;
-  --card:       #FBF9F4;
-  --card-warm:  #F7F2E6;
+  /* --- DSアクセント（マリンチャート） --- */
+  --color-accent:         #0b6a9e;
+  --color-accent-hover:   #095778;
+  --color-accent-pressed: #074562;
+  --color-accent-tint:    rgba(11, 106, 158, 0.12);
 
-  /* Legacy aliases (kept for backward compat) */
+  /* --- DSサーフェス --- */
+  --color-bg-canvas:    #f2f2f5;
+  --color-bg-primary:   #ffffff;
+  --color-bg-secondary: #f7f7f8;
+  --color-bg-elevated:  #ffffff;
+
+  /* --- DSラベル（本文色） --- */
+  --color-label-primary:   #1c1c1f;
+  --color-label-secondary: rgba(28,28,31,0.6);
+  --color-label-tertiary:  rgba(28,28,31,0.38);
+
+  /* --- DSセパレータ・セマンティック --- */
+  --color-separator: rgba(60,60,67,0.29);
+  --color-success: #1fa363;
+  --color-warning: #d98a12;
+  --color-danger:  #e0392f;
+  --color-info:    #0b6a9e;
+  --color-race:     #e0392f;
+  --color-practice: #0b6a9e;
+
+  /* --- DS艇識別カラー（4色のみ。5・6艇目は同色を再利用 — UI-DESIGN §4.2） --- */
+  --color-boat-1: #0b6a9e;
+  --color-boat-2: #e0392f;
+  --color-boat-3: #d98a12;
+  --color-boat-4: #1fa363;
+  --color-boat-5: #7a4bc4;
+  --color-boat-6: #c23e83;
+
+  /* --- 柱1「海図」・柱2「水面と光」。テーマ非連動で:rootに固定（design-system/readme.md） --- */
+  --color-chart-grid:  rgba(11, 106, 158, 0.10);
+  --color-chart-line:  rgba(28, 28, 31, 0.12);
+  --color-compass-ink: rgba(28, 28, 31, 0.16);
+  --gradient-water-dawn: linear-gradient(160deg, #0c2436 0%, #0c5678 42%, #1c7f96 68%, #e3924f 100%);
+  --gradient-water-deep: linear-gradient(165deg, #030d16 0%, #0a2f42 40%, #0b5372 72%, #12809e 100%);
+  --color-chart-grid-on-water: rgba(255, 255, 255, 0.10);
+  --color-chart-line-on-water: rgba(255, 255, 255, 0.16);
+  --color-hero-label-primary:   rgba(255, 255, 255, 0.96);
+  --color-hero-label-secondary: rgba(255, 255, 255, 0.74);
+
+  /* --- レガシー変数名 → DSトークンのエイリアス（既存クラス名・inline styleを維持したまま配色差替） --- */
+  --paper:      var(--color-bg-canvas);
+  --paper-2:    var(--color-bg-secondary);
+  --card:       var(--color-bg-elevated);
+  --card-warm:  var(--color-bg-secondary);
   --ink:        var(--paper);
   --ink-2:      var(--card);
   --ink-3:      var(--card-warm);
-  --ink-4:      #E5DFD0;
+  --ink-4:      var(--color-label-tertiary);
 
-  /* Foreground — deep warm ink */
-  --fg:         #1F1E1B;
-  --fg-2:       #3D3A33;
-  --fg-mute:    #6B6760;
-  --fg-dim:     #9A968C;
-
-  /* Legacy aliases */
+  --fg:         var(--color-label-primary);
+  --fg-2:       var(--color-label-primary);
+  --fg-mute:    var(--color-label-secondary);
+  --fg-dim:     var(--color-label-tertiary);
   --bone:       var(--fg);
   --bone-2:     var(--fg-2);
   --bone-mute:  var(--fg-mute);
   --bone-dim:   var(--fg-dim);
 
-  /* Accents */
-  --terra:      #C96442;
-  --terra-2:    #B5553A;
-  --terra-soft: #E8B8A6;
-  --sage:       #6B8E5A;
-  --sage-2:     #57764B;
-  --dijon:      #C39A3F;
-
-  /* Legacy accent aliases */
+  --terra:      var(--color-accent);
+  --terra-2:    var(--color-accent-hover);
+  --terra-soft: var(--color-accent-tint);
+  --sage:       var(--color-success);
+  --sage-2:     #16824f;
+  --dijon:      var(--color-warning);
   --flare:      var(--terra);
   --flare-2:    var(--terra-2);
   --cyan:       var(--sage);
@@ -47,33 +85,103 @@
   --lime:       var(--dijon);
   --lime-2:     var(--dijon);
 
-  /* Borders */
-  --border:        rgba(31,30,27,0.10);
-  --border-strong: rgba(31,30,27,0.18);
-  --border-flare:  rgba(201,100,66,0.40);
-  --border-cyan:   rgba(107,142,90,0.40);
+  --border:        var(--color-separator);
+  --border-strong: rgba(28,28,31,0.28);
+  --border-flare:  rgba(11,106,158,0.40);
+  --border-cyan:   rgba(31,163,99,0.40);
 
-  /* Elevation — soft, no neon */
-  --shadow-sm:    0 1px 2px rgba(31,30,27,0.04), 0 2px 8px rgba(31,30,27,0.04);
-  --shadow:       0 4px 16px rgba(31,30,27,0.06), 0 12px 32px rgba(31,30,27,0.05);
-  --shadow-lg:    0 8px 28px rgba(31,30,27,0.08), 0 20px 50px rgba(31,30,27,0.06);
+  --shadow-sm:    0 1px 2px rgba(28,28,31,0.05), 0 2px 8px rgba(28,28,31,0.04);
+  --shadow:       0 4px 16px rgba(28,28,31,0.07), 0 12px 32px rgba(28,28,31,0.05);
+  --shadow-lg:    0 8px 28px rgba(28,28,31,0.09), 0 20px 50px rgba(28,28,31,0.06);
   --shadow-flare: var(--shadow);
   --shadow-cyan:  var(--shadow);
 
-  /* Radius */
-  --radius-xs: 4px;
+  --radius-xs: 8px;
   --radius-sm: 8px;
-  --radius:    12px;
-  --radius-lg: 20px;
+  --radius:    10px;
+  --radius-lg: 16px;
 
-  /* Type */
-  --font-display: 'Source Serif 4', 'Tiempos', 'Georgia', serif;
-  --font-body:    'Inter', 'Hiragino Sans', 'Noto Sans JP', -apple-system, sans-serif;
-  --font-mono:    'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  /* --- タイポ: DS指定のシステムサンセリフ一本（外部フォント読み込みなし） --- */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Roboto, sans-serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Roboto, sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
 
-  /* Easing */
   --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
   --ease-snap: cubic-bezier(0.7, 0, 0.3, 1);
+}
+
+/* ===== ダークテーマ（DS rev.3。OS設定 prefers-color-scheme、または明示的な [data-theme] で切替） ===== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-accent: #177bae; /* 2026-07-25: #2f9fd1(white-on-accent 3.0:1)から是正。white-on-accent ≈4.69:1(UI-DESIGN §7項目9) */
+    --color-accent-hover: #2f95c9;
+    --color-accent-pressed: #49aad9;
+    --color-accent-tint: rgba(23, 123, 174, 0.16);
+
+    --color-bg-canvas: #000000;
+    --color-bg-primary: #1c1c1e;
+    --color-bg-secondary: #2c2c2e;
+    --color-bg-elevated: #242426;
+
+    --color-label-primary: #f2f2f7;
+    --color-label-secondary: rgba(242,242,247,0.6);
+    --color-label-tertiary: rgba(242,242,247,0.38);
+
+    --color-separator: rgba(84,84,88,0.6);
+
+    --color-success: #34c07a;
+    --color-warning: #f0a72e;
+    --color-danger: #ff5b52;
+    --color-info: #2f9fd1;
+    --color-race: #ff5b52;
+    --color-practice: #2f9fd1;
+
+    --color-boat-1: #2f9fd1;
+    --color-boat-2: #ff5b52;
+    --color-boat-3: #f0a72e;
+    --color-boat-4: #34c07a;
+    --color-boat-5: #a679e0;
+    --color-boat-6: #e2569a;
+
+    --color-chart-grid: rgba(47, 159, 209, 0.16);
+    --color-chart-line: rgba(242, 242, 247, 0.10);
+    --color-compass-ink: rgba(242, 242, 247, 0.14);
+  }
+}
+:root[data-theme="dark"] {
+  --color-accent: #177bae; /* 2026-07-25: #2f9fd1(white-on-accent 3.0:1)から是正。white-on-accent ≈4.69:1(UI-DESIGN §7項目9) */
+  --color-accent-hover: #2f95c9;
+  --color-accent-pressed: #49aad9;
+  --color-accent-tint: rgba(23, 123, 174, 0.16);
+
+  --color-bg-canvas: #000000;
+  --color-bg-primary: #1c1c1e;
+  --color-bg-secondary: #2c2c2e;
+  --color-bg-elevated: #242426;
+
+  --color-label-primary: #f2f2f7;
+  --color-label-secondary: rgba(242,242,247,0.6);
+  --color-label-tertiary: rgba(242,242,247,0.38);
+
+  --color-separator: rgba(84,84,88,0.6);
+
+  --color-success: #34c07a;
+  --color-warning: #f0a72e;
+  --color-danger: #ff5b52;
+  --color-info: #2f9fd1;
+  --color-race: #ff5b52;
+  --color-practice: #2f9fd1;
+
+  --color-boat-1: #2f9fd1;
+  --color-boat-2: #ff5b52;
+  --color-boat-3: #f0a72e;
+  --color-boat-4: #34c07a;
+  --color-boat-5: #a679e0;
+  --color-boat-6: #e2569a;
+
+  --color-chart-grid: rgba(47, 159, 209, 0.16);
+  --color-chart-line: rgba(242, 242, 247, 0.10);
+  --color-compass-ink: rgba(242, 242, 247, 0.14);
 }
 
 /* ===== Reset ===== */
@@ -2137,26 +2245,20 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-/* ===== AppShell Layout ===== */
+/* ===== AppShell Layout（v3, 2026-07-25 T-26で単カラム化） =====
+   v2の左ナビ(ClassSidebar)・右サイドバー(RightSidebar)は削除対象の
+   articles/questions/boat/teams/sailors等にしか出口が無かったため、
+   シェルはトップバー＋単一メインカラム＋モバイル下部タブバーへ簡素化した。 */
 :root {
-  --sidebar-width: 240px;
-  --sidebar-collapsed: 64px;
   --topbar-height: 52px;
-  --right-sidebar-width: 280px;
-  --sidebar-bg: var(--paper-2);
   --topbar-bg: var(--card);
 }
 
 .app-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--right-sidebar-width);
-  grid-template-rows: var(--topbar-height) 1fr;
   min-height: 100vh;
 }
 
 .app-topbar {
-  grid-column: 1 / -1;
-  grid-row: 1;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -2166,43 +2268,13 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   padding: 0 1.25rem;
   gap: 1rem;
+  height: var(--topbar-height);
 }
-
-.app-left-sidebar {
-  grid-column: 1;
-  grid-row: 2;
-  position: sticky;
-  top: var(--topbar-height);
-  height: calc(100vh - var(--topbar-height));
-  overflow-y: auto;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 0.75rem 0;
-  scrollbar-width: none;
-}
-.app-left-sidebar::-webkit-scrollbar { display: none; }
 
 .app-main {
-  grid-column: 2;
-  grid-row: 2;
   min-width: 0;
   padding: 2rem 2.5rem;
 }
-
-.app-right-sidebar {
-  grid-column: 3;
-  grid-row: 2;
-  position: sticky;
-  top: var(--topbar-height);
-  height: calc(100vh - var(--topbar-height));
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  padding: 1.5rem 1.25rem;
-  scrollbar-width: none;
-}
-.app-right-sidebar::-webkit-scrollbar { display: none; }
 
 /* ===== Sidebar Nav Items ===== */
 .sidebar-nav-section {
@@ -2444,31 +2516,12 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== Responsive ===== */
 @media (max-width: 1279px) {
-  .app-shell {
-    grid-template-columns: var(--sidebar-collapsed) 1fr;
-  }
-  .app-right-sidebar { display: none; }
-  .sidebar-nav-item span:not(.sidebar-icon),
-  .sidebar-class-item span:not(.sidebar-class-flag),
-  .sidebar-nav-label,
-  .sidebar-divider-label,
-  .sidebar-user-name,
-  .sidebar-logout-btn { display: none; }
-  .sidebar-nav-item { padding: 0.65rem; justify-content: center; }
-  .sidebar-class-item { padding: 0.5rem; justify-content: center; }
-  .sidebar-user { justify-content: center; padding: 0.75rem 0.5rem; }
-  .topbar-logo span { display: none; }
   .app-main { padding: 1.5rem; }
 }
 
 @media (max-width: 767px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: var(--topbar-height) 1fr;
-    padding-bottom: 64px;
-  }
-  .app-left-sidebar { display: none; }
-  .app-main { padding: 1rem; grid-column: 1; }
+  .app-shell { padding-bottom: 64px; }
+  .app-main { padding: 1rem; }
   .bottom-tab-bar { display: block; }
   .topbar-search { display: none; }
 }
@@ -3388,4 +3441,274 @@ button { font-family: inherit; cursor: pointer; }
   }
   .bento-tile-span2 { grid-column: 1; }
   .bento-tile-h2 { min-height: var(--bento-unit); }
+}
+
+/* ===== リプレイ画面（/sessions/[id]）レイアウト — UI-DESIGN §4・§4.6 =====
+   §7項目2（2026-07-25修正）: モバイルではDOM順=表示順が正（Canvas→再生コントロール→
+   タイムライン→レグ→比較→メモ）。.replay-main(canvas〜legs)と.replay-aside(比較+メモ)を
+   2つの直接の子要素として並べ、狭幅では単純に縦積みにする（flexの折返しに頼らず
+   明示的なブレークポイントでフル幅にする）。デスクトップは右サイドバー固定幅の2カラム。 */
+.replay-layout {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.replay-main {
+  flex: 1 1 600px;
+  min-width: 300px;
+}
+.replay-aside {
+  flex: 0 0 240px;
+  min-width: 200px;
+}
+@media (max-width: 860px) {
+  .replay-main,
+  .replay-aside {
+    flex-basis: 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  /* §4.6: レグチップ行は横スクロール（navbar-row-bottomと同じ挙動） */
+  .replay-legs-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .replay-legs-row::-webkit-scrollbar { display: none; }
+  /* nowrap化するとmarginLeft:autoが横スクロール分の空白を生むため、モバイルでは通常のgap間隔に戻す */
+  .replay-leg-add-btn {
+    margin-left: 0 !important;
+  }
+}
+
+/* §4.6: 「比較する2艇」「反省メモ」の折りたたみアコーディオン（T-25）。
+   <summary>がタップ対象になるため最低24px高（WCAG 2.2 Target Size, §7項目7と同基準）を確保する。 */
+.replay-accordion {
+  margin-top: 0.5rem;
+}
+.replay-accordion > summary {
+  list-style: none;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+.replay-accordion > summary::-webkit-details-marker { display: none; }
+.replay-accordion > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.4rem;
+  color: var(--fg-mute);
+  transition: transform 0.15s ease;
+}
+.replay-accordion[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* ===== GPXドロップゾーン（/sessions/new）— UI-DESIGN §3・§7項目4 =====
+   実<input type="file">＋<label for>のa11yはそのまま、ドラッグ&ドロップの受け口は
+   見た目（破線ボーダー）のみで、ページ側でJSのdragover/drop制御をしている。 */
+@media (max-width: 640px) {
+  .gpx-dropzone-hint {
+    display: none;
+  }
+}
+
+/* ===== 共有1（公開昇格）— UI-DESIGN §5.2 昇格ダイアログ・状態チップ ===== */
+
+.visibility-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  min-height: 24px;
+}
+.visibility-chip--public {
+  background: rgba(107,142,90,0.12);
+  color: var(--sage-2, var(--sage));
+  border: 1px solid rgba(107,142,90,0.30);
+}
+.visibility-chip--unlisted {
+  background: rgba(195,154,63,0.12);
+  color: var(--dijon);
+  border: 1px solid rgba(195,154,63,0.30);
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 1rem;
+  z-index: 1000;
+  overflow-y: auto;
+}
+.dialog-panel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow);
+  padding: 1.75rem;
+  width: 100%;
+  max-width: 520px;
+}
+.dialog-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 500;
+  margin: 0 0 1.2rem;
+  color: var(--fg);
+}
+.dialog-char-count {
+  color: var(--fg-mute);
+  font-weight: 400;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+.dialog-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0 0 1.2rem;
+}
+.dialog-fieldset legend {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: var(--fg-mute);
+  padding: 0;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.01em;
+}
+.dialog-hint {
+  font-size: 0.78rem;
+  color: var(--fg-mute);
+  margin: 0 0 0.6rem;
+}
+.dialog-warning {
+  color: var(--terra);
+}
+.dialog-annotation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+/* チェックボックスのタップ対象を label 全体（最低24px高）まで広げる（§7項目7） */
+.dialog-annotation-item {
+  display: flex;
+  align-items: flex-start;
+}
+.dialog-annotation-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-height: 24px;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+  cursor: pointer;
+  width: 100%;
+}
+.dialog-annotation-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+}
+.dialog-radio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-height: 24px;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+  cursor: pointer;
+}
+.dialog-radio-item input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+.dialog-confirm-card {
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.dialog-confirm-card p {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.dialog-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* ===== 共有1 — 公開ビュー `/p/[slug]`（UI-DESIGN §5.3） ===== */
+.public-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+.public-view-brand {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.public-view-about-link {
+  font-size: 0.82rem;
+  color: var(--fg-mute);
+  text-decoration: none;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+}
+.public-view-about-link:hover { color: var(--fg); text-decoration: underline; }
+
+.public-summary-card {
+  margin-top: 1rem;
+  padding: 1rem 1.2rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--terra);
+  border-radius: 8px;
+}
+.public-summary-body {
+  margin: 0.4rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.75;
+  color: var(--fg);
+  white-space: pre-wrap;
+}
+
+.public-about-block {
+  margin-top: 2rem;
+  padding: 1.2rem 0 2rem;
+  border-top: 1px solid var(--border);
 }

@@ -1,0 +1,2132 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<title>リプレイ — 江の島 定期練習 / sailvlog（モックアップ・新DS）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  トークンの正本は design-system/styles.css。手編集せずDS側を直して再生成すること。
+  このファイルは styles.css の内容をそのままインライン埋め込みした自己完結HTML（外部参照・CDNなし）。
+  リプレイ画面は反省会プロジェクタ投影を前提に data-theme="dark" を html要素に固定し、
+  サイト全体のライト/ダーク自動切替に連動させない（design-system/readme.md Do/Don't・UI-DESIGN.md §0-1 準拠）。
+-->
+<style>
+/* ============================================================
+   design-system/styles.css をそのまま埋め込み（唯一の正本）
+   ============================================================ */
+/* ==========================================================================
+   sailvlog Design System — styles.css
+   単一ソースのスタイルシート。全プレビューはこれをlinkする。
+   方向性: 土台はiOS/インスタ的な使いやすさを維持しつつ、視覚言語は「海図」「水面と光」の2本柱でセーリング文脈に固有化（rev.3）
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   0. Reset（最小限）
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* --------------------------------------------------------------------------
+   1. Design Tokens — Light（デフォルト / :root）
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* --- Typography --- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* iOS的タイプスケール（size / line-height） */
+  --font-size-large-title: 34px;
+  --line-height-large-title: 41px;
+  --font-size-title1: 28px;
+  --line-height-title1: 34px;
+  --font-size-title2: 22px;
+  --line-height-title2: 28px;
+  --font-size-title3: 20px;
+  --line-height-title3: 25px;
+  --font-size-headline: 17px;
+  --line-height-headline: 22px;
+  --font-size-body: 17px;
+  --line-height-body: 23px;
+  --font-size-callout: 16px;
+  --line-height-callout: 21px;
+  --font-size-subheadline: 15px;
+  --line-height-subheadline: 20px;
+  --font-size-footnote: 13px;
+  --line-height-footnote: 18px;
+  --font-size-caption1: 12px;
+  --line-height-caption1: 16px;
+  --font-size-caption2: 11px;
+  --line-height-caption2: 13px;
+
+  /* --- Spacing（8ptベースグリッド） --- */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 40px;
+  --space-5xl: 48px;
+  --space-6xl: 64px;
+
+  /* --- Radius --- */
+  --radius-sm: 8px;
+  --radius-input: 10px;
+  --radius-button: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 20px;
+  --radius-pill: 999px;
+
+  /* --- Color: Neutral ramp（iOS systemGray的階調, ライト） --- */
+  --color-gray-050: #f7f7f8;
+  --color-gray-100: #eeeef0;
+  --color-gray-200: #e2e2e6;
+  --color-gray-300: #d0d0d6;
+  --color-gray-400: #b6b6bf;
+  --color-gray-500: #97979f;
+  --color-gray-600: #77777f;
+  --color-gray-700: #58585f;
+  --color-gray-800: #3a3a3f;
+  --color-gray-900: #1c1c1f;
+
+  /* --- Color: Semantic surfaces --- */
+  --color-bg-canvas: #f2f2f5;         /* systemGroupedBackground相当 */
+  --color-bg-primary: #ffffff;        /* systemBackground */
+  --color-bg-secondary: #f7f7f8;      /* secondarySystemBackground */
+  --color-bg-elevated: #ffffff;       /* カード・シート */
+  --color-fill: rgba(120, 120, 128, 0.12);       /* systemFill: コントロール塗り */
+  --color-fill-secondary: rgba(120, 120, 128, 0.08);
+  --color-fill-strong: rgba(120, 120, 128, 0.20);
+
+  /* --- Color: Label（テキスト） --- */
+  --color-label-primary: #1c1c1f;
+  --color-label-secondary: rgba(28, 28, 31, 0.6);
+  --color-label-tertiary: rgba(28, 28, 31, 0.38);
+  --color-label-quaternary: rgba(28, 28, 31, 0.22);
+  --color-label-on-accent: #ffffff;
+
+  /* --- Color: Separator（ヘアライン） --- */
+  --color-separator: rgba(60, 60, 67, 0.29);
+  --color-separator-opaque: #dcdce1;
+
+  /* --- Color: Marine Blue Accent（セーリング文脈） --- */
+  --color-accent: #0b6a9e;
+  --color-accent-hover: #095778;
+  --color-accent-pressed: #074562;
+  --color-accent-tint: rgba(11, 106, 158, 0.12);
+  --color-accent-tint-strong: rgba(11, 106, 158, 0.22);
+
+  /* --- Color: Semantic status --- */
+  --color-success: #1fa363;
+  --color-success-tint: rgba(31, 163, 99, 0.12);
+  --color-warning: #d98a12;
+  --color-warning-tint: rgba(217, 138, 18, 0.14);
+  --color-danger: #e0392f;
+  --color-danger-tint: rgba(224, 57, 47, 0.12);
+  --color-info: #0b6a9e;
+  --color-info-tint: rgba(11, 106, 158, 0.12);
+
+  /* --- Color: sailvlog固有（セッション種別・艇識別） --- */
+  --color-race: #e0392f;
+  --color-race-tint: rgba(224, 57, 47, 0.12);
+  --color-practice: #0b6a9e;
+  --color-practice-tint: rgba(11, 106, 158, 0.12);
+  --color-wind-chip-bg: rgba(11, 106, 158, 0.10);
+  --color-wind-chip-fg: #0b6a9e;
+
+  --color-boat-1: #0b6a9e; /* 自艇 */
+  --color-boat-2: #e0392f; /* 相手艇 */
+  --color-boat-3: #d98a12;
+  --color-boat-4: #1fa363;
+
+  /* --- Color: Nautical Chart（海図の視覚言語。等深線・グリッド用の低彩度トーン） --- */
+  --color-chart-grid: rgba(11, 106, 158, 0.10);
+  --color-chart-line: rgba(28, 28, 31, 0.12);
+  --color-compass-ink: rgba(28, 28, 31, 0.16);
+
+  /* --- Shadow（iOSの多層・柔らかい浮遊感） --- */
+  --shadow-xs: 0 1px 2px rgba(28, 28, 31, 0.06);
+  --shadow-sm: 0 1px 2px rgba(28, 28, 31, 0.05), 0 2px 8px rgba(28, 28, 31, 0.06);
+  --shadow-md: 0 2px 6px rgba(28, 28, 31, 0.06), 0 8px 24px rgba(28, 28, 31, 0.08);
+  --shadow-lg: 0 4px 12px rgba(28, 28, 31, 0.08), 0 16px 40px rgba(28, 28, 31, 0.12);
+  --shadow-float: 0 8px 20px rgba(28, 28, 31, 0.10), 0 2px 6px rgba(28, 28, 31, 0.08);
+
+  /* --- Material（半透明+backdrop-filter, iOS的） --- */
+  --material-bg: rgba(255, 255, 255, 0.72);
+  --material-blur: 20px;
+  --material-border: rgba(60, 60, 67, 0.18);
+
+  /* --- Motion --- */
+  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* --- Water & Light（ヒーロー帯・リプレイ海面専用。海はテーマに関わらず常に「深い」ため
+       ライト/ダークで再定義せず :root で固定する。夜明けのレガッタ=dawn／深夜の海=deep） --- */
+  --gradient-water-dawn: linear-gradient(160deg, #0c2436 0%, #0c5678 42%, #1c7f96 68%, #e3924f 100%);
+  --gradient-water-deep: linear-gradient(165deg, #030d16 0%, #0a2f42 40%, #0b5372 72%, #12809e 100%);
+  --color-chart-grid-on-water: rgba(255, 255, 255, 0.10);
+  --color-chart-line-on-water: rgba(255, 255, 255, 0.16);
+  --color-hero-label-primary: rgba(255, 255, 255, 0.96);
+  --color-hero-label-secondary: rgba(255, 255, 255, 0.74);
+
+  background: var(--color-bg-canvas);
+  color: var(--color-label-primary);
+  font-family: var(--font-sans);
+}
+
+/* --------------------------------------------------------------------------
+   2. Design Tokens — Dark
+   iOSダークモード同様、単純反転ではなく面ごとの階調を持たせる。
+   -------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-gray-050: #1c1c1e;
+    --color-gray-100: #242426;
+    --color-gray-200: #2c2c2e;
+    --color-gray-300: #3a3a3c;
+    --color-gray-400: #48484a;
+    --color-gray-500: #636366;
+    --color-gray-600: #8e8e93;
+    --color-gray-700: #aeaeb2;
+    --color-gray-800: #c7c7cc;
+    --color-gray-900: #f2f2f7;
+
+    --color-bg-canvas: #000000;
+    --color-bg-primary: #1c1c1e;
+    --color-bg-secondary: #2c2c2e;
+    --color-bg-elevated: #242426;
+    --color-fill: rgba(120, 120, 128, 0.24);
+    --color-fill-secondary: rgba(120, 120, 128, 0.16);
+    --color-fill-strong: rgba(120, 120, 128, 0.34);
+
+    --color-label-primary: #f2f2f7;
+    --color-label-secondary: rgba(242, 242, 247, 0.6);
+    --color-label-tertiary: rgba(242, 242, 247, 0.38);
+    --color-label-quaternary: rgba(242, 242, 247, 0.22);
+    --color-label-on-accent: #ffffff;
+
+    --color-separator: rgba(84, 84, 88, 0.6);
+    --color-separator-opaque: #3a3a3c;
+
+    --color-accent: #2f9fd1;
+    --color-accent-hover: #49b0dd;
+    --color-accent-pressed: #63bce6;
+    --color-accent-tint: rgba(47, 159, 209, 0.16);
+    --color-accent-tint-strong: rgba(47, 159, 209, 0.28);
+
+    --color-success: #34c07a;
+    --color-success-tint: rgba(52, 192, 122, 0.16);
+    --color-warning: #f0a72e;
+    --color-warning-tint: rgba(240, 167, 46, 0.18);
+    --color-danger: #ff5b52;
+    --color-danger-tint: rgba(255, 91, 82, 0.16);
+    --color-info: #2f9fd1;
+    --color-info-tint: rgba(47, 159, 209, 0.16);
+
+    --color-race: #ff5b52;
+    --color-race-tint: rgba(255, 91, 82, 0.16);
+    --color-practice: #2f9fd1;
+    --color-practice-tint: rgba(47, 159, 209, 0.16);
+    --color-wind-chip-bg: rgba(47, 159, 209, 0.16);
+    --color-wind-chip-fg: #63bce6;
+
+    --color-boat-1: #2f9fd1;
+    --color-boat-2: #ff5b52;
+    --color-boat-3: #f0a72e;
+    --color-boat-4: #34c07a;
+
+    --color-chart-grid: rgba(47, 159, 209, 0.16);
+    --color-chart-line: rgba(242, 242, 247, 0.10);
+    --color-compass-ink: rgba(242, 242, 247, 0.14);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.46);
+    --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.44), 0 20px 48px rgba(0, 0, 0, 0.5);
+    --shadow-float: 0 10px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+
+    --material-bg: rgba(28, 28, 30, 0.72);
+    --material-blur: 20px;
+    --material-border: rgba(84, 84, 88, 0.5);
+
+    background: var(--color-bg-canvas);
+    color: var(--color-label-primary);
+  }
+}
+
+/* data-theme属性による明示切替（プレビューのテーマ切替ボタン用）
+   :root限定ではなく任意の要素に付けられるようにする。
+   これにより「常時ダーク」を意図するsailvlog固有のブロック（リプレイ画面等）を
+   ページ全体のテーマに関係なく部分的にダーク固定できる（CSS変数はスコープ内に継承される）。 */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-gray-050: #1c1c1e;
+  --color-gray-100: #242426;
+  --color-gray-200: #2c2c2e;
+  --color-gray-300: #3a3a3c;
+  --color-gray-400: #48484a;
+  --color-gray-500: #636366;
+  --color-gray-600: #8e8e93;
+  --color-gray-700: #aeaeb2;
+  --color-gray-800: #c7c7cc;
+  --color-gray-900: #f2f2f7;
+
+  --color-bg-canvas: #000000;
+  --color-bg-primary: #1c1c1e;
+  --color-bg-secondary: #2c2c2e;
+  --color-bg-elevated: #242426;
+  --color-fill: rgba(120, 120, 128, 0.24);
+  --color-fill-secondary: rgba(120, 120, 128, 0.16);
+  --color-fill-strong: rgba(120, 120, 128, 0.34);
+
+  --color-label-primary: #f2f2f7;
+  --color-label-secondary: rgba(242, 242, 247, 0.6);
+  --color-label-tertiary: rgba(242, 242, 247, 0.38);
+  --color-label-quaternary: rgba(242, 242, 247, 0.22);
+  --color-label-on-accent: #ffffff;
+
+  --color-separator: rgba(84, 84, 88, 0.6);
+  --color-separator-opaque: #3a3a3c;
+
+  --color-accent: #2f9fd1;
+  --color-accent-hover: #49b0dd;
+  --color-accent-pressed: #63bce6;
+  --color-accent-tint: rgba(47, 159, 209, 0.16);
+  --color-accent-tint-strong: rgba(47, 159, 209, 0.28);
+
+  --color-success: #34c07a;
+  --color-success-tint: rgba(52, 192, 122, 0.16);
+  --color-warning: #f0a72e;
+  --color-warning-tint: rgba(240, 167, 46, 0.18);
+  --color-danger: #ff5b52;
+  --color-danger-tint: rgba(255, 91, 82, 0.16);
+  --color-info: #2f9fd1;
+  --color-info-tint: rgba(47, 159, 209, 0.16);
+
+  --color-race: #ff5b52;
+  --color-race-tint: rgba(255, 91, 82, 0.16);
+  --color-practice: #2f9fd1;
+  --color-practice-tint: rgba(47, 159, 209, 0.16);
+  --color-wind-chip-bg: rgba(47, 159, 209, 0.16);
+  --color-wind-chip-fg: #63bce6;
+
+  --color-boat-1: #2f9fd1;
+  --color-boat-2: #ff5b52;
+  --color-boat-3: #f0a72e;
+  --color-boat-4: #34c07a;
+
+  --color-chart-grid: rgba(47, 159, 209, 0.16);
+  --color-chart-line: rgba(242, 242, 247, 0.10);
+  --color-compass-ink: rgba(242, 242, 247, 0.14);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.46);
+  --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.44), 0 20px 48px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 10px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+
+  --material-bg: rgba(28, 28, 30, 0.72);
+  --material-blur: 20px;
+  --material-border: rgba(84, 84, 88, 0.5);
+
+  background: var(--color-bg-canvas);
+  color: var(--color-label-primary);
+}
+
+/* [data-theme="light"]も同様に任意の要素へ付与可能にする。
+   ダークな祖先の中にライトを固定したブロックを置くケースに備え、値をフルで再定義する。 */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --color-gray-050: #f7f7f8;
+  --color-gray-100: #eeeef0;
+  --color-gray-200: #e2e2e6;
+  --color-gray-300: #d0d0d6;
+  --color-gray-400: #b6b6bf;
+  --color-gray-500: #97979f;
+  --color-gray-600: #77777f;
+  --color-gray-700: #58585f;
+  --color-gray-800: #3a3a3f;
+  --color-gray-900: #1c1c1f;
+
+  --color-bg-canvas: #f2f2f5;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f7f7f8;
+  --color-bg-elevated: #ffffff;
+  --color-fill: rgba(120, 120, 128, 0.12);
+  --color-fill-secondary: rgba(120, 120, 128, 0.08);
+  --color-fill-strong: rgba(120, 120, 128, 0.20);
+
+  --color-label-primary: #1c1c1f;
+  --color-label-secondary: rgba(28, 28, 31, 0.6);
+  --color-label-tertiary: rgba(28, 28, 31, 0.38);
+  --color-label-quaternary: rgba(28, 28, 31, 0.22);
+  --color-label-on-accent: #ffffff;
+
+  --color-separator: rgba(60, 60, 67, 0.29);
+  --color-separator-opaque: #dcdce1;
+
+  --color-accent: #0b6a9e;
+  --color-accent-hover: #095778;
+  --color-accent-pressed: #074562;
+  --color-accent-tint: rgba(11, 106, 158, 0.12);
+  --color-accent-tint-strong: rgba(11, 106, 158, 0.22);
+
+  --color-success: #1fa363;
+  --color-success-tint: rgba(31, 163, 99, 0.12);
+  --color-warning: #d98a12;
+  --color-warning-tint: rgba(217, 138, 18, 0.14);
+  --color-danger: #e0392f;
+  --color-danger-tint: rgba(224, 57, 47, 0.12);
+  --color-info: #0b6a9e;
+  --color-info-tint: rgba(11, 106, 158, 0.12);
+
+  --color-race: #e0392f;
+  --color-race-tint: rgba(224, 57, 47, 0.12);
+  --color-practice: #0b6a9e;
+  --color-practice-tint: rgba(11, 106, 158, 0.12);
+  --color-wind-chip-bg: rgba(11, 106, 158, 0.10);
+  --color-wind-chip-fg: #0b6a9e;
+
+  --color-boat-1: #0b6a9e;
+  --color-boat-2: #e0392f;
+  --color-boat-3: #d98a12;
+  --color-boat-4: #1fa363;
+
+  --color-chart-grid: rgba(11, 106, 158, 0.10);
+  --color-chart-line: rgba(28, 28, 31, 0.12);
+  --color-compass-ink: rgba(28, 28, 31, 0.16);
+
+  --shadow-xs: 0 1px 2px rgba(28, 28, 31, 0.06);
+  --shadow-sm: 0 1px 2px rgba(28, 28, 31, 0.05), 0 2px 8px rgba(28, 28, 31, 0.06);
+  --shadow-md: 0 2px 6px rgba(28, 28, 31, 0.06), 0 8px 24px rgba(28, 28, 31, 0.08);
+  --shadow-lg: 0 4px 12px rgba(28, 28, 31, 0.08), 0 16px 40px rgba(28, 28, 31, 0.12);
+  --shadow-float: 0 8px 20px rgba(28, 28, 31, 0.10), 0 2px 6px rgba(28, 28, 31, 0.08);
+
+  --material-bg: rgba(255, 255, 255, 0.72);
+  --material-blur: 20px;
+  --material-border: rgba(60, 60, 67, 0.18);
+
+  background: var(--color-bg-canvas);
+  color: var(--color-label-primary);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-canvas);
+  color: var(--color-label-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+   3. Typography utility classes
+   -------------------------------------------------------------------------- */
+.ds-text-large-title {
+  font-size: var(--font-size-large-title);
+  line-height: var(--line-height-large-title);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+}
+.ds-text-title1 {
+  font-size: var(--font-size-title1);
+  line-height: var(--line-height-title1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.015em;
+}
+.ds-text-title2 {
+  font-size: var(--font-size-title2);
+  line-height: var(--line-height-title2);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.01em;
+}
+.ds-text-title3 {
+  font-size: var(--font-size-title3);
+  line-height: var(--line-height-title3);
+  font-weight: var(--font-weight-semibold);
+}
+.ds-text-headline {
+  font-size: var(--font-size-headline);
+  line-height: var(--line-height-headline);
+  font-weight: var(--font-weight-semibold);
+}
+.ds-text-body {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-regular);
+}
+.ds-text-callout {
+  font-size: var(--font-size-callout);
+  line-height: var(--line-height-callout);
+}
+.ds-text-subheadline {
+  font-size: var(--font-size-subheadline);
+  line-height: var(--line-height-subheadline);
+}
+.ds-text-footnote {
+  font-size: var(--font-size-footnote);
+  line-height: var(--line-height-footnote);
+  color: var(--color-label-secondary);
+}
+.ds-text-caption1 {
+  font-size: var(--font-size-caption1);
+  line-height: var(--line-height-caption1);
+  color: var(--color-label-secondary);
+}
+.ds-text-caption2 {
+  font-size: var(--font-size-caption2);
+  line-height: var(--line-height-caption2);
+  color: var(--color-label-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ds-text-secondary {
+  color: var(--color-label-secondary);
+}
+.ds-text-tertiary {
+  color: var(--color-label-tertiary);
+}
+.ds-text-accent {
+  color: var(--color-accent);
+}
+.ds-text-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   4. Layout utilities
+   -------------------------------------------------------------------------- */
+.ds-container {
+  max-width: 960px;
+  margin-inline: auto;
+  padding-inline: var(--space-lg);
+}
+
+.ds-stack {
+  display: flex;
+  flex-direction: column;
+}
+.ds-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.ds-gap-xs { gap: var(--space-xs); }
+.ds-gap-sm { gap: var(--space-sm); }
+.ds-gap-md { gap: var(--space-md); }
+.ds-gap-lg { gap: var(--space-lg); }
+.ds-gap-xl { gap: var(--space-xl); }
+
+.ds-grid {
+  display: grid;
+  gap: var(--space-lg);
+}
+.ds-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.ds-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.ds-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 640px) {
+  .ds-grid-2,
+  .ds-grid-3,
+  .ds-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ds-hairline {
+  border: none;
+  border-top: 0.5px solid var(--color-separator);
+  margin: 0;
+}
+.ds-hairline-v {
+  border: none;
+  border-left: 0.5px solid var(--color-separator);
+}
+
+.ds-section-title {
+  padding: 0 var(--space-lg);
+  margin-bottom: var(--space-sm);
+}
+
+/* --------------------------------------------------------------------------
+   5. Buttons
+   -------------------------------------------------------------------------- */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-button);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-callout);
+  line-height: 1;
+  padding: 12px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.ds-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.ds-btn:active {
+  transform: scale(0.97);
+}
+.ds-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ds-btn--primary {
+  background: var(--color-accent);
+  color: var(--color-label-on-accent);
+  box-shadow: var(--shadow-xs);
+}
+.ds-btn--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+.ds-btn--primary:active:not(:disabled) {
+  background: var(--color-accent-pressed);
+}
+
+.ds-btn--secondary {
+  background: var(--color-fill);
+  color: var(--color-accent);
+}
+.ds-btn--secondary:hover:not(:disabled) {
+  background: var(--color-fill-strong);
+}
+
+.ds-btn--tertiary {
+  background: transparent;
+  color: var(--color-accent);
+  padding-inline: 8px;
+}
+.ds-btn--tertiary:hover:not(:disabled) {
+  background: var(--color-fill-secondary);
+}
+
+.ds-btn--destructive {
+  background: var(--color-danger);
+  color: #ffffff;
+}
+.ds-btn--destructive:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.ds-btn--sm {
+  padding: 8px 14px;
+  font-size: var(--font-size-footnote);
+  border-radius: var(--radius-input);
+}
+.ds-btn--lg {
+  padding: 16px 24px;
+  font-size: var(--font-size-headline);
+}
+.ds-btn--full {
+  width: 100%;
+}
+.ds-btn--icon {
+  padding: 10px;
+  border-radius: var(--radius-pill);
+  width: 40px;
+  height: 40px;
+}
+
+/* --------------------------------------------------------------------------
+   6. Forms
+   -------------------------------------------------------------------------- */
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.ds-label {
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-label-secondary);
+}
+
+.ds-input,
+.ds-textarea,
+.ds-select {
+  appearance: none;
+  width: 100%;
+  border: 0.5px solid var(--color-separator);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-input);
+  padding: 12px 14px;
+  font-size: var(--font-size-callout);
+  color: var(--color-label-primary);
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+.ds-input::placeholder,
+.ds-textarea::placeholder {
+  color: var(--color-label-tertiary);
+}
+.ds-input:hover,
+.ds-textarea:hover,
+.ds-select:hover {
+  border-color: var(--color-label-tertiary);
+}
+.ds-input:focus-visible,
+.ds-textarea:focus-visible,
+.ds-select:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-tint);
+}
+.ds-input:disabled,
+.ds-textarea:disabled {
+  background: var(--color-fill-secondary);
+  color: var(--color-label-tertiary);
+  cursor: not-allowed;
+}
+.ds-input--error {
+  border-color: var(--color-danger);
+}
+.ds-input--error:focus-visible {
+  box-shadow: 0 0 0 4px var(--color-danger-tint);
+}
+.ds-field-hint {
+  font-size: var(--font-size-caption1);
+  color: var(--color-label-tertiary);
+}
+.ds-field-hint--error {
+  color: var(--color-danger);
+}
+.ds-textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+/* Toggle (iOSスイッチ) */
+.ds-toggle {
+  position: relative;
+  display: inline-block;
+  width: 51px;
+  height: 31px;
+  flex-shrink: 0;
+}
+.ds-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.ds-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--color-fill-strong);
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-base) var(--ease-standard);
+}
+.ds-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-base) var(--ease-emphasized);
+}
+.ds-toggle input:checked ~ .ds-toggle-track {
+  background: var(--color-success);
+}
+.ds-toggle input:checked ~ .ds-toggle-thumb {
+  transform: translateX(20px);
+}
+.ds-toggle input:focus-visible ~ .ds-toggle-track {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.ds-toggle input:disabled ~ .ds-toggle-track {
+  opacity: 0.4;
+}
+
+/* Checkbox / Radio */
+.ds-checkbox,
+.ds-radio {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--color-label-tertiary);
+  background: var(--color-bg-primary);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+.ds-checkbox {
+  border-radius: 7px;
+}
+.ds-radio {
+  border-radius: 50%;
+}
+.ds-checkbox:checked,
+.ds-radio:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.ds-checkbox:focus-visible,
+.ds-radio:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Segmented control */
+.ds-segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--color-fill);
+  border-radius: var(--radius-input);
+  gap: 2px;
+}
+.ds-segmented button {
+  border: none;
+  background: transparent;
+  padding: 7px 16px;
+  border-radius: calc(var(--radius-input) - 2px);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-label-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast), box-shadow var(--duration-fast);
+}
+.ds-segmented button.is-active {
+  background: var(--color-bg-elevated);
+  color: var(--color-label-primary);
+  box-shadow: var(--shadow-xs);
+}
+.ds-segmented button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Chip / Tag */
+.ds-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-caption1);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+.ds-chip--wind {
+  background: var(--color-wind-chip-bg);
+  color: var(--color-wind-chip-fg);
+}
+.ds-chip--race {
+  background: var(--color-race-tint);
+  color: var(--color-race);
+}
+.ds-chip--practice {
+  background: var(--color-practice-tint);
+  color: var(--color-practice);
+}
+.ds-chip--neutral {
+  background: var(--color-fill);
+  color: var(--color-label-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   7. Cards
+   -------------------------------------------------------------------------- */
+.ds-card {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-card);
+  border: 0.5px solid var(--color-separator);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-lg);
+  transition: transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+.ds-card--interactive {
+  cursor: pointer;
+}
+.ds-card--interactive:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.ds-card--interactive:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.ds-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+/* Grouped list（iOS設定風） */
+.ds-list {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-card);
+  border: 0.5px solid var(--color-separator);
+  overflow: hidden;
+}
+.ds-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 14px var(--space-lg);
+  min-height: 24px;
+}
+.ds-list-row + .ds-list-row {
+  border-top: 0.5px solid var(--color-separator);
+}
+.ds-list-row--interactive {
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+.ds-list-row--interactive:hover {
+  background: var(--color-fill-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   8. Navigation — Top bar / Tab bar（iOS的マテリアル）
+   -------------------------------------------------------------------------- */
+.ds-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 0 var(--space-lg);
+  height: 56px;
+  background: var(--material-bg);
+  backdrop-filter: blur(var(--material-blur));
+  -webkit-backdrop-filter: blur(var(--material-blur));
+  border-bottom: 0.5px solid var(--material-border);
+}
+.ds-topbar-title {
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ds-tabbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--material-bg);
+  backdrop-filter: blur(var(--material-blur));
+  -webkit-backdrop-filter: blur(var(--material-blur));
+  border-top: 0.5px solid var(--material-border);
+}
+.ds-tabbar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-label-tertiary);
+  cursor: pointer;
+  font-size: var(--font-size-caption2);
+  font-weight: var(--font-weight-medium);
+  text-transform: none;
+  letter-spacing: 0;
+  transition: color var(--duration-fast);
+}
+.ds-tabbar-item svg {
+  width: 24px;
+  height: 24px;
+}
+.ds-tabbar-item.is-active {
+  color: var(--color-accent);
+}
+.ds-tabbar-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* --------------------------------------------------------------------------
+   9. Dialog / Sheet
+   -------------------------------------------------------------------------- */
+.ds-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+}
+.ds-dialog {
+  width: 100%;
+  max-width: 400px;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2xl) var(--space-xl);
+  text-align: center;
+}
+.ds-dialog-title {
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-xs);
+}
+.ds-dialog-body {
+  font-size: var(--font-size-footnote);
+  color: var(--color-label-secondary);
+  margin-bottom: var(--space-lg);
+}
+.ds-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.ds-dialog-actions--row {
+  flex-direction: row;
+}
+.ds-dialog-actions--row .ds-btn {
+  flex: 1;
+}
+
+.ds-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-lg) var(--space-lg) var(--space-2xl);
+  align-self: flex-end;
+}
+.ds-sheet-handle {
+  width: 36px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-strong);
+  margin: 0 auto var(--space-lg);
+}
+
+/* --------------------------------------------------------------------------
+   10. Table
+   -------------------------------------------------------------------------- */
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border: 0.5px solid var(--color-separator);
+}
+.ds-table th,
+.ds-table td {
+  text-align: left;
+  padding: 12px var(--space-lg);
+  font-size: var(--font-size-footnote);
+}
+.ds-table thead th {
+  background: var(--color-bg-secondary);
+  color: var(--color-label-secondary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-caption1);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.ds-table tbody tr + tr td {
+  border-top: 0.5px solid var(--color-separator);
+}
+.ds-table tbody tr {
+  transition: background var(--duration-fast);
+}
+.ds-table tbody tr:hover {
+  background: var(--color-fill-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   11. sailvlog固有コンポーネント
+   -------------------------------------------------------------------------- */
+
+/* セッションカード */
+.ds-session-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--color-bg-elevated);
+  border: 0.5px solid var(--color-separator);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast);
+}
+.ds-session-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.ds-session-card:active {
+  transform: translateY(0) scale(0.99);
+}
+.ds-session-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.ds-session-card-title {
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+}
+.ds-session-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  color: var(--color-label-secondary);
+  font-size: var(--font-size-footnote);
+}
+.ds-session-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-xs);
+}
+
+/* 再生コントロールバー */
+.ds-playbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--material-bg);
+  backdrop-filter: blur(var(--material-blur));
+  -webkit-backdrop-filter: blur(var(--material-blur));
+  border: 0.5px solid var(--material-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-md) var(--space-lg);
+}
+.ds-playbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.ds-playbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-fill);
+  color: var(--color-label-primary);
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast);
+}
+.ds-playbar-btn:hover {
+  background: var(--color-fill-strong);
+}
+.ds-playbar-btn:active {
+  transform: scale(0.94);
+}
+.ds-playbar-btn--play {
+  width: 48px;
+  height: 48px;
+  background: var(--color-accent);
+  color: #fff;
+}
+.ds-playbar-btn--play:hover {
+  background: var(--color-accent-hover);
+}
+.ds-playbar-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.ds-playbar-speed {
+  font-size: var(--font-size-caption1);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-label-secondary);
+  background: var(--color-fill);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.ds-playbar-speed:hover {
+  background: var(--color-fill-strong);
+}
+.ds-playbar-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-caption1);
+  color: var(--color-label-secondary);
+  min-width: 42px;
+}
+
+/* タイムライン + 注釈ピン */
+.ds-timeline {
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill);
+  cursor: pointer;
+}
+.ds-timeline-fill {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+.ds-timeline-scrubber {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--color-accent);
+  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow-sm);
+}
+.ds-timeline-pin {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--color-bg-elevated);
+  cursor: pointer;
+}
+.ds-timeline-pin--mark {
+  background: var(--color-warning);
+}
+.ds-timeline-pin--start {
+  background: var(--color-success);
+}
+.ds-timeline-pin--tack {
+  background: var(--color-accent);
+}
+
+/* レグジャンプチップ */
+.ds-leg-jumps {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.ds-leg-jump {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill);
+  color: var(--color-label-secondary);
+  font-size: var(--font-size-caption1);
+  font-weight: var(--font-weight-medium);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+.ds-leg-jump.is-active {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+.ds-leg-jump:hover:not(.is-active) {
+  background: var(--color-fill-strong);
+}
+
+/* 2艇比較トグル */
+.ds-boat-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill);
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-caption1);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-label-secondary);
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+.ds-boat-toggle.is-active {
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
+}
+.ds-boat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 艇カラーレジェンド */
+.ds-boat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+.ds-boat-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-footnote);
+  color: var(--color-label-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   12b. Nautical / Water — 海図と水面の視覚言語
+   柱1: 海図（グリッド・等深線・コンパスローズ）を構造の語彙に。
+   柱2: 水面と光（ヒーロー帯・リプレイ海面の深いグラデーション）を雰囲気の語彙に。
+   どちらも装飾ではなく「読む」体験（進路・時刻・区画）を支えるために使う。
+   -------------------------------------------------------------------------- */
+
+/* ヒーロー帯: セッション一覧・アップロードの見出し部に使う「海」バンド。
+   テーマに関わらず常に深い水の表現を使う（--gradient-water-* はテーマ非依存）。 */
+.ds-hero-water {
+  position: relative;
+  overflow: hidden;
+  background-image: var(--gradient-water-dawn);
+  color: var(--color-hero-label-primary);
+  padding: var(--space-2xl) var(--space-lg);
+}
+.ds-hero-water--deep { background-image: var(--gradient-water-deep); }
+.ds-hero-water .ds-text-title1,
+.ds-hero-water .ds-text-headline { color: var(--color-hero-label-primary); }
+.ds-hero-water-sub { color: var(--color-hero-label-secondary); font-size: var(--font-size-footnote); margin-top: var(--space-xs); }
+
+/* 海図グリッド + 等深線オーバーレイ（疑似要素・pointer-events無効・装飾専用） */
+.ds-hero-water::before,
+.ds-chart-surface::before {
+  content: "";
+  position: absolute;
+  inset: -20% -20%;
+  background-image:
+    repeating-linear-gradient(0deg, var(--color-chart-grid-on-water) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(90deg, var(--color-chart-grid-on-water) 0 1px, transparent 1px 56px),
+    repeating-radial-gradient(ellipse at 28% 72%, transparent 0 78px, var(--color-chart-line-on-water) 79px 80px, transparent 81px 160px);
+  animation: ds-chart-drift 90s linear infinite;
+  pointer-events: none;
+}
+.ds-hero-water > * { position: relative; z-index: 1; }
+
+/* 汎用「海図面」ユーティリティ: リプレイCanvasの下敷きなど、常時ダークな面に使う */
+.ds-chart-surface {
+  position: relative;
+  overflow: hidden;
+  background-image: var(--gradient-water-deep);
+}
+.ds-chart-surface > * { position: relative; z-index: 1; }
+
+@keyframes ds-chart-drift {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-56px, -56px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-hero-water::before,
+  .ds-chart-surface::before {
+    animation: none;
+  }
+}
+
+/* コンパスローズ（装飾・空状態やヒーロー帯の隅に置く低不透明度の飾り。乱用しない=1画面1箇所まで） */
+.ds-compass-rose {
+  color: var(--color-compass-ink);
+  opacity: 0.5;
+}
+.ds-hero-water .ds-compass-rose,
+.ds-chart-surface .ds-compass-rose {
+  color: var(--color-chart-line-on-water);
+  opacity: 0.7;
+}
+
+/* 風向・風速チップのアイコン枠（風羽根/矢羽のインラインSVG用） */
+.ds-chip--wind svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* 緯度経度座標風のラベル（Canvas縁・スケールバー等に添える固有語彙） */
+.ds-chart-coord {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption2);
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   13. アクセシビリティユーティリティ
+   -------------------------------------------------------------------------- */
+.ds-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+
+/* ============================================================
+   replay.html 固有スタイル（すべて上記トークンから派生。生hex/px追加なし）
+   ============================================================ */
+html, body { height: 100%; }
+body { overflow-x: hidden; }
+
+.replay-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  min-height: 640px;
+}
+
+.replay-topbar-title { flex: 1; min-width: 0; }
+.replay-topbar-title .name {
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.replay-topbar-title .date {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption1);
+  color: var(--color-label-secondary);
+}
+
+.main-area {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  min-height: 0;
+}
+.main-area > * { min-height: 0; }
+
+.canvas-wrap {
+  position: relative;
+  min-height: 0;
+}
+#raceCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+/* 海図座標風の縁ラベル（緯度経度の目安。装飾のみ・実測値ではない） */
+.chart-coord-edge {
+  position: absolute;
+  color: var(--color-hero-label-secondary);
+  pointer-events: none;
+}
+.chart-coord-edge.coord-tl { top: var(--space-sm); left: var(--space-sm); }
+.chart-coord-edge.coord-br { bottom: var(--space-lg); right: var(--space-lg); text-align: right; }
+
+.canvas-overlay-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: var(--space-md) var(--space-lg);
+  display: flex; justify-content: space-between; align-items: flex-start;
+  pointer-events: none;
+}
+.legend-inline {
+  display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-caption1); font-family: var(--font-mono); color: var(--color-label-secondary);
+}
+.legend-inline .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--space-2xs); vertical-align: middle; }
+.scale-bar-wrap {
+  position: absolute; bottom: var(--space-lg); left: var(--space-lg);
+  color: var(--color-label-secondary); font-family: var(--font-mono); font-size: var(--font-size-caption2);
+}
+.scale-bar { width: 90px; height: 2px; background: var(--color-label-secondary); margin-top: var(--space-xs); }
+
+.loading-state, .empty-state-replay {
+  position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-md); color: var(--color-label-secondary); font-size: var(--font-size-callout); text-align: center; padding: var(--space-2xl);
+}
+.spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--color-fill); border-top-color: var(--color-accent);
+  animation: ds-spin 0.8s linear infinite;
+}
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+
+.replay-sidebar {
+  border-left: 0.5px solid var(--color-separator);
+  background: var(--color-bg-primary);
+  display: flex; flex-direction: column; min-height: 0;
+  overflow-y: auto;
+}
+.replay-panel { padding: var(--space-lg); border-bottom: 0.5px solid var(--color-separator); }
+.replay-panel-grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.replay-panel-body-flex { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.replay-panel-hint { font-size: var(--font-size-caption1); color: var(--color-label-tertiary); margin-top: var(--space-sm); line-height: 1.5; }
+
+.boat-row {
+  display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-xs);
+  border-radius: var(--radius-sm); cursor: pointer; transition: background var(--duration-fast) var(--ease-standard);
+}
+.boat-row:hover { background: var(--color-fill-secondary); }
+.boat-row.dimmed .boat-label { color: var(--color-label-tertiary); }
+
+/* 反省メモ */
+.annotation-list { display: flex; flex-direction: column; gap: var(--space-2xs); max-height: 260px; overflow-y: auto; margin: calc(var(--space-2xs) * -1) calc(var(--space-xs) * -1); }
+.annotation-item {
+  padding: var(--space-sm) var(--space-sm); border-radius: var(--radius-sm); cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+  border-left: 2px solid transparent;
+}
+.annotation-item:hover, .annotation-item.active { background: var(--color-fill-secondary); border-left-color: var(--color-accent); }
+.annotation-time { font-family: var(--font-mono); font-size: var(--font-size-caption1); color: var(--color-accent); font-weight: var(--font-weight-semibold); }
+.annotation-body { font-size: var(--font-size-footnote); color: var(--color-label-primary); margin-top: var(--space-2xs); line-height: 1.4; }
+.annotation-author { font-size: var(--font-size-caption1); color: var(--color-label-tertiary); margin-top: var(--space-2xs); }
+
+.note-compose { margin-top: var(--space-sm); display: none; }
+.note-compose.open { display: block; }
+
+/* Bottom control bar */
+.replay-control-bar {
+  border-top: 0.5px solid var(--color-separator);
+  background: var(--color-bg-primary);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+}
+.transport-row { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-sm); flex-wrap: wrap; }
+.tail-toggle { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--font-size-footnote); color: var(--color-label-secondary); white-space: nowrap; }
+.tail-toggle input { accent-color: var(--color-accent); cursor: pointer; }
+
+.timeline-row { position: relative; padding: 14px 0 var(--space-xs); }
+
+.annotation-pin {
+  /* ds-timeline-pin をベースに菱形へ変形（注釈=◆の意味区別。トークンのみ使用） */
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 2px;
+}
+.annotation-pin:hover { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed; bottom: var(--space-2xl); left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--color-bg-elevated); border: 0.5px solid var(--color-separator-opaque); color: var(--color-label-primary);
+  padding: var(--space-md) var(--space-xl); border-radius: var(--radius-input); font-size: var(--font-size-footnote);
+  display: flex; align-items: center; gap: var(--space-sm);
+  opacity: 0; pointer-events: none; transition: all var(--duration-slow) var(--ease-emphasized); z-index: 50; box-shadow: var(--shadow-lg);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast code { font-family: var(--font-mono); font-size: var(--font-size-caption1); color: var(--color-accent); }
+
+/* ---------- Mobile (縦画面) ---------- */
+@media (max-width: 820px) {
+  html, body { height: auto; }
+  .replay-shell { height: auto; min-height: 100vh; }
+  .main-area { display: block; }
+  .canvas-wrap { height: 56vh; min-height: 320px; }
+  .replay-sidebar { border-left: none; border-top: 0.5px solid var(--color-separator); max-height: none; overflow-y: visible; }
+  .replay-panel-grow { flex: none; }
+  .replay-panel-body-flex { flex: none; }
+  .replay-topbar-title .name { font-size: var(--font-size-callout); }
+  .transport-row { gap: var(--space-sm); }
+  .canvas-overlay-top { flex-direction: column; gap: var(--space-sm); }
+  .legend-inline { display: none; } /* サイドバーの艇リストと重複するため縦画面では非表示 */
+  .replay-panel[data-collapsible] .replay-panel-body { display: none; }
+  .replay-panel[data-collapsible].open .replay-panel-body { display: block; }
+  .replay-panel[data-collapsible].open .replay-panel-body.replay-panel-body-flex { display: flex; }
+  .replay-panel[data-collapsible] .replay-panel-title { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .replay-panel[data-collapsible] .replay-panel-title::after { content: "▾"; color: var(--color-label-tertiary); }
+  .replay-panel[data-collapsible].open .replay-panel-title::after { content: "▴"; }
+}
+</style>
+</head>
+<body>
+
+<div class="replay-shell">
+
+  <!-- ===== Top bar ===== -->
+  <div class="ds-topbar" style="position: static; height: auto; padding: var(--space-md) var(--space-lg); background: var(--color-bg-primary); backdrop-filter: none;">
+    <button class="ds-btn ds-btn--tertiary ds-btn--sm" id="backBtn">← 一覧へ</button>
+    <div class="replay-topbar-title">
+      <div class="name">江の島 定期練習</div>
+      <div class="date">2026-07-20（月）15:00〜17:03・練習・6艇</div>
+    </div>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" id="shareBtn">🔗 URLをコピー</button>
+  </div>
+
+  <!-- ===== Main: canvas + sidebar ===== -->
+  <div class="main-area">
+    <div class="canvas-wrap ds-chart-surface" id="canvasWrap">
+      <canvas id="raceCanvas"></canvas>
+
+      <div class="canvas-overlay-top">
+        <div class="legend-inline" id="legendInline"></div>
+      </div>
+
+      <div class="ds-compass-rose chart-coord-edge coord-tl" style="width:36px;height:36px;" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polygon points="12 6 13.6 11 12 12 10.4 11" fill="currentColor" stroke="none"/>
+          <line x1="12" y1="2" x2="12" y2="4.2"/>
+        </svg>
+      </div>
+
+      <div class="chart-coord-edge coord-br ds-chart-coord">
+        35°18.6'N 139°28.9'E
+      </div>
+
+      <div class="scale-bar-wrap">
+        500 m
+        <div class="scale-bar"></div>
+      </div>
+
+      <div class="loading-state" id="loadingState">
+        <div class="spinner"></div>
+        <div>航跡を読み込み中…</div>
+      </div>
+      <div class="empty-state-replay" id="emptyStateReplay">
+        <div>このセッションには航跡データがありません</div>
+        <button class="ds-btn ds-btn--tertiary ds-btn--sm">← 一覧へ戻る</button>
+      </div>
+    </div>
+
+    <div class="replay-sidebar">
+      <div class="replay-panel" data-collapsible id="panelBoats">
+        <div class="ds-text-caption2 replay-panel-title" data-toggle style="margin-bottom: var(--space-sm);">比較する2艇まで</div>
+        <div class="replay-panel-body" id="boatList"></div>
+        <div class="replay-panel-hint">チェックした艇はCanvas上で強調表示されます（3件目をチェックすると最も古い選択が外れます）。</div>
+      </div>
+
+      <div class="replay-panel replay-panel-grow" data-collapsible id="panelNotes">
+        <div class="ds-text-caption2 replay-panel-title" data-toggle style="margin-bottom: var(--space-sm);">反省メモ</div>
+        <div class="replay-panel-body replay-panel-body-flex">
+          <div class="annotation-list" id="annotationList"></div>
+          <button class="ds-btn ds-btn--secondary ds-btn--sm ds-btn--full" id="addNoteBtn" style="margin-top: var(--space-md);">＋ 今の場面にメモを残す</button>
+          <div class="note-compose" id="noteCompose">
+            <textarea class="ds-textarea" placeholder="例: なんでここでタックした？" id="noteText" style="min-height: 64px;"></textarea>
+            <div class="ds-row ds-gap-sm" style="justify-content: flex-end; margin-top: var(--space-sm);">
+              <button class="ds-btn ds-btn--tertiary ds-btn--sm" id="noteCancel">キャンセル</button>
+              <button class="ds-btn ds-btn--primary ds-btn--sm" id="noteSave">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Bottom control bar ===== -->
+  <div class="replay-control-bar">
+    <div class="transport-row">
+      <button class="ds-playbar-btn ds-playbar-btn--play" id="playBtn" aria-label="再生">
+        <svg id="playIcon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+      </button>
+      <div class="ds-row ds-gap-xs">
+        <button class="ds-playbar-speed active" data-speed="1">1x</button>
+        <button class="ds-playbar-speed" data-speed="4">4x</button>
+        <button class="ds-playbar-speed" data-speed="8">8x</button>
+      </div>
+      <label class="tail-toggle"><input type="checkbox" id="tailToggle" checked> 航跡テール</label>
+      <span class="ds-playbar-time" style="margin-left:auto; font-size: var(--font-size-headline);" id="curTime">00:14:02</span>
+      <span class="ds-text-caption1 ds-text-tertiary">/ 02:03:11</span>
+    </div>
+
+    <div class="timeline-row">
+      <div class="ds-timeline" id="timelineTrack">
+        <div class="ds-timeline-fill" id="timelineProgress" style="width: 20%;"></div>
+        <div class="ds-timeline-scrubber" id="timelinePlayhead" style="left: 20%;"></div>
+        <!-- 注釈ピン・レグ境界線はJSで挿入 -->
+      </div>
+    </div>
+
+    <div class="ds-leg-jumps" id="legRow" style="margin-top: var(--space-sm);"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">📋 URLをコピーしました: <code id="toastUrl">…</code></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= データ（モック） ================= */
+  const TOTAL_SEC = 7391; // 02:03:11
+  // 派生トークンの明記: styles.cssの艇カラーは --color-boat-1..4 の4色のみ（DS上限）。
+  // UI-DESIGN.mdの実装例は最大6艇のため、5・6艇目はDSに新色を追加せず既存4色を
+  // 明度そのまま再利用する（実運用ではフロント側でindex % 4のような割当ロジックを想定）。
+  const boats = [
+    { id: "t1", label: "4423 田中/佐藤", varName: "--color-boat-1" },
+    { id: "t2", label: "マネ艇",          varName: "--color-boat-2" },
+    { id: "t3", label: "1102 鈴木/高橋", varName: "--color-boat-3" },
+    { id: "t4", label: "0091 山本/井上", varName: "--color-boat-4" },
+    { id: "t5", label: "2200 中村/木村", varName: "--color-boat-1" },
+    { id: "t6", label: "3311 小林/加藤", varName: "--color-boat-3" },
+  ];
+  const legs = [
+    { label: "スタート", t: 0 },
+    { label: "上マーク L1", t: 2100 },
+    { label: "下マーク L2", t: 4500 },
+    { label: "フィニッシュ", t: 7100 },
+  ];
+  const annotations = [
+    { t: 842,  boat: "t1", author: "主将",   body: "なんでここでタック？もう少し伸ばせたのでは" },
+    { t: 2260, boat: "t3", author: "田中",   body: "L1回航、良い加速。他艇も見習いたい" },
+    { t: 4610, boat: null, author: "コーチ", body: "この局面、風向が右に振れているのを見逃している艇が多い" },
+    { t: 6420, boat: "t6", author: "小林",   body: "接舷しかけて避航が遅れた。次回はここを注意" },
+  ];
+
+  function getVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function boatColor(boat) { return getVar(boat.varName); }
+
+  /* ================= 航跡パス生成（ジグザグ・簡易生成） ================= */
+  function seededRandom(seed) {
+    let s = seed;
+    return function () {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+  }
+
+  function buildZigzagPath(seed, originX, originY, dirSign) {
+    const rnd = seededRandom(seed);
+    const pts = [];
+    let x = originX, y = originY;
+    const legCount = 6, legLen = 620, steps = 26;
+    for (let i = 0; i < legCount; i++) {
+      const angle = (dirSign * (i % 2 === 0 ? 1 : -1)) * (0.35 + rnd() * 0.15);
+      for (let s = 0; s < steps; s++) {
+        x += Math.sin(angle) * (legLen / steps) + (rnd() - 0.5) * 3;
+        y += -Math.cos(angle) * (legLen / steps) * 0.7 + (rnd() - 0.5) * 3;
+        pts.push({ x, y });
+      }
+    }
+    return pts;
+  }
+
+  const boatPaths = {
+    t1: buildZigzagPath(11, 620, 760, 1),
+    t2: buildZigzagPath(23, 520, 740, 1),
+    t3: buildZigzagPath(37, 700, 770, -1),
+    t4: buildZigzagPath(51, 800, 750, -1),
+    t5: buildZigzagPath(67, 900, 730, 1),
+    t6: buildZigzagPath(83, 780, 800, -1),
+  };
+
+  /* ================= 状態 ================= */
+  let progress = 0.19; // 0..1 = 00:14:02 / 02:03:11 相当
+  let playing = false;
+  let speed = 1;
+  let lastFrameTs = null;
+  const comparedBoats = new Set(["t1", "t3"]);
+
+  /* ================= Canvas描画 ================= */
+  const canvas = document.getElementById("raceCanvas");
+  const ctx = canvas.getContext("2d");
+  const wrap = document.getElementById("canvasWrap");
+
+  function resizeCanvas() {
+    const rect = wrap.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+
+  function project(pt, rect) {
+    const scale = Math.min(rect.width / 1500, rect.height / 900);
+    const offX = (rect.width - 1500 * scale) / 2;
+    const offY = (rect.height - 900 * scale) / 2 - 40;
+    return { x: pt.x * scale + offX, y: pt.y * scale + offY };
+  }
+
+  function hexAlpha(hex, alpha) {
+    const m = hex.replace("#", "");
+    if (m.length !== 6) return hex;
+    const r = parseInt(m.substring(0, 2), 16);
+    const g = parseInt(m.substring(2, 4), 16);
+    const b = parseInt(m.substring(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function drawFrame() {
+    const rect = wrap.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const showTail = document.getElementById("tailToggle").checked;
+    const fgPrimary = getVar("--color-label-primary");
+
+    boats.forEach((boat) => {
+      const color = boatColor(boat);
+      const path = boatPaths[boat.id];
+      const isCompared = comparedBoats.has(boat.id);
+      const anyCompared = comparedBoats.size > 0;
+      const dimmed = anyCompared && !isCompared;
+
+      ctx.beginPath();
+      ctx.strokeStyle = dimmed ? hexAlpha(color, 0.18) : hexAlpha(color, 0.45);
+      ctx.lineWidth = isCompared ? 2 : 1.4;
+      path.forEach((pt, i) => {
+        const p = project(pt, rect);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+
+      const idx = Math.min(path.length - 1, Math.floor(progress * (path.length - 1)));
+      const curPt = project(path[idx], rect);
+
+      if (showTail) {
+        const tailStart = Math.max(0, idx - 40);
+        ctx.beginPath();
+        ctx.strokeStyle = dimmed ? hexAlpha(color, 0.35) : color;
+        ctx.lineWidth = isCompared ? 3.5 : 2.2;
+        for (let i = tailStart; i <= idx; i++) {
+          const p = project(path[i], rect);
+          if (i === tailStart) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+      }
+
+      const r = isCompared ? 8 : 5;
+      if (isCompared) {
+        ctx.beginPath();
+        ctx.arc(curPt.x, curPt.y, r + 5, 0, Math.PI * 2);
+        ctx.fillStyle = hexAlpha(color, 0.20);
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(curPt.x, curPt.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = dimmed ? hexAlpha(color, 0.4) : color;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = getVar("--color-bg-canvas");
+      ctx.stroke();
+
+      if (isCompared) {
+        ctx.font = "600 12px -apple-system, sans-serif";
+        ctx.fillStyle = fgPrimary;
+        ctx.fillText(boat.label, curPt.x + r + 8, curPt.y + 4);
+      }
+    });
+  }
+
+  /* ================= サイドバー: 艇リスト ================= */
+  const boatListEl = document.getElementById("boatList");
+  const legendInlineEl = document.getElementById("legendInline");
+
+  function renderBoatList() {
+    boatListEl.innerHTML = "";
+    legendInlineEl.innerHTML = "";
+    boats.forEach((boat) => {
+      const color = boatColor(boat);
+      const compared = comparedBoats.has(boat.id);
+      const row = document.createElement("label");
+      row.className = "boat-row" + (comparedBoats.size > 0 && !compared ? " dimmed" : "");
+      row.innerHTML = `
+        <input type="checkbox" class="ds-checkbox" ${compared ? "checked" : ""} data-boat="${boat.id}" style="width:18px;height:18px;">
+        <span class="ds-boat-dot" style="background:${color}"></span>
+        <span class="boat-label ds-text-footnote">${boat.label}</span>
+      `;
+      boatListEl.appendChild(row);
+
+      const legendSpan = document.createElement("span");
+      legendSpan.innerHTML = `<span class="dot" style="background:${color}"></span>${boat.label}`;
+      legendInlineEl.appendChild(legendSpan);
+    });
+
+    boatListEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", (e) => {
+        const id = e.target.dataset.boat;
+        if (e.target.checked) {
+          comparedBoats.add(id);
+          if (comparedBoats.size > 2) {
+            const oldest = comparedBoats.values().next().value;
+            comparedBoats.delete(oldest);
+          }
+        } else {
+          comparedBoats.delete(id);
+        }
+        renderBoatList();
+        drawFrame();
+      });
+    });
+  }
+
+  /* ================= 反省メモ ================= */
+  const annotationListEl = document.getElementById("annotationList");
+  function fmtTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+  }
+
+  function renderAnnotations() {
+    annotationListEl.innerHTML = "";
+    const curSec = Math.round(progress * TOTAL_SEC);
+    annotations.forEach((a) => {
+      const boatLabel = a.boat ? boats.find((b) => b.id === a.boat).label : null;
+      const item = document.createElement("div");
+      const active = Math.abs(a.t - curSec) < 30;
+      item.className = "annotation-item" + (active ? " active" : "");
+      item.innerHTML = `
+        <div class="annotation-time">${fmtTime(a.t)}${boatLabel ? " · " + boatLabel : ""}</div>
+        <div class="annotation-body">${a.body}</div>
+        <div class="annotation-author">— ${a.author}</div>
+      `;
+      item.addEventListener("click", () => seekTo(a.t / TOTAL_SEC));
+      annotationListEl.appendChild(item);
+    });
+  }
+
+  /* ================= タイムライン ================= */
+  const timelineTrack = document.getElementById("timelineTrack");
+  const timelineProgress = document.getElementById("timelineProgress");
+  const timelinePlayhead = document.getElementById("timelinePlayhead");
+
+  function renderTimelineMarkers() {
+    annotations.forEach((a) => {
+      const pin = document.createElement("div");
+      pin.className = "ds-timeline-pin ds-timeline-pin--mark annotation-pin";
+      pin.style.left = (a.t / TOTAL_SEC * 100) + "%";
+      pin.title = fmtTime(a.t) + " — " + a.body;
+      pin.addEventListener("click", (e) => { e.stopPropagation(); seekTo(a.t / TOTAL_SEC); });
+      timelineTrack.appendChild(pin);
+    });
+    legs.forEach((leg, i) => {
+      if (i === 0) return; // スタートはピン不要
+      const pin = document.createElement("div");
+      pin.className = "ds-timeline-pin ds-timeline-pin--tack";
+      pin.style.left = (leg.t / TOTAL_SEC * 100) + "%";
+      pin.title = leg.label;
+      pin.addEventListener("click", (e) => { e.stopPropagation(); seekTo(leg.t / TOTAL_SEC); });
+      timelineTrack.appendChild(pin);
+    });
+  }
+
+  function renderLegChips() {
+    const legRow = document.getElementById("legRow");
+    legRow.innerHTML = "";
+    const curSec = progress * TOTAL_SEC;
+    legs.forEach((leg, i) => {
+      const nextT = legs[i + 1] ? legs[i + 1].t : TOTAL_SEC;
+      const isCurrent = curSec >= leg.t && curSec < nextT;
+      const chip = document.createElement("button");
+      chip.className = "ds-leg-jump" + (isCurrent ? " is-active" : "");
+      chip.textContent = leg.label;
+      chip.addEventListener("click", () => seekTo(leg.t / TOTAL_SEC));
+      legRow.appendChild(chip);
+    });
+  }
+
+  function updateTimelineUI() {
+    timelineProgress.style.width = (progress * 100) + "%";
+    timelinePlayhead.style.left = (progress * 100) + "%";
+    document.getElementById("curTime").textContent = fmtTime(progress * TOTAL_SEC);
+    renderLegChips();
+    renderAnnotations();
+  }
+
+  function seekTo(p) {
+    progress = Math.max(0, Math.min(1, p));
+    updateTimelineUI();
+    drawFrame();
+  }
+
+  let draggingTimeline = false;
+  timelineTrack.addEventListener("pointerdown", (e) => {
+    draggingTimeline = true;
+    handleTimelineDrag(e);
+  });
+  window.addEventListener("pointermove", (e) => { if (draggingTimeline) handleTimelineDrag(e); });
+  window.addEventListener("pointerup", () => { draggingTimeline = false; });
+  function handleTimelineDrag(e) {
+    const rect = timelineTrack.getBoundingClientRect();
+    const p = (e.clientX - rect.left) / rect.width;
+    seekTo(p);
+  }
+
+  /* Canvas上の左右スワイプで±5秒シーク（スマホ操作） */
+  let swipeStartX = null;
+  canvas.addEventListener("pointerdown", (e) => { swipeStartX = e.clientX; });
+  canvas.addEventListener("pointerup", (e) => {
+    if (swipeStartX == null) return;
+    const dx = e.clientX - swipeStartX;
+    swipeStartX = null;
+    if (Math.abs(dx) < 30) return;
+    seekTo(progress + (dx > 0 ? 5 : -5) / TOTAL_SEC);
+  });
+
+  /* ================= 再生コントロール ================= */
+  const playBtn = document.getElementById("playBtn");
+  const playIcon = document.getElementById("playIcon");
+  const ICON_PLAY = '<polygon points="6 3 20 12 6 21 6 3"></polygon>';
+  const ICON_PAUSE = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+  playBtn.addEventListener("click", () => {
+    playing = !playing;
+    playIcon.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+    lastFrameTs = null;
+    if (playing) requestAnimationFrame(tick);
+  });
+
+  document.querySelectorAll(".ds-playbar-speed").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".ds-playbar-speed").forEach((b) => {
+        b.classList.remove("active");
+        b.style.background = ""; b.style.color = "";
+      });
+      btn.classList.add("active");
+      btn.style.background = "var(--color-accent)"; btn.style.color = "#fff";
+      speed = parseFloat(btn.dataset.speed);
+    });
+  });
+
+  document.getElementById("tailToggle").addEventListener("change", drawFrame);
+
+  function tick(ts) {
+    if (!playing) return;
+    if (lastFrameTs == null) lastFrameTs = ts;
+    const dtSec = (ts - lastFrameTs) / 1000;
+    lastFrameTs = ts;
+    progress += (dtSec * speed) / TOTAL_SEC;
+    if (progress >= 1) {
+      progress = 1;
+      playing = false;
+      playIcon.innerHTML = ICON_PLAY;
+    }
+    updateTimelineUI();
+    drawFrame();
+    if (playing) requestAnimationFrame(tick);
+  }
+
+  /* ================= メモ追加 ================= */
+  const addNoteBtn = document.getElementById("addNoteBtn");
+  const noteCompose = document.getElementById("noteCompose");
+  addNoteBtn.addEventListener("click", () => {
+    noteCompose.classList.toggle("open");
+  });
+  document.getElementById("noteCancel").addEventListener("click", () => {
+    noteCompose.classList.remove("open");
+    document.getElementById("noteText").value = "";
+  });
+  document.getElementById("noteSave").addEventListener("click", () => {
+    const text = document.getElementById("noteText").value.trim();
+    if (!text) return;
+    annotations.push({ t: Math.round(progress * TOTAL_SEC), boat: null, author: "あなた", body: text });
+    annotations.sort((a, b) => a.t - b.t);
+    document.getElementById("noteText").value = "";
+    noteCompose.classList.remove("open");
+    document.querySelectorAll(".annotation-pin, .ds-timeline-pin--tack").forEach((el) => el.remove());
+    renderTimelineMarkers();
+    renderAnnotations();
+  });
+
+  /* ================= 共有URL（トースト） ================= */
+  const shareBtn = document.getElementById("shareBtn");
+  const toast = document.getElementById("toast");
+  shareBtn.addEventListener("click", () => {
+    const curSec = Math.round(progress * TOTAL_SEC);
+    const boatsParam = Array.from(comparedBoats).join(",");
+    const legIndex = legs.reduce((acc, leg, i) => (curSec >= leg.t ? i : acc), 0);
+    const url = `https://sailvlog.example/sessions/1?t=${curSec}&boats=${boatsParam}&leg=${legIndex}`;
+    document.getElementById("toastUrl").textContent = url;
+    if (navigator.clipboard) { navigator.clipboard.writeText(url).catch(() => {}); }
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2600);
+  });
+
+  /* ================= モバイル: アコーディオン ================= */
+  document.querySelectorAll("[data-collapsible] [data-toggle]").forEach((title) => {
+    title.addEventListener("click", () => {
+      title.closest("[data-collapsible]").classList.toggle("open");
+    });
+  });
+
+  /* ================= 初期化 ================= */
+  function init() {
+    resizeCanvas();
+    renderBoatList();
+    renderTimelineMarkers();
+    updateTimelineUI();
+    drawFrame();
+  }
+  window.addEventListener("resize", () => { resizeCanvas(); drawFrame(); });
+  init();
+})();
+</script>
+
+</body>
+</html>

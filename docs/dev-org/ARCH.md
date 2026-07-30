@@ -66,7 +66,16 @@ model Session {
   notes       String?     @db.Text
   marks       Json?       // [{ label: "上", lat: number, lon: number }, ...] レグ頭出し用（RQ-10）
   legs        Json?       // [{ label: "L1", startSec: number }, ...] セッション共通レグ境界（算出結果＋手動補正後）
+  visibility  String      @default("team") // "team" | "unlisted" | "public"。**共有1(PRD rev.6・Phase 1最後尾)で実効化**（追補2026-07-24時点では"team"固定だった）。enum化しない理由はADR-007
   createdAt   DateTime    @default(now())
+
+  // --- 共有1（PRD rev.6・SPEC-share1-phase1.md §4）で純追加。ADR-007 ---
+  publicSlug      String?   @unique @db.VarChar(32) // crypto.randomBytes(9)のbase64url(12字)。連番IDは絶対に露出させない。非公開時null
+  learningSummary String?   @db.Text                // 「学びの要約」。昇格時必須(1〜400字)・公開ビューの主役テキスト
+  publishedAt     DateTime?                         // 昇格日時。取り消しでnullへ戻す
+  publishedById   Int?                              // 昇格を実行したUser
+  publishedBy     User?     @relation("SessionPublisher", fields: [publishedById], references: [id])
+  publicViewCount Int       @default(0)             // 公開ビュー表示回数。**APIにも画面にも出さない**（PRD §5-7 非KPI。参照は運用SQLのみ）
 
   teamId     Int
   team       Team @relation(fields: [teamId], references: [id])
@@ -104,6 +113,7 @@ model Annotation {
   authorId  Int
   author    User @relation("AnnotationAuthor", fields: [authorId], references: [id])
 
+  isPublic Boolean @default(false) // 共有1で純追加。**既定は非公開**。昇格ダイアログで選ばれたものだけtrue（反省会の生の議論が昇格の副作用で外に出ない構造。ADR-007）
   tSec     Int     // セッション相対秒（必須アンカー。再生位置から自動キャプチャ）
   trackId  Int?    // 対象艇（任意）
   track    Track?  @relation(fields: [trackId], references: [id], onDelete: SetNull)
@@ -126,7 +136,7 @@ model Annotation {
 
 | I/F | 入力 | 出力 | エラー時 |
 |---|---|---|---|
-| `POST /api/sessions` | `{ title, type, startedAt, durationSec, teamId, venue?, notes? }` | `201 { session }` | 400 バリデーション / 403 非TeamMember |
+| `POST /api/sessions` | `{ title, type?, startedAt, durationSec, teamId, venue?, notes? }`（type省略時はPrisma既定の`practice`。T-12実装時の裁定） | `201 { session }` | 400 バリデーション / 403 非TeamMember |
 | `POST /api/sessions/:id/tracks` | `{ boatLabel, startSec, pointCount, gridJson, rawGpx, sourceApp? }`（フロントでパース済み。1艇=1リクエスト） | `201 { track }`（gridJson/rawGpx除くメタのみ返す） | 400 構造検証FAIL（下記） / 403 / 413 サイズ超過 |
 | `GET /api/sessions?teamId=` | クエリ: teamId | `200 { sessions: [...] }`（メタのみ・tracks件数付き） | 403 |
 | `GET /api/sessions/:id` | — | `200 { session, tracks:[{...gridJson込み, rawGpx除外}], annotations }` gzip前提。≈400KB/6艇 | 403 / 404 |
@@ -136,19 +146,41 @@ model Annotation {
 | `POST /api/sessions/:id/annotations` | `{ tSec, body, trackId?, legIndex? }` | `201 { annotation }` | 400 / 403 |
 | `PATCH/DELETE /api/annotations/:id` | body更新 / 削除 | 200 / 204 | 403（author本人 or Team admin のみ） |
 
+**共有1の追加エンドポイント（PRD rev.6・ADR-007。JWT必須の2本＋未認証1本）**
+
+| I/F | 認証 | 入力 | 出力 | エラー |
+|---|---|---|---|---|
+| `POST /api/sessions/:id/publish` | JWT必須 | `{ visibility: "unlisted"\|"public", learningSummary, publicAnnotationIds: number[] }` | `200 { publicSlug, publicUrl, visibility, publishedAt }` | 400（要約が空/401字以上・visibility不正・他セッションの注釈ID混入） / 403（uploader本人でもTeam adminでもない） / 404 |
+| `POST /api/sessions/:id/unpublish` | JWT必須 | — | `200 { visibility: "team" }`（**publicSlugを破棄**。再公開時は新スラッグ＝PRD §5-2の1方向解釈） | 403 / 404 |
+| `GET /api/public/sessions/:slug` | **不要** | — | `200 { session, tracks, annotations }` ホワイトリスト整形。IPあたり60req/min制限（「IP」の実体はADR-010の信頼モデルに従う: シークレット一致時のみ転送クライアントIP、それ以外は`req.ip`） | **404のみ**（存在しない/非公開/取り消し済みを区別しない） |
+
+**公開ペイロードから必ず除外する**（ホワイトリスト方式で「含めるものだけ」を書く。自動テストで担保＝T-31）: `rawGpx`（`GET /api/tracks/:id/gpx` も未認証では404）／`isPublic=false` の注釈（件数も出さない）／email／`teamId`・メンバー一覧（チーム表示名のみ可）／`notes`／`publicViewCount`。**`legs` は再生に必要なため含める**。
+
 **サーバ側再検証（フロントパースを信頼しない）**: lat∈[-90,90]・lon∈[-180,180]・`gridJson.lat.length === gridJson.lon.length === pointCount`（gapsは点列と長さを揃えない別配列。各要素`[start,end]`が`0 ≦ start ≦ end < pointCount`であることを別途境界検証）・startSec+pointCount≦durationSec+誤差・tSec∈[0,durationSec]・rawGpx≦5MB・gridJson≦2MB・body≦2000字。`express.json({ limit: "8mb" })` は `/api/sessions` 配下のみに適用（既存ルートのlimitは変えない）。
 
-**フロント主要ページ**: `/sessions`（一覧）・`/sessions/new`（取込ウィザード: ファイル選択→DOMParserパース→1Hzグリッド正規化→重ね描きプレビュー→保存）・`/sessions/[id]`（再生ページ。URLクエリ `?t=秒&boats=trackId,...&leg=n` を初期化時に読み、一時停止/シーク確定時のみ `history.replaceState` で書く）。
+**v1由来の存続・凍結ルート（ADR-009 → ADR-012 で確定。実装: `backend/src/routes/teams.ts` `sailors.ts` `users.ts`・コミット `4d14081`・回帰テスト `t95`）**
+
+| I/F | 認証/認可 | 挙動 |
+|---|---|---|
+| `GET /api/teams` | JWT必須 | **自分の所属チームのみ**返す（`members some userId` で絞る。全チーム列挙は不可） |
+| `GET /api/teams/:slug` | JWT必須＋**当該チームのメンバー限定** | メンバーなら部員名簿込みで200。**非メンバーと不存在は区別せず404**（team slugの存在オラクルを作らない） |
+| `GET /api/users/me`・`PUT /api/users/me` | JWT必須・本人のみ | 存続（第三者への漏洩なし）。※既知の不一致: 現行コードは `router.all("/:username")` が `PUT /me` より先に登録されており **PUT /me が410になる**（REVIEW-backend-3.md M3-01・implementer修正待ち。本表は意図した契約を示す） |
+| `GET /api/sailors`・`GET /api/sailors/:username`・`GET /api/users/:username`・`GET /api/teams/:slug/articles`・`GET /api/teams/:slug/questions` | — | **410 Gone**（凍結。ADR-003方式。v3 frontend利用ゼロ・grep確認済み） |
+| `GET /api/boat-types` | 不要 | 公開のまま（艇種マスタのみ・個人情報なし） |
+
+**フロント主要ページ**: `/sessions`（一覧）・`/sessions/new`（取込ウィザード: ファイル選択→DOMParserパース→1Hzグリッド正規化→重ね描きプレビュー→保存）・`/sessions/[id]`（再生ページ。URLクエリ `?t=秒&boats=trackId,...&leg=n` を初期化時に読み、一時停止/シーク確定時のみ `history.replaceState` で書く）・**`/p/[slug]`（共有1の公開ビュー。認証不要・読み取り専用。`lib/replay/` をそのまま再利用し、描画コードは分岐も複製もしない。差分は「渡すデータが絞られている」ことと「編集UIを描画しない」ことだけ。`generateMetadata` でOGPを出力し、`unlisted` は `noindex`）**。
 
 **再生エンジンモジュール境界**（実装者向け）: `frontend/src/lib/gpx/`（パース＋正規化。DOM API以外に依存しない純関数、ユニットテスト対象）と `frontend/src/lib/replay/`（ReplayClock: rAF+refの時刻管理／CanvasRenderer: 投影・艇・テール・スケールバー描画／型定義）。ReactコンポーネントはこれらをuseRef経由で保持し、UIパネルの状態同期は250ms間隔のsetIntervalまたはrAF間引きで行う。SPIKE-01（`spike/`）は**参照のみ・コピー禁止**（使い捨て契約）。
 
 ## 5. セキュリティ・運用の最低ライン
 
-- [x] 秘密情報は環境変数 — `JWT_SECRET` / `DATABASE_URL` / `CORS_ORIGIN`。`.env.example` を両ディレクトリに整備（T-02）。Neon/Render/Vercelのダッシュボードにのみ実値を置く
+- [x] 秘密情報は環境変数 — `JWT_SECRET` / `DATABASE_URL` / `CORS_ORIGIN` / `INTERNAL_PROXY_SECRET`（ADR-010）。`.env.example` は**backend側のみ整備済み**（2026-07-26新設）。frontend側（`NEXT_PUBLIC_API_URL`/`API_URL`/`NEXT_PUBLIC_SITE_URL`/`INTERNAL_PROXY_SECRET`）はT-02の残作業（2026-07-27監査で「両ディレクトリ整備済み」の旧記述を実態に訂正）。Neon/Render/Vercelのダッシュボードにのみ実値を置く
 - [x] 入力バリデーション — §4のサーバ側再検証（フロントのパース結果を信頼境界の外として扱う）。Prismaによりクエリはパラメータ化済み
 - [x] 認可 — 全session系ルートでTeamMember検証ミドルウェア（新規 `requireTeamMember`）。削除系はuploader/author本人またはTeam admin。**注釈のXSS**: bodyはReactのテキストノードとしてのみ描画（dangerouslySetInnerHTML禁止）
 - [x] 凍結ルートは410 Goneを返す薄いハンドラに置換（404でなく410にして「意図的な凍結」をログで判別可能に）
 - [x] ログ/エラー通知 — M規模につきconsole＋Renderのログビューで可。JWT有効期限30mは反省会（〜2h）に短すぎるため、環境変数で2hに延長（コード変更なし）
+- [x] v1由来の閲覧系ルートの機密境界は「そのチームのメンバーか」— teams系は所属チーム限定（非メンバー404）、sailors/users/:username は410凍結、/users/me のみ本人限定で存続（ADR-009→**ADR-012で上書き**・回帰テスト`t95`。契約の一覧は§4の表）
+- [x] 非同期例外の安全網 — 全asyncハンドラを`wrap()`で包み、グローバルエラーハンドラ＋`process.on`多重防御でプロセス死を防ぐ（ADR-011・検証`t96`）。公開APIの実クライアントIPは共有シークレット一致時のみ信用（ADR-010）
 
 ## 6. ADR（重要な決定の記録）
 
@@ -191,12 +223,64 @@ model Annotation {
 - **理由:** DOMParserはブラウザ標準・Node側には存在しない（サーバでやるならXMLライブラリ依存が増える）。取込UXの要=「アップロード前に時刻同期のズレや欠測を目視確認できるプレビュー」はフロントパースなら追加コストゼロ。パース・正規化ロジックは純関数モジュール（`lib/gpx/`）に隔離し、将来サーバ移動が必要になっても移せる形にする
 - **結果として受け入れるデメリット:** クライアントを信頼しない再検証をサーバに二重で持つ（ただし検証は数値範囲チェックのみで軽い）。curl等からの直接POSTでは「gridJsonがrawGpxと整合する」ことまでは検証しない（部内認証済みユーザーのみの脅威モデルで許容。公開化する場合は再考）
 
+### ADR-007: 公開昇格は「専用スラッグ＋専用ホワイトリスト・シリアライザ」で実装し、既存の部内APIを流用しない
+- **状況:** 共有1（公開昇格＋限定公開URL＋OGP）がPhase 1へ前倒しされた（PRD rev.6・`SPEC-share1-phase1.md` 承認済み）。認証必須の部内APIしか無かった系に、**初めて未認証で読めるエンドポイント**を足すことになる
+- **決定:** ①URLキーは連番IDではなく `crypto.randomBytes(9)` の base64url 12文字を `Session.publicSlug` にユニーク保存 ②公開取得は `GET /api/public/sessions/:slug` を**新設**し、既存 `GET /api/sessions/:id` のレスポンス整形を再利用しない。公開ペイロードは「除外するものを列挙」ではなく「**含めるものだけを列挙するホワイトリスト方式**」で組む ③注釈の公開は `Annotation.isPublic`（既定false）で選別 ④存在しないスラッグ・非公開・取り消し済みは**区別せず一律404** ⑤IPあたり60req/minの簡易レート制限（メモリ内カウンタ・新規npm依存なし）
+- **理由:** ADR-006の末尾で先送りした「公開化する場合は再考」がここで現実になった。**脅威モデルが「部内認証済みユーザーのみ」から「インターネット全体」へ変わる**ため、既存整形の流用は将来カラムが増えたときの意図しない露出を招く。ホワイトリスト方式なら、新カラムの既定は「公開しない」になる。一律404はスラッグ総当たりに手がかりを与えないため（「非公開です」は存在を教えてしまう）
+- **選ばなかった側の最強の擁護論:** 「`GET /api/sessions/:id` に匿名分岐を足せば1エンドポイントで済み、再生ペイロードの整形ロジックが二重化しない」— DRYとしては正当。ただし認可分岐が1本の関数に同居すると、後日の変更で分岐を1つ踏み外しただけで全公開事故になる。**分けておけば、公開側の関数を読むだけで「何が外に出るか」が全部わかる**、が反駁（再生エンジン側=`lib/replay/` はフロントで完全に再利用するので、二重化するのはサーバの整形のみ）
+- **結果として受け入れるデメリット:** サーバ側にセッション整形が2系統できる（部内用/公開用）。同期漏れは、**公開レスポンスに禁止キー（rawGpx・email・teamId・非公開注釈）が含まれないことを検証する自動テスト**（TASKS T-31）で捕まえる
+
+### ADR-008: 6艇の識別は「6色トークン＋常時ラベル」。破線は欠測（gaps）表現に予約し艇識別には使わない
+- **状況:** ③Quality Gate で仕様と実装の食い違いが発覚した。UI-DESIGN §4.2（2026-07-25確定）は「4色トークンのまま・艇index 4〜5は色再利用＋破線で線種識別」と定めたが、実装（`CanvasRenderer.ts`）は6色＋常時ラベルで、破線を艇識別に使っていない。code-reviewer は「コードが正」（REVIEW.md R-13）、並行セッションには§4.2準拠の破線実装（`getBoatLineDash`・origin上の`737b0a4`）が不採用のまま残存。どちらを正とするかの設計裁定
+- **決定:** **実装側（B案）を正とする。** ①艇識別カラーはDSトークン `--color-boat-1..6` の6色（正本は `design-system/theme.json` `color.sailvlog.boats`。Canvasは常時ダークのためダーク値 `#2f9fd1/#ff5b52/#f0a72e/#34c07a/#a679e0/#e2569a` を固定使用）②`setLineDash`（破線）は**T-14以来の「欠測（gaps）区間」表現に予約**し、艇識別には使わない ③色に依存しない識別チャネルは全艇の現在位置ドット脇の**常時艇ラベル**（実装・テスト済み）が担う。識別チャネルは「6色＋ラベル」の2本に限定し、線種・マーカー形状は追加しない（チャネルを増やすほどプロジェクタ画面は読みにくくなる）
+- **理由:** 決め手は**視覚チャネルの意味衝突がコード実態で確認できたこと**。`splitByGapRuns` はテールを実測(solid)/欠測(dashed `[4,3]`)のrunに分割して同一の艇色で描く。§4.2旧ルールでは艇5=boat-1色×常時破線 となり、**「艇1の欠測区間」（boat-1色×破線`[4,3]`）と「艇5の実測航跡」（boat-1色×破線`[7,4]`）が同色・破線で並ぶ**。線幅1.5px・プロジェクタ距離でダッシュピッチ差`[4,3]`vs`[7,4]`の判別は期待できず、さらに不採用実装`737b0a4`では艇5自身の欠測区間が`[4,3]`に切り替わるため「艇5の欠測」は表現不能だった。§4.2の確定（2026-07-25）は本文にgaps/欠測への言及が一切なく、**T-14（2026-07-24）で先に確定していたgaps=破線の意味付けを見落とした裁定**と判断する。色覚多様性・プロジェクタ色再現の観点でも、旧ルールは「艇1と艇5が完全同色（判別は破線のみ＝欠測と衝突済みのチャネル）」で、6色案（色は近くても同一ではない＋ラベルで確定できる）より劣る。§7項目8の目的「色だけに識別を依存させない」はラベルで達成済み。実装コストも決定的: 6色は theme.json（light/dark両系列）・`frontend/globals.css`（light/dark/`[data-theme]`の3ブロック）・`SessionPreviewCanvas`（`--color-boat-1..6`をCSS変数で読取済み）・公開ビュー・回帰テスト（`t20-boat-identification.test.ts`）まで整合済みで、A案への差し戻しは7ファイル超の変更と検証やり直しをGate中に発生させる
+- **選ばなかった側の最強の擁護論（A案=4色＋破線）:** 「rev.3 DSは4色を意図して選定した。6色目のピンク`#e2569a`はダーク面で`#ff5b52`（赤）と、紫`#a679e0`は`#2f9fd1`（青）と、劣化したプロジェクタや2型色覚では接近する。4色×線種なら色空間の距離を保てる」— 色距離の指摘自体は正当。ただしその解決手段（破線）が欠測表現と衝突する以上、A案は「色の曖昧さ」を「意味の曖昧さ」に置き換えているだけ。色が接近した場合の最終判別はどちらの案でもラベルに帰着し、ラベルが機能するなら6色の方が「一致→即判別」のケースが多い、が反駁。なお C案（マーカー形状差別化）は現在位置ドットには有効だがテール（線）には効かず、新規実装＋新しい視覚語彙の学習コストが発生するため、既に動いている2チャネルで足りる現状ではYAGNI違反として却下
+- **結果として受け入れるデメリット:** rev.3 DSの「艇色は4色」の意図的な絞り込みを撤回し6色に改める（theme.json は改訂済み、`design-system/styles.css` のダークブロック欠落は本ADRと同時に補完）。5・6艇目の色ペア接近リスクは残る（緩和はラベル。実プロジェクタでのデモリハ=④Demo Gateで色の判別性を目視確認する）。Team Leadの6色化指示（2026-07-25）は§4.2の既決裁定を確認せずに出された手続き違反だったが、結論としては本ADRで追認する（手続きの教訓: 既決事項の変更はADR経由で行う）
+
+### ADR-009: v1由来の閲覧系エンドポイント（teams/sailors/users）を認証必須化する 【ADR-012 により上書き】
+> **⚠️ 上書き（2026-07-28・REVIEW-backend-3.md M3-04対応）:** 本ADRの決定は **ADR-012 により覆された**。「認証済みか」は機密境界として不十分だった（registerが開放されているため）。また下記「却下した代替案①410凍結 — フロントが現用中のため不可」は `lib/teamRole.ts`（`GET /api/teams`・`/api/teams/:slug` のみ使用）への判断であって、`sailors`/`users/:username` には元々当てはまらなかった（frontend利用ゼロ・grep確認済み）。経緯を追えるよう本文は当時のまま残す。現行契約は §4 の表と ADR-012 が正
+- **状況:** ③Quality Gate の Blocker R-01（REVIEW.md）。共有1で公開ビュー `/p/[slug]` がチーム名を表示するようになり、`GET /api/teams`（未認証で全チームslug）→ `GET /api/teams/:slug`（未認証で部員全員のusername/specialty/experienceYears等）という2段の未認証呼び出しで**部員名簿が誰でも列挙できる経路**が初めて成立した。v1ではこれらは公開SNS前提の公開エンドポイントであり、部内限定化（ADR-003）の際も「存続ルート」として認証なしのまま残っていた
+- **決定:** `GET /api/teams`・`GET /api/teams/:slug`・`GET /api/sailors`・`GET /api/sailors/:username`・`GET /api/users/:username` に `authMiddleware` を付け、**部内ログイン済みユーザー限定**にする（2026-07-26 実装・Team Lead実測検証済み。回帰テスト `t95-auth-required-blocker.test.ts`）。`GET /api/boat-types` は艇種マスタのみで個人情報を含まないため公開のまま
+- **理由:** ADR-007が変えた脅威モデル（部内→インターネット全体）は、公開ペイロードだけでなく**同一アプリの全ドア**に適用されなければ SPEC §5.2 の保証（メンバー一覧は公開しない）が系全体で成立しない。フロントの利用箇所（`teamRole.ts`・セッション系ページ）はすべてJWT付きで呼んでおり、認証必須化で壊れる正当な利用者が存在しないことを確認済み
+- **却下した代替案:** ①410凍結（ADR-003方式）— Team admin判定・チーム選択でフロントが現用中のため不可 ②「部員名簿はv1から公開情報」として受容 — SPEC §5.2 の明文の保証と矛盾し、ドキュメントを事実に合わせて弱める方向の解決は採らない
+- **選ばなかった側の最強の擁護論:** 「共有2（チームページ）では結局チーム情報の公開が必要になるのだから、今閉じるのは二度手間」— ただし共有2で公開するのは**公開専用のホワイトリスト整形**（ADR-007方式）を新設すべきであり、v1の全カラム返却ルートを開けたままにする理由にはならない、が反駁
+- **結果として受け入れるデメリット:** 外部契約の変更（未認証呼び出しは401）。v1時代のクライアントは存在しないため実害なし
+- **残穴と裁定（2026-07-27追記）:** `GET /api/teams/:slug/articles`・`GET /api/teams/:slug/questions` が未認証のまま残っている（qa-engineer報告）。これらは凍結機能（ADR-003）のコンテンツ列挙のため、**認証必須化ではなく410凍結**で塞ぐ（TASKS T-28②）。本ADRの対象は「v3でも現用する閲覧系」のみ、という線引きを維持する
+
+### ADR-010: 公開APIの実クライアントIP転送は共有シークレット一致時のみ信用する
+- **状況:** ③Quality Gate の Major R-03。`/p/[slug]` のデータ取得はNext.jsサーバーコンポーネントの `fetch` なので、backend視点の `req.ip` は常に「Nextサーバー1台」に潰れ、レート制限が全閲覧者で1バケット共有（61回目で生きているURLが全員404表示）・`publicViewCount` が5分に1回しか増えない（共有1→共有2のゲート判定値の計測破壊）。対策として導入した `x-forwarded-client-ip` 転送は、backendの公開ポートへ直接届く呼び出し元なら誰でも詐称できる
+- **決定:** 環境変数 `INTERNAL_PROXY_SECRET` をfrontend（Nextサーバー）とbackendの両方に設定し、`x-internal-proxy-secret` ヘッダが `crypto.timingSafeEqual` で一致した場合のみ `x-forwarded-client-ip` を採用する。**未設定・不一致時は常に `req.ip` へフォールバック（安全側=詐称もレート制限回避もできないが、実クライアント単位の計測も効かない＝機能低下側に倒れる）**。仕様の正本は `backend/src/routes/public.ts` のコメントと `backend/.env.example`
+- **理由:** `publicViewCount` はPRD §6で共有2着手判定に使う実データであり、「ヘッダを回すだけで閲覧数を偽装できる」状態は計測装置の信頼性を壊す。env変数1本のコストで塞げる
+- **却下した代替案:** ①`trust proxy` 有効化のみ — NextのサーバーfetchはXFFに閲覧者IPを積まないため解決しない ②公開ページのクライアント側fetch化 — OGP/SSRを失う ③R-03案C（制限緩和して受容）— レート制限だけなら妥当だったが、閲覧数偽装まで許容することになる
+- **選ばなかった側の最強の擁護論:** 「S規模・想定閲覧数十件にシークレット同期の運用を足すのは過剰。案Cで十分」— 正当な費用対効果の指摘。ただし未設定時に安全側で動く（設定を忘れても事故にならず、単に旧挙動へ戻るだけ）設計にしたため、運用コストは「設定すれば計測が良くなる」オプションに抑えられている、が反駁
+- **結果として受け入れるデメリット:** 本番デプロイ時（T-02）に両側へ同じ値を設定する手順が増える。**frontend側のヘッダ同送は未実装（Codex担当・TASKS T-29）**。それまでは全アクセスが `req.ip`（=Nextサーバー1台）に丸まる旧挙動のまま
+
+### ADR-011: 非同期例外の安全網は依存ゼロの `wrap()` ＋グローバルエラーハンドラ（`express-async-errors` 不採用）
+- **状況:** ③Quality Gate の Major R-04。Express 4はasyncハンドラのrejectionを捕捉せず、Node 20既定ではプロセス終了になる。未認証の公開エンドポイント追加により「DB例外→backendプロセス死→cold start約1分」を**外部から誘発できる**ようになった。対応中に新規npm依存 `express-async-errors` が無断追加され、backendが起動不能になる事故も発生（実装ルール6違反）
+- **決定:** ①`backend/src/lib/asyncHandler.ts` の `wrap()`（`Promise.resolve(fn(...)).catch(next)` のみ・外部依存ゼロ）で全asyncハンドラを包む ②`index.ts` に4引数のグローバルエラーハンドラを置き確実に500へ落とす ③`process.on("unhandledRejection"/"uncaughtException")` を多重防御として追加（wrap()適用漏れやExpress層外の例外でもプロセスは落とさない）。検証は `t96-global-error-handler.test.ts`（DB例外を意図的に発生→500応答→直後の別リクエスト正常）
+- **理由:** `express-async-errors` はモジュールロード時のモンキーパッチで挙動が暗黙化する上、実装ルール6（新規npm依存はTeam Lead承認制）とARCH §1「依存ゼロ」原則に反して導入された。`wrap()` は10行未満で同じ保証を明示的に与える
+- **選ばなかった側の最強の擁護論:** 「`wrap()` は書き忘れたハンドラを守れない。パッチ方式なら全ルートが自動で守られる」— 事実。ただし多重防御（グローバルハンドラ＋process.on）により、適用漏れの最悪ケースでも「プロセス死」には至らない。Express 5移行時にはフレームワーク側でasync捕捉が入り、この問題自体が消える、が反駁
+- **結果として受け入れるデメリット:** 新規ルート追加時に `wrap()` を付ける規律が人力頼み（自動検知はS規模では見送り）
+
+### ADR-012: 名簿系APIの機密境界を「認証済みか」から「そのチームのメンバーか」へ変更する（ADR-009 を上書き）
+- **状況:** 監査ラウンド2（REVIEW-backend-2.md B-02 → REVIEW-backend-3.md M3-04）。ADR-009 は名簿系を `authMiddleware`（=認証済みか）で守ると決定したが、`POST /api/auth/register` は招待コードもメール確認も承認もなくJWTを返すため、**「認証済み」と「部外者でない」は同値ではない**。Team Lead が実測で再現済み（登録直後の部外者アカウントが部員名・specialty・experienceYears を取得できた）。機密境界は「認証済みか」ではなく「そのチームのメンバーという関係にあるか」に置くべきだった
+- **決定**（実装: コミット `4d14081`・回帰テスト `t95-auth-required-blocker.test.ts` を新契約に改訂済み。契約の一覧は §4 の表）:
+  - `GET /api/teams` → **自分の所属チームのみ**返す
+  - `GET /api/teams/:slug` → 非メンバーには**404**（403ではなく404にして「存在するが権限なし」を教えない＝team slugの存在オラクルを作らない。ADR-007の一律404と同じ思想）
+  - `GET /api/sailors`・`GET /api/sailors/:username`・`GET /api/users/:username`・`GET /api/teams/:slug/{articles,questions}` → **410凍結**（ADR-003方式）。sailors/users はチーム横断検索が用途そのものであり、v3で「見せてよい関係」を定義できない。v3 frontend からの利用ゼロ（grep確認済み・ヒット0）
+  - `GET/PUT /api/users/me` は本人限定・第三者への漏洩なしのため存続
+- **却下した代替案:** ①ADR-009 の「authMiddleware を付けるだけ」を維持 — register が無条件開放である限り、部外者は登録1回で「認証済み」になれるため境界として機能しない（Team Lead実測で突破済み） ②register を招待制化して ADR-009 を生かす — sailors/users の名簿機能自体が v3 frontend で使われておらず、使われない機能を守るために登録フローを複雑化するのは順序が逆（凍結解除の需要が出た時点で招待制/明示的な関係の設計とセットで再開する） ③非メンバーに403 — 存在オラクルになるため404に統一
+- **選ばなかった側の最強の擁護論:** 「根本原因は開放された register であり、そちらを閉じれば ADR-009 のままで足りた。機能を殺すのは過剰対応」— 正当。ただし register 閉鎖（招待制）は将来のチーム加入フロー設計とセットでないと決められず、7/31 までに安全側へ倒すには「露出面そのものを消す」方が確実。凍結は410で意図が明示され、復活の判断点も ADR-003/BL-01 の既存の枠組みに乗る、が反駁
+- **影響（API契約の変更・Codex/frontend への申し送り）:** `GET /api/teams` は全チームではなく所属チームのみ返す（現利用箇所 `sessions/page.tsx`・`sessions/new/page.tsx` のチーム選択、`lib/teamRole.ts` の admin判定は、いずれも所属チームだけで成立するため互換）。`GET /api/teams/:slug` は非メンバーに404。`sailors`/`users/:username`/`teams/:slug/{articles,questions}` は410
+- **既知の副作用（未解決・オーナー判断待ち）:** REVIEW-backend-3.md **B3-02** — 新規ユーザーがチームに加入する経路がバックエンドに存在しないため、自チーム限定化により、登録直後のユーザーは `GET /api/teams` が空配列になり**「壊れていることすら見えない」**状態になった（修正前は「全チームが見え、選ぶと403」で壊れ方が見えた）。加入API新設か「オーナーがDB/seedで投入する運用」の明文化かは本ADRの範囲外として**未決のまま明記**する（解決策の実装はオーナー判断待ち）
+
 ## 7. リスクと縮退プラン
 
 - **一番危ない残リスク: スマホ実機性能が未計測のまま設計を確定していること。** PC実測（M5・Headless Chrome）はPASSしたが、PRD要件「スマホでも閲覧」の実機検証はオーナー待ち（B-2）。ただし①主利用文脈はプロジェクタ/PC（PRD§3）②PC側の余裕が極端（p95 0.2ms ≒ 予算16.7msの1/80）で、ミドルレンジスマホがPCの50倍遅くてもPASS圏内、の2点からFAIL確率は低いと見積もる。**検証プラン:** `spike/README.md` の手順でオーナーがS1（TASKS.md 実装スライス1）着手前〜並行に計測（基準: 30fps/シーク1s/ロード5s/クラッシュなし）。FAIL時はSPIKE-01計画の縮退策（①描画間引き→②Path2D差分→③テール上限→④OffscreenCanvas/WebGL=新技術枠を解放）を順に適用。本線（PC）は影響を受けない
 - 第2: 主役体験が並行検証でAに転ぶ → 〔共通〕タスク（T-01/T-02）は無駄にならない設計。E2固有実装はGATES ①通過を着手条件にする（TASKS.md B-1）
 - 第3: JSONB応答が実データで遅い → T-24実測ガード（縮退はADR-002に記載）
 - 第4: 供給リスク（マネ艇が録らない）→ 設計の外。並行検証とハンドブック（T-22）が担当
+- 第5（共有1・ADR-007）: **未認証エンドポイントからの情報露出**。縮退ではなく予防で対処する — ホワイトリスト整形＋禁止キー非含有テスト（T-31）＋一律404＋レート制限。**万一の事故時の縮退**は `POST /api/sessions/:id/unpublish` を全公開セッションに対して実行するSQL/スクリプト1本で全撤収できる（`publicSlug=null` にすれば全URLが即404になる）。この「一撃で全部引っ込められる」性質を設計上の保険として維持する（＝公開状態をSession単体で完結させ、別テーブルへ複製しない理由でもある）
 - **間に合わない場合に削る順序:** ①レグ頭出し（T-21。注釈ジャンプで代替可能）→ ②2艇比較ハイライト（T-20。艇選択の色分けで代替）→ ③URLクエリのleg/boatsパラメータ（tのみ残す）→ ④スマホ閲覧最適化（T-25。PC/プロジェクタ本線は維持）。**取込→複数艇再生→注釈→部内共有の縦1本とデモ品質は最後まで削らない**
 
 ## 8. Definition of Done
@@ -206,5 +290,5 @@ model Annotation {
 - [x] システム構成が1画面で説明できる（§2）
 - [x] データモデルとI/Fが実装者が迷わない粒度である（§3 Prisma具体形・§4 検証値込み）
 - [x] セキュリティ最低ラインを確認した（§5）
-- [x] 重要決定がADRになっている（6件。うち5件はTeam Lead指定の必須5本: 描画方式/保存形式/基盤への載せ方/ホスティング/v2方針差分）
+- [x] 重要決定がADRになっている（12件。うち5件はTeam Lead指定の必須5本: 描画方式/保存形式/基盤への載せ方/ホスティング/v2方針差分。ADR-007=共有1、ADR-008=6艇識別、ADR-009〜011=③Quality Gate対応で変わった外部契約・運用前提の追認〈2026-07-27監査で追記〉、ADR-012=名簿系機密境界の変更＝ADR-009の上書き〈2026-07-28・M3-04対応〉）
 - [x] TASKS.md への分解が完了した

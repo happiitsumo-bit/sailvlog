@@ -1,0 +1,120 @@
+<!-- @dsCard group="Type" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Type — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  .demo-block { padding: var(--space-lg); }
+  .type-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    border-bottom: 0.5px solid var(--color-separator);
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-row-label {
+    flex: 0 0 140px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption1);
+    color: var(--color-label-tertiary);
+  }
+  .type-row-sample { flex: 1; }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Type / タイポグラフィ</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container demo-block">
+    <p class="ds-text-footnote" style="margin-bottom: var(--space-lg);">
+      システムサンセリフスタック（-apple-system, Hiragino Sans, Noto Sans JP）のみを使用。外部フォント読み込みは禁止（CSP対策・オフライン耐性）。
+      日英混植でも行間が破綻しないよう line-height を実測値で固定している。
+    </p>
+
+    <section class="ds-card" style="padding:0; margin-bottom: var(--space-2xl);">
+      <div class="type-row">
+        <span class="type-row-label">large-title / 34</span>
+        <span class="type-row-sample ds-text-large-title">江の島セーリング</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">title1 / 28</span>
+        <span class="type-row-sample ds-text-title1">今週のセッション</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">title2 / 22</span>
+        <span class="type-row-sample ds-text-title2">レグ別タイム比較</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">title3 / 20</span>
+        <span class="type-row-sample ds-text-title3">風況サマリー</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">headline / 17 sb</span>
+        <span class="type-row-sample ds-text-headline">江の島 定期練習</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">body / 17</span>
+        <span class="type-row-sample ds-text-body">スタートから第1マークまでのタックが3回、平均ロスは4.2秒でした。次回はレイラインの見極めを練習しましょう。</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">callout / 16</span>
+        <span class="type-row-sample ds-text-callout">2026年7月20日（日）9:00〜11:30</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">subheadline / 15</span>
+        <span class="type-row-sample ds-text-subheadline">470級 / 全長6艇</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">footnote / 13</span>
+        <span class="type-row-sample ds-text-footnote">風速12kt・風向SW・波高0.5m</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">caption1 / 12</span>
+        <span class="type-row-sample ds-text-caption1">記録日時 2026-07-20 11:24</span>
+      </div>
+      <div class="type-row">
+        <span class="type-row-label">caption2 / 11</span>
+        <span class="type-row-sample ds-text-caption2">Session Log</span>
+      </div>
+    </section>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">ウェイト</h2>
+    <div class="ds-row ds-gap-lg" style="margin-bottom: var(--space-2xl); flex-wrap: wrap;">
+      <span class="ds-text-body" style="font-weight:400;">Regular 江の島</span>
+      <span class="ds-text-body" style="font-weight:500;">Medium 江の島</span>
+      <span class="ds-text-body" style="font-weight:600;">Semibold 江の島</span>
+      <span class="ds-text-body" style="font-weight:700;">Bold 江の島</span>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">フォントスタック（フォールバック確認）</h2>
+    <p class="ds-text-footnote ds-text-mono" style="word-break: break-all;">
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Roboto, sans-serif
+    </p>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

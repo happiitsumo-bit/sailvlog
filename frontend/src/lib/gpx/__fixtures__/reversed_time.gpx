@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="qa-fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>reversed_time</name>
+    <trkseg>
+      <!-- 3点目の時刻が2点目より過去 = 時刻逆転。パーサはファイル全体を拒否すべき -->
+      <trkpt lat="35.3020000" lon="139.4790000"><time>2026-07-24T05:00:00.000Z</time></trkpt>
+      <trkpt lat="35.3020200" lon="139.4790200"><time>2026-07-24T05:00:02.000Z</time></trkpt>
+      <trkpt lat="35.3020400" lon="139.4790400"><time>2026-07-24T05:00:01.000Z</time></trkpt>
+      <trkpt lat="35.3020600" lon="139.4790600"><time>2026-07-24T05:00:03.000Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

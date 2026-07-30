@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="qa-fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>boat_with_gap</name>
+    <trkseg>
+      <!-- t=0..3は連続。t=4,5,6が欠測(3秒ギャップ)。t=7から再開。
+           正規化後: 1Hzグリッドの index 4..6 が線形補間で埋まり、gapsに [4,6] が記録される想定 -->
+      <trkpt lat="35.3020000" lon="139.4790000"><time>2026-07-24T05:00:00.000Z</time></trkpt>
+      <trkpt lat="35.3020200" lon="139.4790200"><time>2026-07-24T05:00:01.000Z</time></trkpt>
+      <trkpt lat="35.3020400" lon="139.4790400"><time>2026-07-24T05:00:02.000Z</time></trkpt>
+      <trkpt lat="35.3020600" lon="139.4790600"><time>2026-07-24T05:00:03.000Z</time></trkpt>
+      <trkpt lat="35.3021400" lon="139.4791400"><time>2026-07-24T05:00:07.000Z</time></trkpt>
+      <trkpt lat="35.3021600" lon="139.4791600"><time>2026-07-24T05:00:08.000Z</time></trkpt>
+      <trkpt lat="35.3021800" lon="139.4791800"><time>2026-07-24T05:00:09.000Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

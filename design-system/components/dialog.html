@@ -1,0 +1,94 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dialog — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-card);
+    border: 0.5px solid var(--color-separator);
+    margin-bottom: var(--space-2xl);
+    padding: var(--space-lg);
+  }
+  .sheet-stage {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    min-height: 320px;
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-card);
+    border: 0.5px solid var(--color-separator);
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Dialog / モーダル・シート</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container" style="padding-top: var(--space-lg);">
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">確認ダイアログ</h2>
+    <div class="stage">
+      <div class="ds-overlay" style="position: static; background: transparent;">
+        <div class="ds-dialog">
+          <div class="ds-dialog-title">セッションを削除しますか?</div>
+          <div class="ds-dialog-body">「江の島 定期練習」の記録データと動画がすべて削除されます。この操作は取り消せません。</div>
+          <div class="ds-dialog-actions ds-dialog-actions--row">
+            <button class="ds-btn ds-btn--secondary">キャンセル</button>
+            <button class="ds-btn ds-btn--destructive">削除する</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">ボトムシート</h2>
+    <div class="sheet-stage">
+      <div class="ds-sheet">
+        <div class="ds-sheet-handle"></div>
+        <div class="ds-text-headline" style="margin-bottom: var(--space-md);">セッション種別を選択</div>
+        <div class="ds-list" style="margin-bottom: var(--space-lg);">
+          <div class="ds-list-row ds-list-row--interactive">
+            <span class="ds-chip ds-chip--practice">練習</span>
+            <span class="ds-text-callout" style="flex:1;">通常の練習セッション</span>
+          </div>
+          <div class="ds-list-row ds-list-row--interactive">
+            <span class="ds-chip ds-chip--race">レース</span>
+            <span class="ds-text-callout" style="flex:1;">大会・レース記録</span>
+          </div>
+        </div>
+        <button class="ds-btn ds-btn--secondary ds-btn--full">閉じる</button>
+      </div>
+    </div>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

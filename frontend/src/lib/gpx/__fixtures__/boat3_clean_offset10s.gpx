@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="qa-fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>boat3_clean_offset10s</name>
+    <trkseg>
+      <!-- boat1_clean.gpx より10秒遅れて記録開始 = startSec=10になるはず -->
+      <trkpt lat="35.3015000" lon="139.4785000"><time>2026-07-24T05:00:10.000Z</time></trkpt>
+      <trkpt lat="35.3015200" lon="139.4785200"><time>2026-07-24T05:00:11.000Z</time></trkpt>
+      <trkpt lat="35.3015400" lon="139.4785400"><time>2026-07-24T05:00:12.000Z</time></trkpt>
+      <trkpt lat="35.3015600" lon="139.4785600"><time>2026-07-24T05:00:13.000Z</time></trkpt>
+      <trkpt lat="35.3015800" lon="139.4785800"><time>2026-07-24T05:00:14.000Z</time></trkpt>
+      <trkpt lat="35.3016000" lon="139.4786000"><time>2026-07-24T05:00:15.000Z</time></trkpt>
+      <trkpt lat="35.3016200" lon="139.4786200"><time>2026-07-24T05:00:16.000Z</time></trkpt>
+      <trkpt lat="35.3016400" lon="139.4786400"><time>2026-07-24T05:00:17.000Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

@@ -160,6 +160,104 @@ export interface TeamDetail extends Omit<TeamSummary, "_count"> {
   _count: { articles: number; questions: number };
 }
 
+export type SessionType = "practice" | "race";
+export type SessionVisibility = "team" | "unlisted" | "public";
+
+export interface SessionSummary {
+  id: number;
+  title: string;
+  type: SessionType;
+  startedAt: string;
+  durationSec: number;
+  venue?: string;
+  createdAt: string;
+  teamId: number;
+  uploaderId: number;
+  visibility: SessionVisibility;
+  _count: { tracks: number; annotations: number };
+}
+
+export interface Track {
+  id: number;
+  sessionId: number;
+  boatLabel: string;
+  startSec: number;
+  pointCount: number;
+  gridJson: { lat: number[]; lon: number[]; gaps: [number, number][] };
+  sourceApp?: string;
+  createdAt: string;
+}
+
+export interface Annotation {
+  id: number;
+  sessionId: number;
+  authorId: number;
+  tSec: number;
+  trackId?: number;
+  legIndex?: number;
+  body: string;
+  createdAt: string;
+  isPublic: boolean;
+}
+
+export interface SessionDetail {
+  session: SessionSummary & {
+    notes?: string;
+    marks?: { label: string; lat: number; lon: number }[];
+    legs?: { label: string; startSec: number }[];
+    publicSlug?: string | null;
+    learningSummary?: string | null;
+    publishedAt?: string | null;
+    publishedById?: number | null;
+  };
+  tracks: Track[];
+  annotations: Annotation[];
+}
+
+/** POST /api/sessions/:id/publish のレスポンス（SPEC-share1-phase1.md §5.1）。 */
+export interface PublishResultPayload {
+  publicSlug: string;
+  publicUrl: string;
+  visibility: SessionVisibility;
+  publishedAt: string;
+}
+
+/** GET /api/public/sessions/:slug のレスポンス（T-31 serializePublicSession.ts と対応。§5.2ホワイトリスト） */
+export interface PublicAnnotation {
+  id: number;
+  tSec: number;
+  trackId: number | null;
+  legIndex: number | null;
+  body: string;
+}
+
+export interface PublicTrack {
+  id: number;
+  boatLabel: string;
+  startSec: number;
+  pointCount: number;
+  gridJson: { lat: number[]; lon: number[]; gaps: [number, number][] };
+  sourceApp?: string;
+}
+
+export interface PublicSessionResponse {
+  session: {
+    id: number;
+    title: string;
+    type: SessionType;
+    startedAt: string;
+    durationSec: number;
+    venue: string | null;
+    learningSummary: string | null;
+    legs?: { label: string; startSec: number }[];
+    visibility: SessionVisibility;
+    publishedAt: string | null;
+    team: { name: string };
+  };
+  tracks: PublicTrack[];
+  annotations: PublicAnnotation[];
+}
+
 export interface Sailor {
   id: number;
   username: string;

@@ -1,29 +1,48 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 
+import { assertJwtSecretConfigured } from "./lib/assertJwtSecretConfigured";
 import authRouter from "./routes/auth";
-import articlesRouter from "./routes/articles";
 import usersRouter from "./routes/users";
 import boatTypesRouter from "./routes/boatTypes";
-import tagsRouter from "./routes/tags";
-import likesRouter from "./routes/likes";
-import bookmarksRouter, { myBookmarksRouter } from "./routes/bookmarks";
-import followsRouter from "./routes/follows";
-import commentsRouter from "./routes/comments";
-import questionsRouter from "./routes/questions";
-import postsRouter from "./routes/posts";
-import coursesRouter from "./routes/courses";
 import sailorsRouter from "./routes/sailors";
 import teamsRouter from "./routes/teams";
+import sessionsRouter from "./routes/sessions";
+import tracksRouter from "./routes/tracks";
+import annotationsRouter from "./routes/annotations";
+import publicRouter from "./routes/public";
+
+// v3ピボット（2026-07-24, ADR-003）: 凍結対象ルート。
+// 実装は410 Goneの薄いハンドラに置換し、ルータ本体（articles等）はコードとして残置する
+// （expand&contract戦略。物理削除は BL-01 で実施条件成立後に行う）。
+const gone = (_req: Request, res: Response) => {
+  res.status(410).json({ error: "このエンドポイントはv3ピボットにより凍結されました" });
+};
+
+// M-05修正: JWT_SECRETが未設定・既知のプレースホルダ・短すぎる場合はfail-fastする
+// （テスト・開発を壊さないよう、.env.test/docker-compose.ymlの値をこの検証に通る値へ更新済み）。
+assertJwtSecretConfigured(process.env.JWT_SECRET);
 
 const app = express();
+// B3-01修正（2026-07-28, REVIEW-backend-3.md）: trust proxy未設定だとRenderのedge/内部プロキシ経由で
+// req.ipが常に内部プロキシ側のIPになり、IP単位のレート制限が全ユーザー1バケットに潰れる
+// （ADR-010と同じ「実クライアントIPの信頼モデル」の論点）。Renderは単一のリバースプロキシを
+// 経由するので、ホップ数1を信頼する設定にし、X-Forwarded-Forの先頭値を実クライアントIPとして使う。
+app.set("trust proxy", 1);
+// m-06修正（2026-07-27, REVIEW-backend-2.md）: X-Powered-By: Express は未認証で誰でも取得できる
+// 指紋情報。実害は小さいが1行で消せるため即実施。
+app.disable("x-powered-by");
 const PORT = process.env.PORT ?? 8000;
 
 const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:3001,http://localhost:3000")
   .split(",")
   .map((o) => o.trim());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
+// v3(T-12, ARCH.md §4): /api/sessions系はgridJson/rawGpxを含むためlimitを拡張。
+// 既存ルートのlimitは変えない（express.jsonは既にreq._bodyがtrueなら再パースをスキップするため安全に併存できる）。
+app.use("/api/sessions", express.json({ limit: "8mb" }));
+app.use("/api/tracks", express.json({ limit: "8mb" }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
@@ -31,21 +50,57 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRouter);
-app.use("/api/articles", articlesRouter);
-app.use("/api/articles/:slug/like", likesRouter);
-app.use("/api/articles/:slug/bookmark", bookmarksRouter);
-app.use("/api/articles/:slug/comments", commentsRouter);
 app.use("/api/users", usersRouter);
-app.use("/api/users/:username/follow", followsRouter);
 app.use("/api/boat-types", boatTypesRouter);
-app.use("/api/tags", tagsRouter);
-app.use("/api/bookmarks", myBookmarksRouter);
-app.use("/api/questions", questionsRouter);
-app.use("/api/posts", postsRouter);
-app.use("/api/courses", coursesRouter);
 app.use("/api/sailors", sailorsRouter);
 app.use("/api/teams", teamsRouter);
+app.use("/api/sessions", sessionsRouter);
+app.use("/api/tracks", tracksRouter);
+app.use("/api/annotations", annotationsRouter);
+// T-31: 認証不要の公開取得API（ADR-007）。JWT必須の他ルートとは別の未認証入口。
+app.use("/api/public", publicRouter);
 
-app.listen(PORT, () => {
-  console.log(`🚀 sailvlog backend running on http://localhost:${PORT}`);
+// 凍結ルート（410 Gone。ADR-003）
+app.all("/api/articles", gone);
+app.all("/api/articles/*", gone);
+app.all("/api/users/:username/follow", gone);
+app.all("/api/users/:username/follow/*", gone);
+app.all("/api/tags", gone);
+app.all("/api/tags/*", gone);
+app.all("/api/bookmarks", gone);
+app.all("/api/bookmarks/*", gone);
+app.all("/api/questions", gone);
+app.all("/api/questions/*", gone);
+app.all("/api/posts", gone);
+app.all("/api/posts/*", gone);
+app.all("/api/courses", gone);
+app.all("/api/courses/*", gone);
+
+// Quality Gate Major2修正（依存ゼロ・Team Lead裁定2026-07-26）: DB例外等でプロセスが落ちるのを防ぐ
+// グローバルエラーハンドラ。各ルートは lib/asyncHandler.ts の wrap() で async ハンドラを包んでおり、
+// reject した Promise は wrap() 内の .catch(next) 経由でここへ届く（同期的なthrowも同様に届く）。
+// 確実に500応答へ落とす（プロセスは継続する）。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Unhandled error:", err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: "Internal Server Error" });
 });
+
+// 保険（多重防御）: wrap()の適用漏れや、Express層の外（タイマー等）で起きた未処理rejection/例外で
+// プロセスが落ちるのを防ぐ。個別リクエストへの500応答は保証できない（レスポンスに紐づく情報がないため）が、
+// 「1回の例外でサーバ全体が落ちてcold startになる」という最悪ケースは防ぐ。
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection (process kept alive):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (process kept alive):", err);
+});
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 sailvlog backend running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

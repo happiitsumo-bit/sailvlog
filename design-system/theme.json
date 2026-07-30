@@ -1,0 +1,145 @@
+{
+  "name": "sailvlog Design System",
+  "version": "3.2.0",
+  "direction": "土台（iOS/インスタ的な使いやすさ・角丸・影・トークン駆動）は維持しつつ、視覚言語を「海図（nautical chart）」と「水面と光」の2本柱でセーリング文脈に固有化する",
+  "designPillars": {
+    "chart": "グリッド・等深線・コンパスローズ。構造を「読む」ための語彙（ヒーロー帯・リプレイ海面の背景テクスチャ、空状態の装飾）",
+    "waterAndLight": "深い海のグラデーション（夜明けのレガッタ/深夜の海）。ヒーロー帯とリプレイ画面の雰囲気の語彙。テーマ（ライト/ダーク）に非連動の固定トークンとして定義する",
+    "notAdopted": "国際信号旗の抽象化・風向風速の本格的なアイコン体系は今回見送り（1〜2本の柱に絞るため）。将来検討する場合は --color-wind-chip-* / .ds-chip--wind の拡張から着手する"
+  },
+  "accentHueShift": {
+    "note": "汎用iOSブルー(#0b6a9e/#2f9fd1)から、やや青緑寄りの「マリンチャート」トーンへ僅かにシフト。コントラスト比は同等以上を検証済み（light: white-on-accent ≈5.9:1）。dark値は2026-07-25に#2f9fd1(white-on-accent ≈3.0:1、WCAG AA 4.5:1未達)から#177bae(white-on-accent ≈4.69:1)へ是正（UI-DESIGN §7項目9）。旧#2f9fd1は--color-boat-1（艇識別カラー）としてのみ引き続き使用する",
+    "light": { "accent": "#0b6a9e", "hover": "#095778", "pressed": "#074562" },
+    "dark": { "accent": "#177bae", "hover": "#2f95c9", "pressed": "#49aad9" }
+  },
+  "typography": {
+    "fontFamily": {
+      "sans": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Hiragino Sans\", \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", \"Segoe UI\", Roboto, sans-serif",
+      "mono": "ui-monospace, \"SF Mono\", \"Menlo\", \"Consolas\", monospace"
+    },
+    "weight": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700 },
+    "scale": {
+      "largeTitle": { "size": 34, "lineHeight": 41, "weight": 700 },
+      "title1": { "size": 28, "lineHeight": 34, "weight": 700 },
+      "title2": { "size": 22, "lineHeight": 28, "weight": 700 },
+      "title3": { "size": 20, "lineHeight": 25, "weight": 600 },
+      "headline": { "size": 17, "lineHeight": 22, "weight": 600 },
+      "body": { "size": 17, "lineHeight": 23, "weight": 400 },
+      "callout": { "size": 16, "lineHeight": 21, "weight": 400 },
+      "subheadline": { "size": 15, "lineHeight": 20, "weight": 400 },
+      "footnote": { "size": 13, "lineHeight": 18, "weight": 400 },
+      "caption1": { "size": 12, "lineHeight": 16, "weight": 400 },
+      "caption2": { "size": 11, "lineHeight": 13, "weight": 400 }
+    }
+  },
+  "spacing": {
+    "2xs": 2, "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 20,
+    "2xl": 24, "3xl": 32, "4xl": 40, "5xl": 48, "6xl": 64
+  },
+  "radius": {
+    "sm": 8,
+    "input": 10,
+    "button": 12,
+    "card": 16,
+    "sheet": 20,
+    "pill": 999
+  },
+  "shadow": {
+    "note": "各キーはlight/darkでrgba透明度が異なる。実値はstyles.cssの--shadow-*参照",
+    "tokens": ["xs", "sm", "md", "lg", "float"]
+  },
+  "color": {
+    "accent": {
+      "note": "マリンブルー（セーリング文脈の単一アクセント）",
+      "light": {
+        "accent": "#0b6a9e",
+        "hover": "#095778",
+        "pressed": "#074562",
+        "tint": "rgba(11, 106, 158, 0.12)"
+      },
+      "dark": {
+        "accent": "#177bae",
+        "hover": "#2f95c9",
+        "pressed": "#49aad9",
+        "tint": "rgba(23, 123, 174, 0.16)"
+      }
+    },
+    "neutralRamp": {
+      "note": "iOS systemGray的階調。ライトは0=最も明るい面、900=最も濃い文字。ダークは逆転しつつ単純反転ではなく個別調整。",
+      "steps": [50, 100, 200, 300, 400, 500, 600, 700, 800, 900],
+      "light": [
+        "#f7f7f8", "#eeeef0", "#e2e2e6", "#d0d0d6", "#b6b6bf",
+        "#97979f", "#77777f", "#58585f", "#3a3a3f", "#1c1c1f"
+      ],
+      "dark": [
+        "#1c1c1e", "#242426", "#2c2c2e", "#3a3a3c", "#48484a",
+        "#636366", "#8e8e93", "#aeaeb2", "#c7c7cc", "#f2f2f7"
+      ]
+    },
+    "surface": {
+      "light": {
+        "canvas": "#f2f2f5",
+        "primary": "#ffffff",
+        "secondary": "#f7f7f8",
+        "elevated": "#ffffff"
+      },
+      "dark": {
+        "canvas": "#000000",
+        "primary": "#1c1c1e",
+        "secondary": "#2c2c2e",
+        "elevated": "#242426"
+      }
+    },
+    "label": {
+      "light": {
+        "primary": "#1c1c1f",
+        "secondary": "rgba(28,28,31,0.6)",
+        "tertiary": "rgba(28,28,31,0.38)"
+      },
+      "dark": {
+        "primary": "#f2f2f7",
+        "secondary": "rgba(242,242,247,0.6)",
+        "tertiary": "rgba(242,242,247,0.38)"
+      }
+    },
+    "semantic": {
+      "light": { "success": "#1fa363", "warning": "#d98a12", "danger": "#e0392f", "info": "#0b6a9e" },
+      "dark": { "success": "#34c07a", "warning": "#f0a72e", "danger": "#ff5b52", "info": "#2f9fd1" }
+    },
+    "sailvlog": {
+      "race": { "light": "#e0392f", "dark": "#ff5b52" },
+      "practice": { "light": "#0b6a9e", "dark": "#2f9fd1" },
+      "boats": {
+        "note": "2026-07-25拡張: 6艇同時再生が主役ユースケースのため4色→6色に拡張（Team Lead指摘）。index%4での5・6艇目重複を解消。色以外の識別（常時ラベル表示）はUI-DESIGN §4.2・§7項目8で別途担保する",
+        "light": ["#0b6a9e", "#e0392f", "#d98a12", "#1fa363", "#7a4bc4", "#c23e83"],
+        "dark": ["#2f9fd1", "#ff5b52", "#f0a72e", "#34c07a", "#a679e0", "#e2569a"]
+      }
+    }
+  },
+  "material": {
+    "note": "半透明+backdrop-filterのiOS的マテリアル。topbar/tabbar/playbarに使用。",
+    "light": { "background": "rgba(255,255,255,0.72)", "blur": "20px", "border": "rgba(60,60,67,0.18)" },
+    "dark": { "background": "rgba(28,28,30,0.72)", "blur": "20px", "border": "rgba(84,84,88,0.5)" }
+  },
+  "nautical": {
+    "note": "柱1「海図」用トークン。グリッド線・等深線・コンパスローズの低彩度インク。テーマごとに濃淡を再定義する。",
+    "chartGrid": { "light": "rgba(11, 106, 158, 0.10)", "dark": "rgba(47, 159, 209, 0.16)" },
+    "chartLine": { "light": "rgba(28, 28, 31, 0.12)", "dark": "rgba(242, 242, 247, 0.10)" },
+    "compassInk": { "light": "rgba(28, 28, 31, 0.16)", "dark": "rgba(242, 242, 247, 0.14)" }
+  },
+  "waterAndLight": {
+    "note": "柱2「水面と光」用トークン。ヒーロー帯・リプレイ海面に使う固定グラデーション（テーマ非依存・:root一箇所のみ定義）。",
+    "gradientWaterDawn": "linear-gradient(160deg, #0c2436 0%, #0c5678 42%, #1c7f96 68%, #e3924f 100%)",
+    "gradientWaterDeep": "linear-gradient(165deg, #030d16 0%, #0a2f42 40%, #0b5372 72%, #12809e 100%)",
+    "chartGridOnWater": "rgba(255, 255, 255, 0.10)",
+    "chartLineOnWater": "rgba(255, 255, 255, 0.16)",
+    "heroLabelPrimary": "rgba(255, 255, 255, 0.96)",
+    "heroLabelSecondary": "rgba(255, 255, 255, 0.74)",
+    "motion": "背景グリッド/等深線は.ds-chart-drift(90s linear infinite)でごく低速に流す。prefers-reduced-motion: reduceで停止（静止画として成立するデザイン）"
+  },
+  "darkModeStrategy": "iOSライクな面階調再定義。単純な色反転(invert)ではなく、canvas/primary/secondary/elevatedの4面を個別に定義し、アクセントとラベルは明度を落とすのではなくビビッドさを保つ方向に調整。",
+  "themeSwitching": {
+    "mechanism": "media prefers-color-scheme をデフォルトとし、:root[data-theme=\"dark\"] / [data-theme=\"light\"] が明示的に上書きする",
+    "attribute": "data-theme on <html> or wrapping element"
+  }
+}

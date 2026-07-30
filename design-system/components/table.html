@@ -1,0 +1,116 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table — sailvlog Design System</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { padding-bottom: var(--space-4xl); }
+  .table-wrap { overflow-x: auto; margin-bottom: var(--space-2xl); }
+</style>
+</head>
+<body>
+  <div class="ds-topbar" style="position:static;">
+    <span class="ds-topbar-title">Table / テーブル</span>
+    <button class="ds-btn ds-btn--secondary ds-btn--sm" onclick="dsToggleTheme()" id="themeToggleBtn">Auto</button>
+  </div>
+
+  <main class="ds-container" style="padding-top: var(--space-lg);">
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">レグ別タイム比較</h2>
+    <div class="table-wrap">
+      <table class="ds-table">
+        <thead>
+          <tr>
+            <th>レグ</th>
+            <th>種別</th>
+            <th>自艇タイム</th>
+            <th>相手艇タイム</th>
+            <th>差分</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ds-text-mono">Leg 1</td>
+            <td><span class="ds-chip ds-chip--neutral">風上</span></td>
+            <td class="ds-text-mono">04:12.3</td>
+            <td class="ds-text-mono">04:16.5</td>
+            <td class="ds-text-mono" style="color: var(--color-success);">-4.2s</td>
+          </tr>
+          <tr>
+            <td class="ds-text-mono">Leg 2</td>
+            <td><span class="ds-chip ds-chip--neutral">風下</span></td>
+            <td class="ds-text-mono">03:48.1</td>
+            <td class="ds-text-mono">03:44.9</td>
+            <td class="ds-text-mono" style="color: var(--color-danger);">+3.2s</td>
+          </tr>
+          <tr>
+            <td class="ds-text-mono">Leg 3</td>
+            <td><span class="ds-chip ds-chip--neutral">風上</span></td>
+            <td class="ds-text-mono">04:05.7</td>
+            <td class="ds-text-mono">04:09.0</td>
+            <td class="ds-text-mono" style="color: var(--color-success);">-3.3s</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="ds-text-title3" style="margin-bottom: var(--space-md);">セッション履歴</h2>
+    <div class="table-wrap">
+      <table class="ds-table">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>セッション名</th>
+            <th>種別</th>
+            <th>風速</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>2026-07-20</td>
+            <td>江の島 定期練習</td>
+            <td><span class="ds-chip ds-chip--practice">練習</span></td>
+            <td>12kt</td>
+            <td><button class="ds-btn ds-btn--tertiary ds-btn--sm">開く</button></td>
+          </tr>
+          <tr>
+            <td>2026-07-18</td>
+            <td>全日本選手権 第2レース</td>
+            <td><span class="ds-chip ds-chip--race">レース</span></td>
+            <td>18kt</td>
+            <td><button class="ds-btn ds-btn--tertiary ds-btn--sm">開く</button></td>
+          </tr>
+          <tr>
+            <td>2026-07-13</td>
+            <td>江の島 定期練習</td>
+            <td><span class="ds-chip ds-chip--practice">練習</span></td>
+            <td>9kt</td>
+            <td><button class="ds-btn ds-btn--tertiary ds-btn--sm">開く</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+<script>
+function dsApplyThemeLabel(){
+  var t = document.documentElement.getAttribute('data-theme');
+  var btn = document.getElementById('themeToggleBtn');
+  if(!btn) return;
+  btn.textContent = t === 'dark' ? 'Dark' : t === 'light' ? 'Light' : 'Auto';
+}
+function dsToggleTheme(){
+  var root = document.documentElement;
+  var t = root.getAttribute('data-theme');
+  if (t === 'dark') { root.setAttribute('data-theme','light'); }
+  else if (t === 'light') { root.removeAttribute('data-theme'); }
+  else { root.setAttribute('data-theme','dark'); }
+  dsApplyThemeLabel();
+}
+dsApplyThemeLabel();
+</script>
+</body>
+</html>

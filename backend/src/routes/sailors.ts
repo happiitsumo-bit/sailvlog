@@ -1,61 +1,19 @@
 import { Router, Request, Response } from "express";
-import prisma from "../database";
 
 const router = Router();
 
-const sailorSelect = {
-  id: true,
-  username: true,
-  bio: true,
-  avatarUrl: true,
-  specialty: true,
-  affiliation: true,
-  experienceYears: true,
-  createdAt: true,
-  boatType: { select: { id: true, name: true, slug: true } },
-  _count: { select: { articles: true, questions: true, followers: true } },
+// B-02修正（2026-07-27, REVIEW-backend-2.md・案B）: このルータはチーム横断で全ユーザーの
+// specialty/affiliation/experienceYears等を返す。以前はauthMiddlewareだけで守っていたが、
+// POST /api/auth/register が誰でも通るため「ログイン済みか」は「無関係な第三者かどうか」を
+// 弁別できない。しかも「チームメンバーか」で判定しようにも、このエンドポイントの用途自体が
+// チーム横断検索であり「関係にある」を定義できない。v3 frontendからの利用はゼロ（grep済み・
+// ヒット0）なので、ADR-003の凍結ルートと同じ方針（410 Gone）に揃えて凍結する。
+// 復活させる場合は、招待制registerや「セーラー検索を許可する明示的な関係」の設計が前提になる。
+const gone = (_req: Request, res: Response) => {
+  res.status(410).json({ error: "このエンドポイントはv3ピボットにより凍結されました" });
 };
 
-// GET /api/sailors — セーラー一覧 + 検索
-router.get("/", async (req: Request, res: Response) => {
-  const { q, boatType, page = "1", limit = "24" } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const where: Record<string, unknown> = { isActive: true };
-  if (boatType) where.boatType = { slug: boatType };
-  if (q) {
-    const term = q as string;
-    where.OR = [
-      { username: { contains: term, mode: "insensitive" } },
-      { specialty: { contains: term, mode: "insensitive" } },
-      { affiliation: { contains: term, mode: "insensitive" } },
-    ];
-  }
-
-  const [sailors, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: sailorSelect,
-      orderBy: { followers: { _count: "desc" } },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.user.count({ where }),
-  ]);
-
-  res.json({ sailors, total, page: Number(page) });
-});
-
-// GET /api/sailors/:username — セーラー詳細 (users/:usernameと別に用意)
-router.get("/:username", async (req: Request, res: Response): Promise<void> => {
-  const sailor = await prisma.user.findUnique({
-    where: { username: req.params.username },
-    select: sailorSelect,
-  });
-
-  if (!sailor) { res.status(404).json({ error: "セーラーが見つかりません" }); return; }
-
-  res.json(sailor);
-});
+router.all("/", gone);
+router.all("/:username", gone);
 
 export default router;

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="sailvlog v3 Phase 1 全画面モックと画面遷移図">
+  <title>sailvlog v3 — 全画面モック</title>
+  <link rel="stylesheet" href="../../../../design-system/styles.css">
+  <link rel="stylesheet" href="./mock.css">
+</head>
+<body>
+  <div class="mock-lab" data-theme="light">
+    <aside class="lab-sidebar" aria-label="モック画面一覧">
+      <div class="lab-brand">
+        <span class="lab-brand-mark" aria-hidden="true">S</span>
+        <div>
+          <strong>sailvlog</strong>
+          <span>v3 UI review</span>
+        </div>
+      </div>
+
+      <div class="lab-scope">
+        <span class="lab-kicker">PHASE 1 / COMPLETE MOCK</span>
+        <p>海図と水面の光を軸に、実装対象を一続きで確認します。</p>
+      </div>
+
+      <nav class="lab-nav">
+        <p class="lab-nav-label">全体像</p>
+        <button type="button" data-screen="flow">
+          <span class="nav-index">00</span><span>画面遷移図</span>
+        </button>
+
+        <p class="lab-nav-label">認証</p>
+        <button type="button" data-screen="login">
+          <span class="nav-index">01</span><span>ログイン</span>
+        </button>
+        <button type="button" data-screen="register">
+          <span class="nav-index">02</span><span>新規登録</span>
+        </button>
+
+        <p class="lab-nav-label">部内</p>
+        <button type="button" data-screen="sessions">
+          <span class="nav-index">03</span><span>セッション一覧</span>
+        </button>
+        <button type="button" data-screen="upload">
+          <span class="nav-index">04</span><span>GPX取込</span>
+        </button>
+        <button type="button" data-screen="replay">
+          <span class="nav-index">05</span><span>部内リプレイ</span>
+        </button>
+        <button type="button" data-screen="publish">
+          <span class="nav-index">06</span><span>公開昇格</span>
+        </button>
+        <button type="button" data-screen="handbook">
+          <span class="nav-index">07</span><span>ハンドブック</span>
+        </button>
+
+        <p class="lab-nav-label">部外・例外</p>
+        <button type="button" data-screen="public">
+          <span class="nav-index">08</span><span>公開リプレイ</span>
+        </button>
+        <button type="button" data-screen="forbidden">
+          <span class="nav-index">09</span><span>403 権限なし</span>
+        </button>
+        <button type="button" data-screen="notfound">
+          <span class="nav-index">10</span><span>404 公開URL</span>
+        </button>
+      </nav>
+
+      <div class="lab-sidebar-foot">
+        <span>UI-DESIGN rev.5</span>
+        <span>DS rev.3</span>
+      </div>
+    </aside>
+
+    <main class="lab-main">
+      <header class="lab-toolbar">
+        <div>
+          <span class="lab-toolbar-label">CURRENT VIEW</span>
+          <strong id="current-screen-name">画面遷移図</strong>
+          <code id="current-route">product flow</code>
+        </div>
+        <div class="lab-toolbar-actions" aria-label="プレビュー設定">
+          <div class="segmented" aria-label="表示幅">
+            <button type="button" data-viewport="desktop" aria-pressed="true">PC</button>
+            <button type="button" data-viewport="mobile" aria-pressed="false">スマホ</button>
+          </div>
+          <button type="button" class="lab-icon-button" id="theme-toggle" aria-label="テーマを切り替える">
+            <span aria-hidden="true">◐</span>
+            <span>テーマ</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="preview-stage" aria-live="polite">
+        <div class="preview-frame" id="preview-frame">
+          <div id="screen-host"></div>
+        </div>
+      </section>
+
+      <footer class="lab-footer">
+        <p><strong>レビュー観点</strong> 主導線・画面間の語彙・PC/スマホ順序・公開境界・色以外の艇識別</p>
+        <p>モック内のボタンは主要遷移と代表的な状態だけ操作できます。</p>
+      </footer>
+    </main>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

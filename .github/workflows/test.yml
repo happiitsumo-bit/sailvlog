@@ -1,0 +1,60 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: sailvlog_user
+          POSTGRES_PASSWORD: sailvlog_pass
+          POSTGRES_DB: sailvlog_db
+        ports:
+          # backend/.env.test の DATABASE_URL は localhost:5433 前提（docker-compose.yml と同じマッピング）。
+          # ローカルとCIで同じ設定ファイルを使い回すためポートを揃える。
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U sailvlog_user -d sailvlog_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      # 型チェックとビルドはテストより前に置く。ts-node-dev も ts-jest(isolatedModules) も
+      # 型検査を行わないため、これが無いと型エラーが本番ビルド(Dockerのtsc)まで検出されない。
+      # 実際に2026-07-27、auth.ts の jwt.sign の型エラーがRenderの初回デプロイで初めて露見した。
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: npm test
+
+  frontend-lib-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
