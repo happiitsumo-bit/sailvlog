@@ -17,6 +17,11 @@ export type ValidationResult = { ok: true } | { ok: false; status: 400; error: s
 const MAX_NOTES_LEN = 4000;
 const MAX_MARKS = 50;
 const MAX_LEGS = 50;
+// m3-04修正（2026-07-28, REVIEW-backend-3.md）: label は「非空文字列であること」しか見ておらず、
+// notesに4000字上限があるのに対し非対称に無制限だった（数MBのlabelがJSONBに保存できてしまう）。
+// notes/bodyと同じ「文字列には上限を持たせる」規律に合わせ、leg/markの短いラベルという用途に
+// 見合った上限を設ける。
+const MAX_LABEL_LEN = 200;
 
 export function validateSessionPatchPayload(input: SessionPatchPayloadInput): ValidationResult {
   const { notes, marks, legs } = input;
@@ -45,6 +50,9 @@ export function validateSessionPatchPayload(input: SessionPatchPayloadInput): Va
       if (typeof m.label !== "string" || m.label.trim().length === 0) {
         return { ok: false, status: 400, error: `marks[${i}].label は必須です` };
       }
+      if (m.label.length > MAX_LABEL_LEN) {
+        return { ok: false, status: 400, error: `marks[${i}].label は${MAX_LABEL_LEN}文字以内である必要があります` };
+      }
       if (typeof m.lat !== "number" || m.lat < -90 || m.lat > 90) {
         return { ok: false, status: 400, error: `marks[${i}].lat が[-90,90]の範囲外です` };
       }
@@ -68,6 +76,9 @@ export function validateSessionPatchPayload(input: SessionPatchPayloadInput): Va
       }
       if (typeof l.label !== "string" || l.label.trim().length === 0) {
         return { ok: false, status: 400, error: `legs[${i}].label は必須です` };
+      }
+      if (l.label.length > MAX_LABEL_LEN) {
+        return { ok: false, status: 400, error: `legs[${i}].label は${MAX_LABEL_LEN}文字以内である必要があります` };
       }
       if (!Number.isInteger(l.startSec) || (l.startSec as number) < 0) {
         return { ok: false, status: 400, error: `legs[${i}].startSec は0以上の整数である必要があります` };
