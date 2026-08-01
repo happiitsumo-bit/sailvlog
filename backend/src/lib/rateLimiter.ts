@@ -139,6 +139,40 @@ export function _resetRegisterRateLimiterForTests(): void {
   registerIpLimiter.reset();
 }
 
+// ADR-013決定5（2026-07-30, B3-02対応）: POST /api/teams/join の総当たり対策。
+// 招待コード1本が部員名簿（ADR-012の機密境界）を開く鍵なので、login同様「失敗時のみ消費」の
+// peek/record分離にする（正当な参加者が誤入力を1回してもロックされすぎないようにしつつ、
+// 総当たりは頭打ちにする）。userId単位を本体(10回/60秒)、IP単位は部室の共有Wi-Fi/大学NAT配下で
+// 複数人が同時に参加する状況（B3-01と同じ事情）を踏まないよう緩いDoSの蓋(30回/60秒)にする。
+const joinUserLimiter = createFixedWindowLimiter(60 * 1000, 10);
+const joinIpLimiter = createFixedWindowLimiter(60 * 1000, 30);
+
+/** userId単位の判定のみ（消費しない）。直近60秒で10回未満ならtrue。 */
+export function peekJoinUserRateLimit(userId: number, now: number = Date.now()): boolean {
+  return joinUserLimiter.peek(String(userId), now);
+}
+
+/** userId単位の失敗（不正な招待コード）を1回記録する。成功時は呼ばない。 */
+export function recordJoinUserFailure(userId: number, now: number = Date.now()): void {
+  joinUserLimiter.record(String(userId), now);
+}
+
+/** IP単位の判定のみ（消費しない）。直近60秒で30回未満ならtrue。 */
+export function peekJoinIpRateLimit(ip: string, now: number = Date.now()): boolean {
+  return joinIpLimiter.peek(ip, now);
+}
+
+/** IP単位の失敗を1回記録する。成功時は呼ばない。 */
+export function recordJoinIpFailure(ip: string, now: number = Date.now()): void {
+  joinIpLimiter.record(ip, now);
+}
+
+/** テスト専用: join用バケット状態(userId/IP双方)をリセットする。本番コードからは呼ばない。 */
+export function _resetJoinRateLimiterForTests(): void {
+  joinUserLimiter.reset();
+  joinIpLimiter.reset();
+}
+
 // T-31: publicViewCount加算の間引き（同一IP・同一スラッグは5分に1回まで。SPEC §5.4）。
 const VIEW_THROTTLE_MS = 5 * 60 * 1000;
 const lastViewedAt = new Map<string, number>();

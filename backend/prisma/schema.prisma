@@ -271,6 +271,10 @@ model Team {
   category    TeamCategory @default(university)
   logoUrl     String?
   createdAt   DateTime     @default(now())
+  // ADR-013決定3: 招待コードは遅延生成（nullable）。マイグレーションでのバックフィルはしない。
+  // admin が初めて GET /:slug/invite を叩いた時に生成する。
+  inviteCode          String?   @unique @db.VarChar(64)
+  inviteCodeUpdatedAt DateTime?
 
   members   TeamMember[]
   articles  Article[]

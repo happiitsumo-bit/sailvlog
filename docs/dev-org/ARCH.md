@@ -273,6 +273,39 @@ model Annotation {
 - **選ばなかった側の最強の擁護論:** 「根本原因は開放された register であり、そちらを閉じれば ADR-009 のままで足りた。機能を殺すのは過剰対応」— 正当。ただし register 閉鎖（招待制）は将来のチーム加入フロー設計とセットでないと決められず、7/31 までに安全側へ倒すには「露出面そのものを消す」方が確実。凍結は410で意図が明示され、復活の判断点も ADR-003/BL-01 の既存の枠組みに乗る、が反駁
 - **影響（API契約の変更・Codex/frontend への申し送り）:** `GET /api/teams` は全チームではなく所属チームのみ返す（現利用箇所 `sessions/page.tsx`・`sessions/new/page.tsx` のチーム選択、`lib/teamRole.ts` の admin判定は、いずれも所属チームだけで成立するため互換）。`GET /api/teams/:slug` は非メンバーに404。`sailors`/`users/:username`/`teams/:slug/{articles,questions}` は410
 - **既知の副作用（未解決・オーナー判断待ち）:** REVIEW-backend-3.md **B3-02** — 新規ユーザーがチームに加入する経路がバックエンドに存在しないため、自チーム限定化により、登録直後のユーザーは `GET /api/teams` が空配列になり**「壊れていることすら見えない」**状態になった（修正前は「全チームが見え、選ぶと403」で壊れ方が見えた）。加入API新設か「オーナーがDB/seedで投入する運用」の明文化かは本ADRの範囲外として**未決のまま明記**する（解決策の実装はオーナー判断待ち）
+  - **【解決 2026-07-30】オーナー裁定「これは超重大だから早急に直して」により、加入API新設を採用。設計は ADR-013。**
+
+### ADR-013: チーム加入は「招待コード1本」で行う（slugを経路に使わない）
+
+**決定日**: 2026-07-30 / **状態**: 採用（オーナー裁定でB3-02の解決を指示）
+
+**背景**: ADR-012 で名簿系の機密境界を「そのチームのメンバーか」に変更した結果、**加入する手段が存在しない**（B3-02）。現状は `docker compose exec db psql` での直INSERTのみで、部員10人規模の運用に耐えない。
+
+**決定**:
+
+1. **加入経路は `POST /api/teams/join` の1本。URLにslugを含めない。**
+   - 却下案: `POST /api/teams/:slug/join`。slugをパスに置くと、非メンバーが総当たりで「そのslugのチームが存在するか」を判定できる**存在オラクル**になる。ADR-012 が `GET /api/teams/:slug` を一律404にした理由をそのまま無効化してしまう。招待コードだけを鍵にすれば、コードを知らない者はチームの存在すら観測できない。
+2. **招待コードは暗号論的乱数。`crypto.randomBytes(16).toString("base64url")`（22文字・約128bit）。**
+   - 短い人間可読コード（6桁等）は却下。この鍵1つで部員名簿（username/specialty/experienceYears）が開くため、総当たり可能な鍵長にしてはならない。
+3. **コードは遅延生成。マイグレーションでのバックフィルはしない。**
+   - `Team.inviteCode String? @unique`（nullable）を追加。adminが初めて `GET /api/teams/:slug/invite` を叩いた時に生成する。既存teamId=1もこれで運用に乗る。
+4. **`inviteCode` は admin 専用レスポンスにのみ含める。**
+   - **要注意**: 現行 `GET /api/teams`（`findMany`）・`GET /api/teams/:slug`（`findUnique`）は **select無しで全カラム返却**している。フィールドを足すと一般メンバーのレスポンスに鍵が載る。これは R-02（`publicViewCount`）・M-02 と**完全に同型の欠陥**なので、本タスクで両経路を明示 `select` 化する（「含めるものだけ列挙」を適用）。
+5. **総当たり対策としてレート制限を掛ける。** join試行は userId 単位 10回/60秒 ＋ IP単位 30回/60秒。失敗時のみ消費（B3-01と同じ設計）。
+6. **最後のadminは削除できない。** `DELETE .../members/:userId` は、対象が最後の `admin` なら 409。チームが管理不能になる状態を作らせない。
+
+**APIコントラクト**（フロントはこれを正本として実装してよい）:
+
+| メソッド | パス | 認可 | 本文 / 応答 |
+|---|---|---|---|
+| POST | `/api/teams` | 認証済み | `{name, slug, university?, region?, category?}` → 201 `{team, inviteCode}`。作成者が `admin` の TeamMember になる |
+| POST | `/api/teams/join` | 認証済み | `{inviteCode}` → 200 `{team:{id,slug,name}}`。不正コードは **404**（存在を教えない）。既にメンバーなら200（冪等） |
+| GET | `/api/teams/:slug/invite` | **admin のみ** | 200 `{inviteCode}`。未生成なら生成して返す。非adminは403、非メンバーは404 |
+| POST | `/api/teams/:slug/invite/rotate` | **admin のみ** | 200 `{inviteCode}`（旧コードは即無効） |
+| PATCH | `/api/teams/:slug/members/:userId` | **admin のみ** | `{role}` → 200 |
+| DELETE | `/api/teams/:slug/members/:userId` | admin、または**自分自身（脱退）** | 204。最後のadminなら409 |
+
+**帰結（正直に書く）**: 招待コードは**転送可能な鍵**である。部員がLINEに貼ったコードが外部に流れれば、部外者が名簿を読める。これは承認制（admin が加入申請を承認する）なら防げるが、10人規模で申請待ちを挟む摩擦のほうが導入失敗リスクとして大きいと判断した。緩和は「rotate で即失効させられる」ことと「コードは名簿を開くが、セッション閲覧は別途チーム所属で守られる」の2点。**部員数が増える／他大学に配る段階になったら承認制へ移行する**（その時点で再ADR）。
 
 ## 7. リスクと縮退プラン
 

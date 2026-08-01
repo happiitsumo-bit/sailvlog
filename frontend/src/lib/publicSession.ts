@@ -5,7 +5,46 @@
 // クライアント側フェッチ(lib/api.ts)が使う `NEXT_PUBLIC_API_URL` はホスト側公開ポートで、
 // フロントのサーバープロセスからは到達できない場合があるため区別する（docker-compose.yml参照）。
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { PublicSessionResponse } from "@/types";
+
+export const PUBLIC_SESSION_UNAVAILABLE_TITLE = "一時的に表示できません";
+export const PUBLIC_SESSION_RETRY_GUIDANCE =
+  "時間をおいてから、もう一度お試しください。";
+
+export class PublicSessionUnavailableError extends Error {
+  readonly name = "PublicSessionUnavailableError";
+
+  constructor(
+    readonly status: number | null,
+    options?: ErrorOptions
+  ) {
+    super(PUBLIC_SESSION_UNAVAILABLE_TITLE, options);
+  }
+}
+
+export function isPublicSessionUnavailableError(
+  error: unknown
+): error is PublicSessionUnavailableError {
+  return (
+    error instanceof PublicSessionUnavailableError ||
+    (error instanceof Error && error.name === "PublicSessionUnavailableError")
+  );
+}
+
+/** 404だけを存在秘匿用ページへ送り、それ以外のHTTP失敗は一時障害として扱う。 */
+export function handlePublicSessionErrorStatus(
+  status: number,
+  renderNotFound: () => never = notFound
+): never {
+  if (status === 404) renderNotFound();
+  throw new PublicSessionUnavailableError(status);
+}
+
+/** fetch自体が応答を得られなかった場合も、存在しない扱いにはしない。 */
+export function publicSessionNetworkError(cause: unknown): PublicSessionUnavailableError {
+  return new PublicSessionUnavailableError(null, { cause });
+}
 
 function serverApiUrl(): string {
   return process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -15,11 +54,8 @@ function serverApiUrl(): string {
 // backend視点ではリクエスト元IPが常に「Next.jsサーバー1台」になり、レート制限/閲覧数カウントが
 // 実質1ユーザー分に潰れる（発見事項参照）。実際にブラウザからNextへ到達した際の
 // x-forwarded-for（本番はVercelのエッジが設定する）を読み取り、backendへ専用ヘッダで転送する。
-// 限界: backendのポートが直接到達可能な環境（今回のdocker-compose公開ポート等）では、
-// このヘッダは呼び出し元が任意に詐称できてしまう（Next経由を強制するものではない）。
-// 本番(Render)でも backend は公開URLを持つため同じ限界が残る。とはいえ「1台のIPに潰れて
-// レート制限が機能しない」という実害（Major1本体）は解消できるため、詐称リスクは
-// 発見事項に明記した上で許容する（ARCH.mdのS/M規模判断・0円構成の制約内での現実解）。
+// x-forwarded-client-ip は、サーバー専用環境変数 INTERNAL_PROXY_SECRET と同じ値を
+// x-internal-proxy-secret に積んだ場合だけbackendが信用する（ADR-010）。
 function forwardedClientIp(): string | null {
   const h = headers();
   const xff = h.get("x-forwarded-for");
@@ -27,14 +63,26 @@ function forwardedClientIp(): string | null {
   return h.get("x-real-ip");
 }
 
-/** 存在しない/非公開/取り消し済みはすべて null を返す（呼び出し側は一律404として扱う。ADR-007）。
+/** 存在しない/非公開/取り消し済みはすべて一律404として扱う（ADR-007）。
+    429・5xx・ネットワーク例外は PublicSessionUnavailableError として呼び出し側へ伝える。
     キャッシュは無効化する: 「公開をやめる」直後に同じURLが404へ切り替わる必要があるため（T-34検証項目）。 */
-export async function fetchPublicSession(slug: string): Promise<PublicSessionResponse | null> {
+export async function fetchPublicSession(slug: string): Promise<PublicSessionResponse> {
   const clientIp = forwardedClientIp();
-  const res = await fetch(`${serverApiUrl()}/api/public/sessions/${encodeURIComponent(slug)}`, {
-    cache: "no-store",
-    headers: clientIp ? { "x-forwarded-client-ip": clientIp } : undefined,
-  });
-  if (!res.ok) return null;
+  const proxySecret = process.env.INTERNAL_PROXY_SECRET;
+  const requestHeaders: Record<string, string> = {};
+  if (clientIp) requestHeaders["x-forwarded-client-ip"] = clientIp;
+  if (proxySecret) requestHeaders["x-internal-proxy-secret"] = proxySecret;
+
+  let res: Response;
+  try {
+    res = await fetch(`${serverApiUrl()}/api/public/sessions/${encodeURIComponent(slug)}`, {
+      cache: "no-store",
+      headers: requestHeaders,
+    });
+  } catch (error) {
+    throw publicSessionNetworkError(error);
+  }
+
+  if (!res.ok) handlePublicSessionErrorStatus(res.status);
   return res.json();
 }

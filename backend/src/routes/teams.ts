@@ -1,9 +1,52 @@
+import crypto from "crypto";
 import { Router, Request, Response } from "express";
 import prisma from "../database";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { wrap } from "../lib/asyncHandler";
+import {
+  peekJoinUserRateLimit,
+  recordJoinUserFailure,
+  peekJoinIpRateLimit,
+  recordJoinIpFailure,
+} from "../lib/rateLimiter";
 
 const router = Router();
+
+// ADR-013決定2: 招待コードは暗号論的乱数。短い人間可読コード(6桁等)は却下——この鍵1つで
+// 部員名簿(username/specialty/experienceYears)が開く(ADR-012)ため、総当たり可能な鍵長にしない。
+// crypto.randomBytes(16).toString("base64url") で128bit・22文字（Node標準・新規npm依存なし、
+// sessions.tsのgeneratePublicSlugと同じ考え方）。
+function generateInviteCode(): string {
+  return crypto.randomBytes(16).toString("base64url");
+}
+
+// ADR-013 §APIコントラクト: 非メンバーには常に404、メンバーだがadminでない場合は403
+// （teams.ts既存のGET /:slugと同じ「存在オラクルを作らない」考え方をadmin専用系にも適用する）。
+// invite取得/rotate/PATCHの3箇所で同型の判定が必要なので共通化する。
+async function requireCallerAdmin(
+  res: Response,
+  slug: string,
+  userId: number
+): Promise<{ teamId: number } | null> {
+  const team = await prisma.team.findUnique({ where: { slug }, select: { id: true } });
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return null;
+  }
+  const caller = await prisma.teamMember.findUnique({
+    where: { userId_teamId: { userId, teamId: team.id } },
+  });
+  if (!caller) {
+    // 存在するが自分がメンバーでない場合も404（team slugの存在オラクルにしない。既存GET /:slugと同じ方針）。
+    res.status(404).json({ error: "Team not found" });
+    return null;
+  }
+  if (caller.role !== "admin") {
+    res.status(403).json({ error: "この操作にはチームのadmin権限が必要です" });
+    return null;
+  }
+  return { teamId: team.id };
+}
 
 // B-02修正（2026-07-27, REVIEW-backend-2.md）: 以前は authMiddleware（=ログイン済みか）だけで
 // 部員名簿を守っていたが、POST /api/auth/register が招待制でも承認制でもないため「ログイン済みか」は
@@ -28,10 +71,21 @@ router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response) => 
     ];
   }
 
+  // ADR-013決定4: findMany が select 無しだと全カラム（inviteCode含む）を返してしまう
+  // （R-02/M-02と同型の欠陥）。「含めるものだけ列挙」のホワイトリストにする。
   const teams = await prisma.team.findMany({
     where,
     orderBy: { name: "asc" },
-    include: {
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      university: true,
+      region: true,
+      bio: true,
+      category: true,
+      logoUrl: true,
+      createdAt: true,
       _count: {
         select: { members: true, articles: true, questions: true },
       },
@@ -43,11 +97,27 @@ router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response) => 
 
 // GET /api/teams/:slug — 詳細（部員名簿を含む。自分がメンバーであるチームのみ。非メンバーは404）
 router.get("/:slug", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  // ADR-013決定4: findUnique も select 無しだと inviteCode が一般メンバーのレスポンスに載る
+  // （このチームのadminでなくても部員なら閲覧できてしまう＝ADR-012の機密境界を超えて漏洩する）。
+  // ここも「含めるものだけ列挙」に揃える。
   const team = await prisma.team.findUnique({
     where: { slug: req.params.slug },
-    include: {
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      university: true,
+      region: true,
+      bio: true,
+      category: true,
+      logoUrl: true,
+      createdAt: true,
       members: {
-        include: {
+        select: {
+          id: true,
+          role: true,
+          joinedAt: true,
+          userId: true,
           user: {
             select: {
               id: true,
@@ -77,6 +147,247 @@ router.get("/:slug", authMiddleware, wrap(async (req: AuthRequest, res: Response
   }
 
   res.json(team);
+}));
+
+const TEAM_SLUG_RE = /^[a-z0-9][a-z0-9-]{1,98}[a-z0-9]$/;
+
+// POST /api/teams — チーム作成。作成者が admin の TeamMember になる（ADR-013 §APIコントラクト）。
+// 招待コードは作成時点で発行する（決定3の「遅延生成」は既存チームのバックフィルをしないことが目的で、
+// 新規作成はここで最初から発行してよい）。
+router.post("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const { name, slug, university, region, category } = req.body ?? {};
+
+  if (typeof name !== "string" || !name.trim() || typeof slug !== "string") {
+    res.status(400).json({ error: "name, slug は必須です" });
+    return;
+  }
+  if (!TEAM_SLUG_RE.test(slug)) {
+    res.status(400).json({ error: "slug は半角英小文字・数字・ハイフン（3文字以上）で指定してください" });
+    return;
+  }
+  if (category !== undefined && !["university", "club", "professional"].includes(category)) {
+    res.status(400).json({ error: "category が不正です" });
+    return;
+  }
+
+  const slugClash = await prisma.team.findUnique({ where: { slug } });
+  if (slugClash) {
+    res.status(409).json({ error: "そのslugは既に使われています" });
+    return;
+  }
+
+  // 衝突は128bit乱数のため理論上のみだが、sessions.tsのpublicSlug発行と同じ流儀で数回だけ再試行する。
+  let inviteCode = generateInviteCode();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const clash = await prisma.team.findUnique({ where: { inviteCode } });
+    if (!clash) break;
+    inviteCode = generateInviteCode();
+  }
+
+  const team = await prisma.$transaction(async (tx) => {
+    const created = await tx.team.create({
+      data: {
+        name: name.trim(),
+        slug,
+        university: typeof university === "string" && university.trim() ? university.trim() : undefined,
+        region: typeof region === "string" && region.trim() ? region.trim() : undefined,
+        category: category ?? undefined,
+        inviteCode,
+        inviteCodeUpdatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        university: true,
+        region: true,
+        bio: true,
+        category: true,
+        logoUrl: true,
+        createdAt: true,
+      },
+    });
+    await tx.teamMember.create({ data: { userId: req.userId as number, teamId: created.id, role: "admin" } });
+    return created;
+  });
+
+  res.status(201).json({ team, inviteCode });
+}));
+
+// POST /api/teams/join — 加入経路はこの1本のみ。ADR-013決定1: パスにslugを置かない
+// （非メンバーが総当たりで「そのslugのチームが存在するか」を判定できる存在オラクルになるため）。
+// 招待コードだけが鍵で、不正コードは404（403にすると「コードは違うが存在はする」という情報が漏れる）。
+router.post("/join", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.userId as number;
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+
+  // ADR-013決定5: userId単位10回/60秒＋IP単位30回/60秒、失敗時のみ消費（login/B3-01と同じpeek/record分離）。
+  if (!peekJoinUserRateLimit(userId) || !peekJoinIpRateLimit(ip)) {
+    res.status(429).json({ error: "参加試行回数が多すぎます。しばらくしてから再度お試しください" });
+    return;
+  }
+
+  const inviteCode = typeof req.body?.inviteCode === "string" ? req.body.inviteCode : "";
+  const team = inviteCode
+    ? await prisma.team.findUnique({ where: { inviteCode }, select: { id: true, slug: true, name: true } })
+    : null;
+
+  if (!team) {
+    recordJoinUserFailure(userId);
+    recordJoinIpFailure(ip);
+    res.status(404).json({ error: "招待コードが無効です" });
+    return;
+  }
+
+  // 既にメンバーなら冪等に200（ADR-013 §APIコントラクト）。失敗ではないのでレート制限は消費しない。
+  const existing = await prisma.teamMember.findUnique({
+    where: { userId_teamId: { userId, teamId: team.id } },
+  });
+  if (!existing) {
+    await prisma.teamMember.create({ data: { userId, teamId: team.id, role: "member" } });
+  }
+
+  res.json({ team: { id: team.id, slug: team.slug, name: team.name } });
+}));
+
+// GET /api/teams/:slug/invite — admin専用。未生成なら遅延生成する（ADR-013決定3。既存team=1もこれで運用に乗る）。
+router.get("/:slug/invite", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const admin = await requireCallerAdmin(res, req.params.slug, req.userId as number);
+  if (!admin) return;
+
+  const team = await prisma.team.findUnique({ where: { id: admin.teamId }, select: { inviteCode: true } });
+  let inviteCode = team?.inviteCode ?? null;
+  if (!inviteCode) {
+    inviteCode = generateInviteCode();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const clash = await prisma.team.findUnique({ where: { inviteCode } });
+      if (!clash) break;
+      inviteCode = generateInviteCode();
+    }
+    await prisma.team.update({
+      where: { id: admin.teamId },
+      data: { inviteCode, inviteCodeUpdatedAt: new Date() },
+    });
+  }
+
+  res.json({ inviteCode });
+}));
+
+// POST /api/teams/:slug/invite/rotate — admin専用。旧コードは即無効になる（新しいユニーク値で上書きするため）。
+router.post("/:slug/invite/rotate", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const admin = await requireCallerAdmin(res, req.params.slug, req.userId as number);
+  if (!admin) return;
+
+  let inviteCode = generateInviteCode();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const clash = await prisma.team.findUnique({ where: { inviteCode } });
+    if (!clash) break;
+    inviteCode = generateInviteCode();
+  }
+  await prisma.team.update({
+    where: { id: admin.teamId },
+    data: { inviteCode, inviteCodeUpdatedAt: new Date() },
+  });
+
+  res.json({ inviteCode });
+}));
+
+// PATCH /api/teams/:slug/members/:userId — admin専用。ロール変更。
+router.patch("/:slug/members/:userId", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const { role } = req.body ?? {};
+  if (!["member", "ob", "admin"].includes(role)) {
+    res.status(400).json({ error: "role は member/ob/admin のいずれかです" });
+    return;
+  }
+
+  const admin = await requireCallerAdmin(res, req.params.slug, req.userId as number);
+  if (!admin) return;
+
+  const targetUserId = Number(req.params.userId);
+  if (!Number.isInteger(targetUserId)) {
+    res.status(400).json({ error: "不正なuserIdです" });
+    return;
+  }
+
+  const target = await prisma.teamMember.findUnique({
+    where: { userId_teamId: { userId: targetUserId, teamId: admin.teamId } },
+  });
+  if (!target) {
+    res.status(404).json({ error: "指定されたメンバーが見つかりません" });
+    return;
+  }
+
+  // ADR-013決定6の不変条件は「チームを管理不能にさせない」であり、DELETEだけでは守れない。
+  // 最後のadminをmember/obへ降格させると、招待コードの発行もロール変更も誰もできないチームが残る
+  // （加入は招待コード経由でしか行えないため、外から復旧する経路も無い）。DELETEの409と同型として塞ぐ。
+  // Team Lead追加（2026-07-30）: 実装者はこの穴を「ADR未規定」として報告のみに留めたが、
+  // 規定の目的から演繹できる同一の不変条件なので、報告どおりに残さず修正した。
+  if (target.role === "admin" && role !== "admin") {
+    const adminCount = await prisma.teamMember.count({ where: { teamId: admin.teamId, role: "admin" } });
+    if (adminCount <= 1) {
+      res.status(409).json({ error: "最後の管理者を降格することはできません" });
+      return;
+    }
+  }
+
+  const updated = await prisma.teamMember.update({
+    where: { userId_teamId: { userId: targetUserId, teamId: admin.teamId } },
+    data: { role },
+    select: { id: true, userId: true, role: true, joinedAt: true },
+  });
+
+  res.json({ member: updated });
+}));
+
+// DELETE /api/teams/:slug/members/:userId — admin、または自分自身（脱退）。
+// ADR-013決定6: 対象が最後のadminなら409（自分自身の脱退であっても、チームを管理不能にはさせない）。
+router.delete("/:slug/members/:userId", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const callerUserId = req.userId as number;
+  const targetUserId = Number(req.params.userId);
+  if (!Number.isInteger(targetUserId)) {
+    res.status(400).json({ error: "不正なuserIdです" });
+    return;
+  }
+
+  const team = await prisma.team.findUnique({ where: { slug: req.params.slug }, select: { id: true } });
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+
+  const caller = await prisma.teamMember.findUnique({
+    where: { userId_teamId: { userId: callerUserId, teamId: team.id } },
+  });
+  if (!caller) {
+    // 非メンバーには常に404（team slugの存在オラクルにしない。既存GET /:slugと同じ方針）。
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+
+  const target = await prisma.teamMember.findUnique({
+    where: { userId_teamId: { userId: targetUserId, teamId: team.id } },
+  });
+  if (!target) {
+    res.status(404).json({ error: "指定されたメンバーが見つかりません" });
+    return;
+  }
+
+  const isSelf = callerUserId === targetUserId;
+  if (!isSelf && caller.role !== "admin") {
+    res.status(403).json({ error: "この操作にはチームのadmin権限が必要です" });
+    return;
+  }
+
+  if (target.role === "admin") {
+    const adminCount = await prisma.teamMember.count({ where: { teamId: team.id, role: "admin" } });
+    if (adminCount <= 1) {
+      res.status(409).json({ error: "最後の管理者は削除できません" });
+      return;
+    }
+  }
+
+  await prisma.teamMember.delete({ where: { userId_teamId: { userId: targetUserId, teamId: team.id } } });
+  res.status(204).send();
 }));
 
 const gone = (_req: Request, res: Response) => {

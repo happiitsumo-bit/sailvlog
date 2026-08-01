@@ -1,6 +1,6 @@
 // T-32: 「公開する」ボタンの表示条件（uploader本人 or Team admin）のうち、Team admin判定を担う。
 // バックエンドに「自分のteam roleを1回で返す」専用APIが無い（backend/は今回改修対象外）ため、
-// 既存の一般公開エンドポイント（GET /api/teams・GET /api/teams/:slug）を2段で叩いて代替する。
+// 認証必須の既存エンドポイント（GET /api/teams・GET /api/teams/:slug）を2段で叩いて代替する。
 // uploaderId一致で済むケース（canManageSessionの多くのケース）ではこの関数自体を呼ばない設計にすること。
 import { api } from "./api";
 import { TeamDetail, TeamSummary } from "@/types";

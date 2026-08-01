@@ -2,8 +2,13 @@
 // 認証不要・読み取り専用。サーバーコンポーネントでデータ取得＋404判定＋OGPメタデータ出力を行い、
 // 実際の再生UIはクライアントコンポーネント（PublicReplayView）に委譲する。
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { fetchPublicSession } from "@/lib/publicSession";
+import Link from "next/link";
+import {
+  fetchPublicSession,
+  isPublicSessionUnavailableError,
+  PUBLIC_SESSION_RETRY_GUIDANCE,
+  PUBLIC_SESSION_UNAVAILABLE_TITLE,
+} from "@/lib/publicSession";
 import { PublicReplayView } from "./PublicReplayView";
 
 interface PageProps {
@@ -23,10 +28,14 @@ function siteOrigin(): string {
 
 // T-34: title・description(学びの要約冒頭100字)・og:image(静的1枚)・unlistedはnoindex。
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const data = await fetchPublicSession(params.slug);
-  if (!data) {
-    // 404ページ自体にOGPは不要（一律404の思想どおり、存在有無を示唆する情報を追加で出さない）。
-    return { title: "セッションが見つかりません — sailvlog" };
+  let data;
+  try {
+    data = await fetchPublicSession(params.slug);
+  } catch (error) {
+    if (isPublicSessionUnavailableError(error)) {
+      return { title: `${PUBLIC_SESSION_UNAVAILABLE_TITLE} — sailvlog` };
+    }
+    throw error;
   }
 
   const { session } = data;
@@ -55,9 +64,30 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PublicSessionPage({ params }: PageProps) {
-  const data = await fetchPublicSession(params.slug);
-  // 存在しない/非公開/取り消し済みを区別しない一律404（UI-DESIGN §5.3・T-31と同じ思想をフロントにも適用）。
-  if (!data) notFound();
+  let data;
+  try {
+    data = await fetchPublicSession(params.slug);
+  } catch (error) {
+    if (!isPublicSessionUnavailableError(error)) throw error;
+    return (
+      <main className="container" style={{ maxWidth: 720 }}>
+        <div className="empty-state" role="alert">
+          <div className="empty-state-icon" aria-hidden>!</div>
+          <h1 className="empty-state-text">{PUBLIC_SESSION_UNAVAILABLE_TITLE}</h1>
+          <p style={{ color: "var(--fg-mute)", marginTop: "0.5rem" }}>
+            {PUBLIC_SESSION_RETRY_GUIDANCE}
+          </p>
+          <Link
+            href={`/p/${encodeURIComponent(params.slug)}`}
+            className="btn btn-primary"
+            style={{ marginTop: "1rem" }}
+          >
+            再読み込み
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return <PublicReplayView data={data} />;
 }

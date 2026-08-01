@@ -5,7 +5,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn, getUser } from "@/lib/auth";
-import { Annotation, SessionDetail } from "@/types";
+import { Annotation, SessionDetail, Track } from "@/types";
+import { GpxParseError, normalizeToGrid, parseGpx } from "@/lib/gpx";
 import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
 import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
 import { formatClockTime as formatTime } from "@/lib/utils";
@@ -19,6 +20,8 @@ const CANVAS_HEIGHT = 540;
 const TAIL_SECONDS = 300; // 直近5分（SPIKE-01実測構成を踏襲）
 const UI_SYNC_INTERVAL_MS = 100; // UIパネルへの同期は≦10Hz（ARCH.md §4）
 const SPEEDS = [1, 4, 8];
+const PUBLIC_MUTATION_WARNING =
+  "このセッションは公開中です。追加した航跡もすぐ外から見えます";
 const ANNOTATION_KINDS = {
   question: { label: "問い", prefix: "問い" },
   insight: { label: "気づき", prefix: "気づき" },
@@ -26,6 +29,17 @@ const ANNOTATION_KINDS = {
 } as const;
 type AnnotationKind = keyof typeof ANNOTATION_KINDS;
 type Leg = { label: string; startSec: number };
+type PendingTrack = {
+  boatLabel: string;
+  startSec: number;
+  pointCount: number;
+  gridJson: Track["gridJson"];
+  rawGpx: string;
+};
+
+function sessionIsPublished(detail: SessionDetail | null): boolean {
+  return detail !== null && detail.session.visibility !== "team";
+}
 
 export default function SessionReplayPage() {
   return (
@@ -54,6 +68,16 @@ function SessionReplayPageContent() {
   const [newAnnotationTrackId, setNewAnnotationTrackId] = useState<number | "">("");
   const [addingAnnotation, setAddingAnnotation] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [editingAnnotationId, setEditingAnnotationId] = useState<number | null>(null);
+  const [editingAnnotationBody, setEditingAnnotationBody] = useState("");
+  const [pendingAnnotationEdit, setPendingAnnotationEdit] = useState<{ id: number; body: string } | null>(null);
+  const [savingAnnotation, setSavingAnnotation] = useState(false);
+  const [annotationEditError, setAnnotationEditError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [isTeamAdmin, setIsTeamAdmin] = useState(false);
+  const [pendingTrack, setPendingTrack] = useState<PendingTrack | null>(null);
+  const [addingTrack, setAddingTrack] = useState(false);
+  const [trackError, setTrackError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [comparisonMessage, setComparisonMessage] = useState("");
@@ -85,6 +109,7 @@ function SessionReplayPageContent() {
   const lastFrameTimeRef = useRef<number | null>(null);
   const lastSyncTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const trackFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoggedIn()) { router.push("/login"); return; }
@@ -124,13 +149,12 @@ function SessionReplayPageContent() {
         // 「公開する」ボタンの表示条件（uploader本人 or Team admin）。uploader本人ならAPI往復なしで即判定できる。
         const user = getUser();
         if (user) {
-          if (canManageSession(d.session.uploaderId, user.id, false)) {
-            setCanManage(true);
-          } else {
-            fetchIsTeamAdmin(d.session.teamId, user.id).then((isAdmin) => {
-              if (isAdmin) setCanManage(true);
-            });
-          }
+          setCurrentUserId(user.id);
+          setCanManage(canManageSession(d.session.uploaderId, user.id, false));
+          fetchIsTeamAdmin(d.session.teamId, user.id).then((admin) => {
+            setIsTeamAdmin(admin);
+            if (admin) setCanManage(true);
+          });
         }
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "セッションの取得に失敗しました"));
@@ -364,6 +388,99 @@ function SessionReplayPageContent() {
     }
   }
 
+  async function uploadTrack(trackDraft: PendingTrack) {
+    setAddingTrack(true);
+    setTrackError(null);
+    try {
+      const { track } = await api.post<{ track: Omit<Track, "gridJson"> }>(
+        `/api/sessions/${sessionId}/tracks`,
+        trackDraft
+      );
+      const addedTrack: Track = { ...track, gridJson: trackDraft.gridJson };
+      setDetail((prev) =>
+        prev ? { ...prev, tracks: [...prev.tracks, addedTrack] } : prev
+      );
+      setVisibleTrackIds((prev) => new Set([...prev, addedTrack.id]));
+      setPendingTrack(null);
+    } catch (err) {
+      setTrackError(err instanceof Error ? err.message : "航跡の追加に失敗しました");
+    } finally {
+      setAddingTrack(false);
+    }
+  }
+
+  async function handleTrackFile(file: File | undefined) {
+    if (!file || !detail) return;
+    setTrackError(null);
+    try {
+      const rawGpx = await file.text();
+      const points = parseGpx(rawGpx);
+      const normalized = normalizeToGrid(points, new Date(detail.session.startedAt).getTime());
+      if (normalized.startSec < 0) {
+        throw new GpxParseError("セッション開始前の航跡は追加できません");
+      }
+      if (normalized.startSec + normalized.pointCount > detail.session.durationSec + 5) {
+        throw new GpxParseError("航跡がセッションの終了時刻を超えています");
+      }
+      const trackDraft: PendingTrack = {
+        boatLabel: file.name.replace(/\.gpx$/i, ""),
+        rawGpx,
+        ...normalized,
+      };
+
+      if (detail.session.visibility !== "team") {
+        setPendingTrack(trackDraft);
+      } else {
+        await uploadTrack(trackDraft);
+      }
+    } catch (err) {
+      setTrackError(
+        err instanceof GpxParseError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "GPXの読み込みに失敗しました"
+      );
+    } finally {
+      if (trackFileInputRef.current) trackFileInputRef.current.value = "";
+    }
+  }
+
+  function beginAnnotationEdit(annotation: Annotation) {
+    setEditingAnnotationId(annotation.id);
+    setEditingAnnotationBody(annotation.body);
+    setAnnotationEditError(null);
+  }
+
+  async function saveAnnotationEdit(id: number, body: string) {
+    setSavingAnnotation(true);
+    setAnnotationEditError(null);
+    try {
+      const { annotation } = await api.patch<{ annotation: Annotation }>(
+        `/api/annotations/${id}`,
+        { body: body.trim() }
+      );
+      setAnnotations((prev) => prev.map((item) => (item.id === id ? annotation : item)));
+      setEditingAnnotationId(null);
+      setEditingAnnotationBody("");
+      setPendingAnnotationEdit(null);
+    } catch (err) {
+      setAnnotationEditError(err instanceof Error ? err.message : "注釈の編集に失敗しました");
+    } finally {
+      setSavingAnnotation(false);
+    }
+  }
+
+  function requestAnnotationEdit(annotation: Annotation) {
+    const body = editingAnnotationBody.trim();
+    if (!body) return;
+    if (sessionIsPublished(detail) && annotation.isPublic) {
+      setPendingAnnotationEdit({ id: annotation.id, body });
+      return;
+    }
+    void saveAnnotationEdit(annotation.id, body);
+  }
+
   function toggleBoat(trackId: number) {
     setVisibleTrackIds((prev) => {
       const next = new Set(prev);
@@ -516,6 +633,71 @@ function SessionReplayPageContent() {
           onPublished={handlePublished}
         />
       )}
+
+      <section
+        aria-labelledby="add-track-heading"
+        style={{
+          marginBottom: "1rem",
+          padding: "1rem",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+        }}
+      >
+        <h2 id="add-track-heading" className="sidebar-title" style={{ marginBottom: "0.5rem" }}>
+          航跡を追加
+        </h2>
+        <p style={{ color: "var(--fg-mute)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
+          このセッションと同じ時間帯のGPXを1艇ずつ追加できます。
+        </p>
+        <label
+          htmlFor="add-track-gpx"
+          className="btn btn-ghost"
+          style={{ display: "inline-block", cursor: addingTrack ? "default" : "pointer" }}
+        >
+          {addingTrack ? "追加中…" : "GPXを選択"}
+        </label>
+        <input
+          ref={trackFileInputRef}
+          id="add-track-gpx"
+          type="file"
+          accept=".gpx"
+          className="sr-only"
+          disabled={addingTrack || pendingTrack !== null}
+          onChange={(event) => void handleTrackFile(event.target.files?.[0])}
+        />
+        {trackError && (
+          <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.5rem" }}>
+            {trackError}
+          </p>
+        )}
+        {pendingTrack && (
+          <div className="dialog-confirm-card" role="alert" style={{ marginTop: "0.75rem" }}>
+            <p>{PUBLIC_MUTATION_WARNING}</p>
+            <p style={{ color: "var(--fg-mute)", fontSize: "0.8rem", marginTop: "0.35rem" }}>
+              陸上の移動や自宅周辺が含まれていないことを確認してください。
+            </p>
+            <div className="dialog-confirm-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setPendingTrack(null)}
+                disabled={addingTrack}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void uploadTrack(pendingTrack)}
+                disabled={addingTrack}
+              >
+                {addingTrack ? "追加中…" : "確認して追加"}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* UI-DESIGN §4.6: モバイルではDOM順が正（Canvas→再生コントロール→タイムライン→レグ→比較→メモ）。
           このdivの子はcanvas〜legsまでをまとめた.replay-mainと、比較・メモをまとめた.replay-asideの
@@ -714,25 +896,129 @@ function SessionReplayPageContent() {
               <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                 {annotations.map((a) => {
                   const track = tracks.find((t) => t.id === a.trackId);
+                  const canEdit = a.authorId === currentUserId || isTeamAdmin;
+                  const isEditing = editingAnnotationId === a.id;
                   return (
-                    <button
+                    <div
                       key={a.id}
-                      type="button"
-                      onClick={() => seekAndSync(a.tSec)}
                       style={{
-                        textAlign: "left",
                         background: "var(--card)",
                         border: "1px solid var(--border)",
                         borderRadius: 6,
                         padding: "0.5rem 0.65rem",
-                        cursor: "pointer",
                       }}
                     >
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
-                        {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
-                      </div>
-                      <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
-                    </button>
+                      {isEditing ? (
+                        <>
+                          <label htmlFor={`annotation-edit-${a.id}`} className="sr-only">
+                            注釈を編集
+                          </label>
+                          <textarea
+                            id={`annotation-edit-${a.id}`}
+                            value={editingAnnotationBody}
+                            onChange={(event) => setEditingAnnotationBody(event.target.value)}
+                            maxLength={2000}
+                            rows={3}
+                            style={{
+                              width: "100%",
+                              boxSizing: "border-box",
+                              background: "var(--paper)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 6,
+                              padding: "0.5rem 0.65rem",
+                              color: "var(--fg)",
+                              font: "inherit",
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => {
+                                setEditingAnnotationId(null);
+                                setPendingAnnotationEdit(null);
+                                setAnnotationEditError(null);
+                              }}
+                              disabled={savingAnnotation}
+                            >
+                              キャンセル
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() => requestAnnotationEdit(a)}
+                              disabled={!editingAnnotationBody.trim() || savingAnnotation}
+                            >
+                              {savingAnnotation ? "保存中…" : "保存"}
+                            </button>
+                          </div>
+                          {pendingAnnotationEdit?.id === a.id && (
+                            <div className="dialog-confirm-card" role="alert" style={{ marginTop: "0.75rem" }}>
+                              <p>{PUBLIC_MUTATION_WARNING}</p>
+                              <div className="dialog-confirm-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => setPendingAnnotationEdit(null)}
+                                  disabled={savingAnnotation}
+                                >
+                                  戻る
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  onClick={() =>
+                                    void saveAnnotationEdit(
+                                      pendingAnnotationEdit.id,
+                                      pendingAnnotationEdit.body
+                                    )
+                                  }
+                                  disabled={savingAnnotation}
+                                >
+                                  {savingAnnotation ? "保存中…" : "確認して保存"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {annotationEditError && (
+                            <p role="alert" style={{ color: "var(--terra)", fontSize: "0.8rem", marginTop: "0.5rem" }}>
+                              {annotationEditError}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => seekAndSync(a.tSec)}
+                            style={{
+                              width: "100%",
+                              padding: 0,
+                              textAlign: "left",
+                              background: "transparent",
+                              border: 0,
+                              cursor: "pointer",
+                              color: "inherit",
+                            }}
+                          >
+                            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--fg-mute)" }}>
+                              {formatTime(a.tSec)}{track ? ` · ${track.boatLabel}` : ""}
+                            </div>
+                            <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>{a.body}</div>
+                          </button>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => beginAnnotationEdit(a)}
+                              style={{ marginTop: "0.4rem", padding: "0.25rem 0.6rem" }}
+                            >
+                              編集
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   );
                 })}
               </div>

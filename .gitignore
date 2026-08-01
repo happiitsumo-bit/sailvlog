@@ -16,3 +16,6 @@ spike/*.log
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Codex委譲の作業成果物（報告・イベントログ・捨てdir）
+.codex-reports/
