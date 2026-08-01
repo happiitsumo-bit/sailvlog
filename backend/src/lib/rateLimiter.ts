@@ -173,6 +173,34 @@ export function _resetJoinRateLimiterForTests(): void {
   joinIpLimiter.reset();
 }
 
+// M4-01修正（2026-08-01, REVIEW-4.md）: POST /api/teams（チーム作成）に流量制限が無く、
+// registerが開放制である以上「認証済み」は誰でも1リクエストで到達できるため、実質未認証と
+// 同じ流量特性でTeam+TeamMember行を無限生成できた。join/registerと違い「失敗」という概念が
+// 無く（不正slugは400で弾かれるだけで、通る限りは成功＝行が増える）、成功自体が脅威なので
+// login/joinのpeek/record分離ではなく、registerと同じ「呼ぶたび消費するcheck()」にする。
+// 上限値の根拠: 部10人規模のチームは通常一生に1回しか作らない。誤操作の作り直し・検証用の
+// 数回を許容しつつ乱造を止める水準として userId 5回/60分。IP側はB3-01/m4-02の教訓
+// （部室の共有Wi-Fi/大学NAT配下は全員が同一グローバルIPになりうる）を踏襲し、複数人が
+// 短時間にそれぞれ自分のチームを作る状況を巻き込まないよう緩めのDoSの蓋として20回/60分にする。
+const createTeamUserLimiter = createFixedWindowLimiter(60 * 60 * 1000, 5);
+const createTeamIpLimiter = createFixedWindowLimiter(60 * 60 * 1000, 20);
+
+/** userId単位のチーム作成レート制限。直近60分で5回を超えていなければtrue（呼ぶたびに1回消費する）。 */
+export function checkCreateTeamUserRateLimit(userId: number, now: number = Date.now()): boolean {
+  return createTeamUserLimiter.check(String(userId), now);
+}
+
+/** IP単位のチーム作成レート制限（DoSの蓋）。直近60分で20回を超えていなければtrue（呼ぶたびに1回消費する）。 */
+export function checkCreateTeamIpRateLimit(ip: string, now: number = Date.now()): boolean {
+  return createTeamIpLimiter.check(ip, now);
+}
+
+/** テスト専用: チーム作成用バケット状態(userId/IP双方)をリセットする。本番コードからは呼ばない。 */
+export function _resetCreateTeamRateLimiterForTests(): void {
+  createTeamUserLimiter.reset();
+  createTeamIpLimiter.reset();
+}
+
 // T-31: publicViewCount加算の間引き（同一IP・同一スラッグは5分に1回まで。SPEC §5.4）。
 const VIEW_THROTTLE_MS = 5 * 60 * 1000;
 const lastViewedAt = new Map<string, number>();

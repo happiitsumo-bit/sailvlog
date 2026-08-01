@@ -8,7 +8,10 @@ import {
   recordJoinUserFailure,
   peekJoinIpRateLimit,
   recordJoinIpFailure,
+  checkCreateTeamUserRateLimit,
+  checkCreateTeamIpRateLimit,
 } from "../lib/rateLimiter";
+import { Prisma } from "@prisma/client";
 
 const router = Router();
 
@@ -155,6 +158,18 @@ const TEAM_SLUG_RE = /^[a-z0-9][a-z0-9-]{1,98}[a-z0-9]$/;
 // 招待コードは作成時点で発行する（決定3の「遅延生成」は既存チームのバックフィルをしないことが目的で、
 // 新規作成はここで最初から発行してよい）。
 router.post("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.userId as number;
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+
+  // M4-01修正（2026-08-01, REVIEW-4.md）: registerが開放制のため「認証済み」＝誰でも到達できる。
+  // join/loginと違い成功自体が新規DB行を作る脅威なので、失敗時のみ消費するpeek/record分離ではなく
+  // 呼ぶたびに1回消費するcheck()にする（register/checkRegisterRateLimitと同じ考え方）。
+  // 上限値の根拠はlib/rateLimiter.tsのコメント参照（userId 5回/60分・IP 20回/60分）。
+  if (!checkCreateTeamUserRateLimit(userId) || !checkCreateTeamIpRateLimit(ip)) {
+    res.status(429).json({ error: "チーム作成の試行回数が多すぎます。しばらくしてから再度お試しください" });
+    return;
+  }
+
   const { name, slug, university, region, category } = req.body ?? {};
 
   if (typeof name !== "string" || !name.trim() || typeof slug !== "string") {
@@ -207,7 +222,7 @@ router.post("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): P
         createdAt: true,
       },
     });
-    await tx.teamMember.create({ data: { userId: req.userId as number, teamId: created.id, role: "admin" } });
+    await tx.teamMember.create({ data: { userId, teamId: created.id, role: "admin" } });
     return created;
   });
 
@@ -240,11 +255,22 @@ router.post("/join", authMiddleware, wrap(async (req: AuthRequest, res: Response
   }
 
   // 既にメンバーなら冪等に200（ADR-013 §APIコントラクト）。失敗ではないのでレート制限は消費しない。
+  // m4-01修正（2026-08-01, REVIEW-4.md）: findUniqueで未加入と判定してからcreateする間に
+  // 同時リクエスト（ダブルクリック）が割り込むと、両方とも「未加入」と判定し後着がTeamMemberの
+  // 複合ユニーク制約(P2002)に当たってグローバルエラーハンドラで500になっていた。実際には
+  // 加入は成功しているのに失敗と表示されるため、P2002だけを「既にメンバー」として握りつぶし、
+  // 契約どおり冪等な200にする（他のPrismaエラーは握りつぶさずthrowしてグローバルハンドラに委ねる）。
   const existing = await prisma.teamMember.findUnique({
     where: { userId_teamId: { userId, teamId: team.id } },
   });
   if (!existing) {
-    await prisma.teamMember.create({ data: { userId, teamId: team.id, role: "member" } });
+    try {
+      await prisma.teamMember.create({ data: { userId, teamId: team.id, role: "member" } });
+    } catch (err) {
+      const isDuplicateMember =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+      if (!isDuplicateMember) throw err;
+    }
   }
 
   res.json({ team: { id: team.id, slug: team.slug, name: team.name } });

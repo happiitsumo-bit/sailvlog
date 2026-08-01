@@ -12,13 +12,19 @@
 //   ④最後のadminは削除できない（409）。自分自身の脱退は成功する
 import request from "supertest";
 import { setupTestServer } from "./helpers/testServer";
-import { _resetJoinRateLimiterForTests } from "../lib/rateLimiter";
+import {
+  _resetJoinRateLimiterForTests,
+  _resetCreateTeamRateLimiterForTests,
+  checkCreateTeamUserRateLimit,
+  checkCreateTeamIpRateLimit,
+} from "../lib/rateLimiter";
 
 const PASSWORD = "password123";
 const getServer = setupTestServer();
 
 beforeEach(() => {
   _resetJoinRateLimiterForTests();
+  _resetCreateTeamRateLimiterForTests();
 });
 
 async function registerUser(tag: string): Promise<{ userId: number; token: string }> {
@@ -52,6 +58,52 @@ describe("T-103 ADR-013: POST /api/teams", () => {
     const member = detail.body.members.find((m: { userId: number }) => m.userId === creator.userId);
     expect(member).toBeDefined();
     expect(member.role).toBe("admin");
+  });
+});
+
+// M4-01 (implementer, 2026-08-01): REVIEW-4.mdの回帰テスト。
+// POST /api/teamsに流量制限が無く、registerが開放制のため1アカウントでTeam行を無限生成できた。
+describe("M4-01: POST /api/teams のレート制限", () => {
+  test("userId単位で5回まで許可し、6回目は429（checkCreateTeamUserRateLimit単体）", () => {
+    const now = 1_700_000_000_000;
+    for (let i = 0; i < 5; i++) {
+      expect(checkCreateTeamUserRateLimit(999001, now)).toBe(true);
+    }
+    expect(checkCreateTeamUserRateLimit(999001, now)).toBe(false);
+    // 60分経過後は新しいウィンドウとして扱われ、再び許可される
+    expect(checkCreateTeamUserRateLimit(999001, now + 60 * 60 * 1000)).toBe(true);
+  });
+
+  test("IP単位で20回まで許可し、21回目は429（checkCreateTeamIpRateLimit単体）", () => {
+    const now = 1_700_000_000_000;
+    for (let i = 0; i < 20; i++) {
+      expect(checkCreateTeamIpRateLimit("unit-test-create-ip", now)).toBe(true);
+    }
+    expect(checkCreateTeamIpRateLimit("unit-test-create-ip", now)).toBe(false);
+  });
+
+  test("POST /api/teams が実際にレート制限され、429を返す（userId単位を5回消費してから6回目を叩く）", async () => {
+    const creator = await registerUser("create-rate-limit");
+    for (let i = 0; i < 4; i++) {
+      checkCreateTeamUserRateLimit(creator.userId);
+    }
+
+    // 5回目（=このcreateTeam呼び出しが5回目の消費）は成功する
+    await createTeam(creator.token, "create-rate-5th");
+
+    // 6回目は429
+    const unique = `create-rate-over-${Date.now()}`;
+    const overLimit = await request(getServer())
+      .post("/api/teams")
+      .set("Authorization", `Bearer ${creator.token}`)
+      .send({ name: `T103テストチーム-${unique}`, slug: `t103-${unique}` });
+    expect(overLimit.status).toBe(429);
+  });
+
+  test("通常のチーム作成（レート制限内）は影響を受けない", async () => {
+    const creator = await registerUser("create-rate-normal");
+    const res = await createTeam(creator.token, "create-rate-normal");
+    expect(res.slug).toContain("t103-create-rate-normal");
   });
 });
 
@@ -90,6 +142,67 @@ describe("T-103 ADR-013: POST /api/teams/join", () => {
   test("未認証は401（authMiddlewareが先に効く）", async () => {
     const res = await request(getServer()).post("/api/teams/join").send({ inviteCode: "whatever" });
     expect(res.status).toBe(401);
+  });
+
+  // m4-01 (Minor, REVIEW-4.md): 同時join（ダブルクリック）でP2002 → 500になっていた回帰ガード。
+  // 2リクエストを同時に送っても両方とも冪等に200で返り、片方だけメンバー行が作られること。
+  test("同時に2回joinしても両方冪等に200を返す（P2002を500にしない）", async () => {
+    const admin = await registerUser("concurrent-join-admin");
+    const joiner = await registerUser("concurrent-join-member");
+    const { slug, inviteCode } = await createTeam(admin.token, "concurrent-join");
+
+    const [first, second] = await Promise.all([
+      request(getServer())
+        .post("/api/teams/join")
+        .set("Authorization", `Bearer ${joiner.token}`)
+        .send({ inviteCode }),
+      request(getServer())
+        .post("/api/teams/join")
+        .set("Authorization", `Bearer ${joiner.token}`)
+        .send({ inviteCode }),
+    ]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.body.team.slug).toBe(slug);
+    expect(second.body.team.slug).toBe(slug);
+
+    const detail = await request(getServer())
+      .get(`/api/teams/${slug}`)
+      .set("Authorization", `Bearer ${admin.token}`);
+    const memberRows = detail.body.members.filter((m: { userId: number }) => m.userId === joiner.userId);
+    expect(memberRows.length).toBe(1);
+  });
+
+  // m4-03 (Minor, REVIEW-4.md): ADR-013決定5のレート制限に429の回帰テストが無かった。
+  test("不正コード11回目は429（userId単位10回/60秒）", async () => {
+    const joiner = await registerUser("join-rate-limit-user");
+    for (let i = 0; i < 10; i++) {
+      const res = await request(getServer())
+        .post("/api/teams/join")
+        .set("Authorization", `Bearer ${joiner.token}`)
+        .send({ inviteCode: "this-code-does-not-exist" });
+      expect(res.status).toBe(404);
+    }
+    const eleventh = await request(getServer())
+      .post("/api/teams/join")
+      .set("Authorization", `Bearer ${joiner.token}`)
+      .send({ inviteCode: "this-code-does-not-exist" });
+    expect(eleventh.status).toBe(429);
+  });
+
+  test("成功したjoinはレート制限を消費しない（10回連続で成功しても429にならない）", async () => {
+    const admin = await registerUser("join-rate-success-admin");
+    const { inviteCode } = await createTeam(admin.token, "join-rate-success");
+    const joiner = await registerUser("join-rate-success-member");
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(getServer())
+        .post("/api/teams/join")
+        .set("Authorization", `Bearer ${joiner.token}`)
+        .send({ inviteCode });
+      // 初回は新規加入、以降は冪等な既加入 → いずれも200（失敗ではないので消費されない）
+      expect(res.status).toBe(200);
+    }
   });
 
   test("rotate後は旧コードで加入できない", async () => {

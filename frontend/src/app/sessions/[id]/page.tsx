@@ -10,7 +10,11 @@ import { GpxParseError, normalizeToGrid, parseGpx } from "@/lib/gpx";
 import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
 import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
 import { formatClockTime as formatTime } from "@/lib/utils";
-import { canManageSession } from "@/lib/publish";
+import {
+  canManageSession,
+  shouldWarnBeforeAnnotationEdit,
+  shouldWarnBeforeTrackAdd,
+} from "@/lib/publish";
 import { fetchIsTeamAdmin } from "@/lib/teamRole";
 import { VisibilityChip } from "@/components/VisibilityChip";
 import { PublishDialog, PublishResult } from "@/components/PublishDialog";
@@ -36,10 +40,6 @@ type PendingTrack = {
   gridJson: Track["gridJson"];
   rawGpx: string;
 };
-
-function sessionIsPublished(detail: SessionDetail | null): boolean {
-  return detail !== null && detail.session.visibility !== "team";
-}
 
 export default function SessionReplayPage() {
   return (
@@ -428,7 +428,7 @@ function SessionReplayPageContent() {
         ...normalized,
       };
 
-      if (detail.session.visibility !== "team") {
+      if (shouldWarnBeforeTrackAdd(detail)) {
         setPendingTrack(trackDraft);
       } else {
         await uploadTrack(trackDraft);
@@ -474,7 +474,7 @@ function SessionReplayPageContent() {
   function requestAnnotationEdit(annotation: Annotation) {
     const body = editingAnnotationBody.trim();
     if (!body) return;
-    if (sessionIsPublished(detail) && annotation.isPublic) {
+    if (shouldWarnBeforeAnnotationEdit(detail, annotation)) {
       setPendingAnnotationEdit({ id: annotation.id, body });
       return;
     }
