@@ -145,7 +145,8 @@ Codexは**worktreeではなく、Team Leadと同じ作業ディレクトリで�
 
 | ファイル | 新規/変更 | 内容 |
 |---|---|---|
-| `AGENTS.md`（リポジトリ直下） | **新規・未着手** | §3.5。Codexと全エージェントの常設指示。**オーナー承認待ち** |
+| `AGENTS.md`（リポジトリ直下） | **新規・設置済み**（2026-08-01・コミット `3faf7f7`） | §3.5。Codexと全エージェントの常設指示 |
+| クラウドルーチン 2本 | **作成済み**（2026-08-01） | §6-③。朝07:00 JST（拾って着手）／夕19:00 JST（検証して報告） |
 | GitHubラベル 12種 | **作成済み**（2026-07-30） | §3.1。`blocker`/`major`/`minor`/`lane:*`/`area:*`/`gate:*`/`owner-decision`/`from-owner` |
 | GitHub Issue #6〜#18 | **作成済み**（2026-07-30） | open だったタスク8件＋オーナー判断4件＋Night Shift連携1件 |
 | `docs/dev-org/PROCESS-routine-claude-codex.md` | 新規（本書） | 体制の正本 |
