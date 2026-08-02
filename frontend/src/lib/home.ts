@@ -2,6 +2,19 @@
 // コンポーネントから分離し、テスト（T-b/T-c）で内容と実在素材を固定する。
 // ここに書くのは定数のみ。API呼び出し・副作用は一切含めない（SPEC §1.3 API非依存要件）。
 
+// オーナー裁定（2026-08-02）: ログイン済みでも `/` に `?preview=1` が付いていれば
+// 公開ホームを見られるようにする（既定のリダイレクトは維持。§4.1の裁定は変えない）。
+// DOM非依存の純関数として切り出す理由: frontendにReact Testing Libraryが無く
+// 新規npm依存の追加はAGENTS.md制約1で禁止されているため、Vitestの純関数テストで
+// 検証できる形にする必要がある。
+export const HOME_PREVIEW_PARAM = "preview";
+
+export function shouldRedirectToSessions(loggedIn: boolean, previewParam: string | null): boolean {
+  if (!loggedIn) return false;
+  if (previewParam === "1") return false;
+  return true;
+}
+
 export interface HeroPoster {
   src: string;
   alt: string;

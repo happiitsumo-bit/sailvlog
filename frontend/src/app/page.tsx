@@ -9,6 +9,7 @@
 // 今回のスコープ（縦切り第1スライス）: ヒーローは動くデモリプレイではなく静止画ポスター
 // （hero-public-replay.jpg）のみ。動くヒーロー（HS-2）とブログ（HS-9/HS-10）は次スライス。
 import Link from "next/link";
+import { Suspense } from "react";
 import HomeRedirect from "@/components/home/HomeRedirect";
 import { HERO_POSTER, HOME_FEATURES } from "@/lib/home";
 
@@ -17,7 +18,9 @@ const GITHUB_URL = "https://github.com/happiitsumo-bit/sailvlog";
 export default function HomePage() {
   return (
     <>
-      <HomeRedirect />
+      <Suspense fallback={null}>
+        <HomeRedirect />
+      </Suspense>
 
       <section className="home-hero">
         <div className="home-hero-inner">
