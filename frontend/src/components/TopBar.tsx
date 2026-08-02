@@ -43,6 +43,13 @@ export default function TopBar() {
       <div className="topbar-actions">
         {username ? (
           <>
+            {/* オーナー裁定（2026-08-02）: ログイン済みは`/`から`/sessions`へ自動リダイレクトされ
+                自分のプロダクトの公開ホームを見られない副作用がある。当面はここに置くが、
+                本来はSPEC-share2-team-pages.md §8.1のヘッダーメニュー「じぶんの」束に入る導線。
+                そのメニュー実装時にこちらへ移す。 */}
+            <Link href="/?preview=1" className="btn btn-ghost" style={{ fontSize: "0.85rem" }}>
+              公開ページを見る
+            </Link>
             <span style={{ fontSize: "0.85rem", color: "var(--fg-2)", fontFamily: "var(--font-mono)" }}>
               @{username}
             </span>

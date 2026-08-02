@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { showBottomTabBar } from "../navVisibility";
-import { HERO_POSTER, HOME_FEATURES } from "../home";
+import { HERO_POSTER, HOME_FEATURES, shouldRedirectToSessions } from "../home";
 
 describe("T-a: showBottomTabBar（ナビ可視性ユニット・T-33原則の自動検知化）", () => {
   it("/p/[slug] 配下は false", () => {
@@ -55,6 +55,24 @@ describe("T-c: 素材実在スモーク", () => {
     for (const feature of HOME_FEATURES) {
       expect(fs.existsSync(path.join(publicDir, feature.image))).toBe(true);
     }
+  });
+});
+
+describe("T-e: shouldRedirectToSessions（オーナー裁定2026-08-02・?preview=1でリダイレクト抑止）", () => {
+  it("未ログインは常にリダイレクトしない（previewの有無を問わない）", () => {
+    expect(shouldRedirectToSessions(false, null)).toBe(false);
+    expect(shouldRedirectToSessions(false, "1")).toBe(false);
+  });
+  it("ログイン済み・previewパラメータ無しはリダイレクトする（既定の挙動を維持）", () => {
+    expect(shouldRedirectToSessions(true, null)).toBe(true);
+  });
+  it("ログイン済み・?preview=1 はリダイレクトしない（公開ホームを見せる）", () => {
+    expect(shouldRedirectToSessions(true, "1")).toBe(false);
+  });
+  it("ログイン済み・preview の値が1以外はリダイレクトする", () => {
+    expect(shouldRedirectToSessions(true, "0")).toBe(true);
+    expect(shouldRedirectToSessions(true, "")).toBe(true);
+    expect(shouldRedirectToSessions(true, "true")).toBe(true);
   });
 });
 
