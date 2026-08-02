@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { getUser, clearAuth } from "@/lib/auth";
+import { getUser, clearAuth, subscribeAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -13,6 +13,9 @@ export default function TopBar() {
   useEffect(() => {
     const user = getUser();
     setUsername(user?.username ?? null);
+    // Issue #26: TopBarはlayout.tsxにあり画面遷移で再マウントされないため、
+    // ログイン(router.push)後に表示が更新されない。saveAuth/clearAuthの通知を購読する。
+    return subscribeAuth((user) => setUsername(user?.username ?? null));
   }, []);
 
   function logout() {
