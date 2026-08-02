@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/config/navigation";
+import { showBottomTabBar } from "@/lib/navVisibility";
 
 export default function BottomTabBar() {
   const pathname = usePathname();
-  // T-33: 公開ビュー `/p/[slug]` は部内ナビゲーション（Sessions/Handbookタブ）を出さない
-  // 読み取り専用ページ（UI-DESIGN §5.3・編集系UI/内部導線は一切描画しない）。
-  if (pathname?.startsWith("/p/")) return null;
+  // T-33 / SPEC-home-static.md §4.2: 表示可否は navVisibility.ts の純関数に委譲し、
+  // 「/p/配下でナビを出さない」原則を自動テスト（T-a）で固定する。
+  if (!showBottomTabBar(pathname ?? "")) return null;
   return (
     <nav className="bottom-tab-bar" aria-label="Main navigation">
       <div className="bottom-tab-bar-inner">
