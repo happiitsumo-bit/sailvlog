@@ -1,8 +1,8 @@
 # SPEC: 共有3 — フォローと時系列フィード
 
 - **正本の位置づけ**: 本書は共有3（PRD §5 Phase 4）の詳細仕様。GitHub Issue #4 の成果物
-- **著者**: architect（2026-08-01）
-- **前提文書**: `PRD.md` §5–7 / `PRD-rev4-sharing-layer.md` / `ARCH.md` ADR-005・ADR-007・ADR-012 / `SPEC-share1-phase1.md` §3.2 / **`SPEC-share2-team-pages.md`**（本書はこの上に載る。共有2で確定した Entry モデル・単一可視性軸・公開APIの規約を**作り直さない**）
+- **著者**: architect（2026-08-01。**2026-08-02 改訂: 新テーブル名を `Subscription` から `Follow` へ改名**＝オーナー裁定「お金は発生しないので名前はフォローに似たもので。既存SNSを参考に」。改名が可能になった前提と migration の順序依存は §5.2）
+- **前提文書**: `PRD.md` §5–7 / `PRD-rev4-sharing-layer.md` / `ARCH.md` ADR-005・ADR-007・ADR-012 / `SPEC-share1-phase1.md` §3.2 / **`SPEC-share2-team-pages.md`**（本書はこの上に載る。共有2で確定した Entry モデル・単一可視性軸・公開APIの規約を**作り直さない**）/ GATES.md「BL-01（旧Follow の物理削除）の承認」欄（**オーナー承認済み**）
 - **承認状態**: 未承認（Team Lead の Architecture Gate 判定待ち）
 
 ## 0. 本書の位置づけ（設計のみ・着手条件は未達）
@@ -88,31 +88,33 @@
 
 ```prisma
 // ===== 共有3: フォロー（本SPEC §4。ADR-016案） =====
-// 旧 v1 `Follow` は再利用しない（§5）。名前も再利用しない（BL-01 の削除と本テーブルの新設を独立にするため）
+// 旧 v1 `Follow`（行データ・意味論）は再利用しない（§5.1）。
+// テーブル名は 2026-08-02 オーナー裁定により `Follow` を再使用する（§5.2）。
+// 前提: BL-01（旧 Follow の DROP・contract migration）が本テーブル新設より【先】に適用されていること
 
-model Subscription {
-  id           Int      @id @default(autoincrement())
-  createdAt    DateTime @default(now())
+model Follow {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
 
-  subscriberId Int                     // フォローする側。常に User
-  subscriber   User  @relation("Subscriber", fields: [subscriberId], references: [id])
+  followerId Int                     // フォローする側。常に User
+  follower   User  @relation("Follower", fields: [followerId], references: [id])
 
   // --- 対象は User か Team のどちらか一方（XOR。API 400 ＋ migration に CHECK 制約1行） ---
   targetUserId Int?
-  targetUser   User? @relation("SubscriptionTarget", fields: [targetUserId], references: [id])
+  targetUser   User? @relation("FollowTarget", fields: [targetUserId], references: [id])
   targetTeamId Int?
   targetTeam   Team? @relation(fields: [targetTeamId], references: [id])
 
-  @@unique([subscriberId, targetUserId])   // 二重フォロー防止
-  @@unique([subscriberId, targetTeamId])
-  @@index([targetUserId])                  // 「著者のフォロワーか」判定（§6 followers 認可）用
+  @@unique([followerId, targetUserId])   // 二重フォロー防止
+  @@unique([followerId, targetTeamId])
+  @@index([targetUserId])                // 「著者のフォロワーか」判定（§6 followers 認可）用
   @@index([targetTeamId])
 }
 ```
 
 - **XOR の強制**: API 層で「両方指定・両方null は 400」＋ migration SQL に `CHECK ((("targetUserId" IS NULL) <> ("targetTeamId" IS NULL)))` を1行追加。S規模ではAPI検証で足りるが、CHECK は1行のコストで「壊れたデータが入らない」保証が買えるため入れる
 - **却下した代替案①: `targetType`＋`targetId` の多態1テーブル** — FK が張れず、User/Team 削除時の整合が手動になる。却下
-- **却下した代替案②: `UserSubscription`／`TeamSubscription` の2テーブル** — FK は綺麗だが、「フォロー中一覧」「フィードのフォロー集合取得」という主要クエリが常に両方を UNION する形になり、コードが単純に2倍になる。対象種別が3つ以上に増える予定は無い（YAGNI）。却下
+- **却下した代替案②: `UserFollow`／`TeamFollow` の2テーブル** — FK は綺麗だが、「フォロー中一覧」「フィードのフォロー集合取得」という主要クエリが常に両方を UNION する形になり、コードが単純に2倍になる。対象種別が3つ以上に増える予定は無い（YAGNI）。却下
 
 ## 5. ADR-005 の再裁定（Follow テーブルを再利用するか捨てるか）
 
@@ -126,17 +128,26 @@ ADR-005（2026-07-24）は「Post/PostLike/Follow は凍結→実運用安定後
 2. **意味論が違う。** v1 の Follow は相互SNSの「つながり」で、フォロワー一覧の相互閲覧・通知を前提にした関係だった。共有3のフォローは**公開コンテンツの購読**（フォロワー数非表示・通知なし・§7）。同じ名前の別概念であり、同じ器に入れると将来の読者（implementer・レビュア）が v1 の意味論を引きずる
 3. **中身に価値が無い。** 残存する v1 の Follow 行は、410凍結（2026-07-24 ADR-003）から続く旧SNS時代の関係データ。現ユーザー体制（自部のみ・部外登録0件）に対して復元する価値のある購読関係を表していない
 
-**したがって**: ①新テーブルは `Subscription` として新設（§4.2）②旧 `Follow` は Post/PostLike とともに **BL-01（contract migration・DROP TABLE）で物理削除**する。ADR-005 の実施条件は「共有3設計確定（＝本書）＋オーナー承認」であり、**残る未充足はオーナー承認のみ**。承認の取得は Team Lead 経由（§15 論点4）。承認が遅れても共有3実装はブロックされない（次項）
+**したがって**: ①新テーブルは `Follow` として新設（§4.2。名前の裁定は次項）②旧 `Follow` は Post/PostLike とともに **BL-01（contract migration・DROP TABLE）で物理削除**する。ADR-005 の実施条件「共有3設計確定（＝本書）＋オーナー承認」は**両方とも充足済み**（承認は GATES.md「BL-01（旧Follow の物理削除）の承認」欄に記録）。実施タイミングは Team Lead の判断（同欄）
 
-### 5.2 名前を再利用しない理由（`Follow` ではなく `Subscription`）
+### 5.2 テーブル名は `Follow` を再使用する（2026-08-02 オーナー裁定による改名。初版の `Subscription` を破棄）
 
-旧テーブルを DROP すれば Prisma 上は `Follow` の名前を新設に使えるが、あえて使わない。
+**オーナー裁定**: 「お金は発生しないので名前はフォローに似たもので。既存SNSを参考に」。`Subscription` は既存SNS・決済の文脈で「有料購読（サブスク）」を強く連想させ、無料の purely な購読関係の名前として誤解を招く。UI 語彙（フォロー）・既存SNSの慣習（Follow/follower）とテーブル名・APIパスを一致させる方が、将来の読者（implementer・レビュア）の認知コストが低い。
 
-1. **削除と新設の疎結合**: 同名にすると「BL-01 の DROP が先」という migration の順序制約が生まれる。別名なら BL-01（オーナー承認待ち）と共有3の expand migration が**互いに独立**になり、どちらが遅れても他方をブロックしない
-2. **誤読の防止**: git 履歴・レビューで「v2 の Follow が復活した」という誤読を構造的に防ぐ（凍結資産の復活は PRD rev.5 のアーカイブ削除裁定と逆行するため、復活に見えること自体が事故りやすい）
-3. 実体が「User/Team への購読」なので `Subscription` の方が正確。UI 文言は従来どおり「フォロー」でよい（テーブル名とUI語彙は独立）
+**初版（2026-08-01）が `Subscription` という別名を選んだ理由は、既に消えている**:
 
-**選ばなかった側の最強の擁護論（再利用案）**: 「テーブルは既にあり、User→User の主要ケースはそのまま動く。Team フォローだけ列を足せば新設1本より migration が小さい。『捨てて作り直す』は Not-Invented-Here の典型では」— migration の行数だけ見れば正当。ただし①の「既存モデル無改変」原則はこのプロジェクトで3回の漏洩事故（AGENTS.md 制約4）を経て確立した防波堤であり、行数の節約と交換しない。また旧行の温存は「v1 の関係データを新機能の配信対象に混ぜる」ことを意味し、フォローした覚えのない相手のコンテンツが初回フィードに流れる（データ品質事故）、が反駁。
+1. 別名の最大の効用は「BL-01（旧 Follow の DROP）と新設 migration の順序独立」＝**BL-01 のオーナー承認が遅れても共有3実装がブロックされない**ことだった。しかし **BL-01 は承認済み**（GATES.md「BL-01（旧Follow の物理削除）の承認」欄。設計確定＋オーナー承認の両条件充足）であり、「承認待ちで新設が塞がる」リスクはもう存在しない
+2. もう1つの効用「v2 Follow が復活したという誤読の防止」は、**「旧 Follow の DROP（contract）が先・新 `Follow` の CREATE（expand）が後」という順序を明文の前提にする**ことで代替する。git 履歴上も「消してから、別物を同名で作った」ことが migration の並びとして残るため、行データ・意味論の連続性を誤読する余地はない（旧行が新テーブルに紛れ込む経路は DROP により物理的に存在しない）
+
+**改名に伴う migration の順序依存（重要・初版から変わる点）**:
+
+> **BL-01（M-B・旧 `Follow`/`Post`/`PostLike` の DROP）が先、新 `Follow` の作成（M-A）が後。** この順序を守らない限り Prisma スキーマ上で名前が衝突する。初版が持っていた「M-A と M-B は互いに独立」という性質は改名の対価として失われる（§12.1 を改訂済み）。この対価を受け入れられるのは BL-01 が承認済みだからであり、もし何らかの理由で BL-01 の実施が撤回される場合は本改名も巻き戻して `Subscription` に戻すこと（改名はこの順序前提とセットでのみ有効）。
+
+3. なお「実体は購読だから `Subscription` が正確」という初版の主張は撤回する。正確さは読者に伝わって初めて価値があり、この製品の読者（部員・学連関係者・実装者）にとっての共通語彙は「フォロー」である。命名の最終判断はオーナーのプロダクト裁定に帰属する
+
+**選ばなかった側の最強の擁護論（`Subscription` 維持案）**: 「順序独立という構造上の利点を、語感の好みで手放すのか。BL-01 の実施が何かの事情で無期限に延びれば、共有3実装が2年物の宿題に鎖で繋がれる」— 構造の指摘として正当。ただし①BL-01 は承認済みで、実施は Team Lead の采配1つ（③Gate 優先で「急がない」だけ）であり、実施コストは DROP 3テーブル＋410レジストリ削除のみ ②共有3自体が着手条件未達で最短でも数ヶ月先、BL-01 がそれより遅れる合理的シナリオがない ③万一遅れる場合の巻き戻し手順を上記に明記した、が反駁。
+
+**旧 `Follow` の行データ・意味論を再利用しない判断（§5.1）は本改名と無関係に維持される**——変わるのは「新設テーブルの名前」だけである。
 
 ## 6. followers 可視性の実効化（共有2の単一軸のどこに置くか）
 
@@ -162,7 +173,7 @@ ADR-005（2026-07-24）は「Post/PostLike/Follow は凍結→実運用安定後
 ### 6.3 実装上の性質（共有2の構造を作り直さない）
 
 - **migration 不要**: `visibility` は String＋API層検証（enum 化しない判断は共有2 §4.1 が「将来 followers 追加時に migration 不要で可逆」とまさにこの日のために敷いた設計）。共有3の実装は「`followers` を 400 にしている検証の許可リストに1値足す＋認可分岐を1本足す」だけ
-- **publicSlug は発行しない**: `followers` は認証必須の可視性であり、匿名で読める URL とは両立しない。閲覧経路は部内API `GET /api/entries/:id`（認可: author 本人 or `Subscription(targetUserId=authorId, subscriberId=me)` が存在）とフィードのみ。**公開API（`/api/public/**`）には followers 投稿は一切出ない**（禁止キーテストの対象に追加）
+- **publicSlug は発行しない**: `followers` は認証必須の可視性であり、匿名で読める URL とは両立しない。閲覧経路は部内API `GET /api/entries/:id`（認可: author 本人 or `Follow(targetUserId=authorId, followerId=me)` が存在）とフィードのみ。**公開API（`/api/public/**`）には followers 投稿は一切出ない**（禁止キーテストの対象に追加）
 - **遷移**: `private ⇄ followers ⇄ public/unlisted` はすべて個人文脈内の操作として可。`followers → private` に戻す操作も可（既読のフォロワーの記憶は消せないが、これは全ての非公開化と同じ限界で、unlisted 取り消しと同じ扱い）
 - **フォロー解除・非公開化との関係**: 読者集合は**閲覧時点のフォロー関係で評価**する（スナップショットを持たない）。フォロー解除した人は以後読めなくなる。単純さ優先
 - **Session には適用しない**: Session の可視性は `team | unlisted | public` のまま（§3.2）。セッションは常にチーム文脈であり、6.2 がそのまま適用される
@@ -177,22 +188,22 @@ ADR-005（2026-07-24）は「Post/PostLike/Follow は凍結→実運用安定後
 
 - エラー形式 `{ error: string }`、存在秘匿が必要な失敗は一律404、カーソルページング `{ items, nextCursor }`（既定20・最大50）、部内APIは JWT＋`wrap()`（ADR-011）
 - **レート制限**: フォロー作成は userId 単位 30回/時（M4-01 の教訓「新しく DB 行を作る書き込み口を素通しにしない」）。`GET /api/feed` は認証必須のため公開系の 60req/min は適用しないが、コスト上限として userId 単位 120回/分を置く
-- v1 の凍結ルート `/api/follows`（410）は**触らない**。新設は `/api/subscriptions` 系（§5.2 の疎結合と同じ理由: 410 レジストリの変更を共有3実装から切り離す。`/api/follows` の消滅は BL-01 で）
+- 新設は `/api/follows` 系（テーブル名と同じく 2026-08-02 改名。旧 `Subscription` 案の `/api/subscriptions` は破棄）。**前提順序**: v1 の凍結ルート `/api/follows`（410）は BL-01（M-B）が 410 レジストリから削除するため、**新 `/api/follows` の実装は BL-01 適用後**に行う（テーブルの「drop が先・新設が後」と同じ順序依存＝§5.2。410 レジストリの残骸と新ルートを同居させない）
 
 ### 7.2 部内API（JWT 必須）
 
 | I/F | 入力 | 出力 | エラー |
 |---|---|---|---|
-| `POST /api/subscriptions` | `{ targetType: "user"\|"team", targetUsername? , targetTeamSlug? }` | `201 { subscription }`（既フォローなら `200` 既存を返す・冪等） | 400（XOR違反・自分自身）/ 404（対象が非公開・不存在。**区別しない**）/ 429 |
-| `DELETE /api/subscriptions` | `{ targetType, targetUsername?/targetTeamSlug? }` | `204`（未フォローでも204・冪等） | 400 |
-| `GET /api/subscriptions/mine?cursor=` | — | 自分のフォロー中一覧 `{ items: [{targetType, 表示名, slug/username, createdAt}], nextCursor }` | — |
-| `GET /api/subscriptions/followers?cursor=` | — | **自分の**フォロワー一覧（followers 投稿の読者確認用。§6.4） | — |
+| `POST /api/follows` | `{ targetType: "user"\|"team", targetUsername? , targetTeamSlug? }` | `201 { follow }`（既フォローなら `200` 既存を返す・冪等） | 400（XOR違反・自分自身）/ 404（対象が非公開・不存在。**区別しない**）/ 429 |
+| `DELETE /api/follows` | `{ targetType, targetUsername?/targetTeamSlug? }` | `204`（未フォローでも204・冪等） | 400 |
+| `GET /api/follows/mine?cursor=` | — | 自分のフォロー中一覧 `{ items: [{targetType, 表示名, slug/username, createdAt}], nextCursor }` | — |
+| `GET /api/follows/followers?cursor=` | — | **自分の**フォロワー一覧（followers 投稿の読者確認用。§6.4） | — |
 | `GET /api/feed?cursor=` | — | §8 のフィード | 401 |
 | `PATCH /api/entries/:id/visibility`（既存拡張） | `{ visibility: "private"\|"team"\|"followers" }` — `followers` を許可リストへ追加（個人文脈のみ） | 既存契約に追従 | 400（チーム文脈×followers） |
 
 ### 7.3 公開APIへの影響
 
-- **新設なし・既存の変更なし。** フォロー関係・フォロワー数は `/api/public/**` のどのペイロードにも**含めない**（禁止キーリストに `Subscription` 由来の全フィールドと「フォロワー数・フォロー中数」を追加）
+- **新設なし・既存の変更なし。** フォロー関係・フォロワー数は `/api/public/**` のどのペイロードにも**含めない**（禁止キーリストに `Follow` 由来の全フィールドと「フォロワー数・フォロー中数」を追加）
 - 公開チーム索引 `/teams`（F-5）は既存 `GET /api/public/teams/:slug` の姉妹として `GET /api/public/teams?cursor=` を新設。返すのは `isPublicPageEnabled=true` のチームの `{ name, university, slug }` のみ（ホワイトリスト方式。オプトインの意味論上、これは既に公開情報の再掲であり新しい露出はゼロ）
 
 ### 7.4 認可マトリクス
@@ -240,7 +251,7 @@ ADR-005（2026-07-24）は「Post/PostLike/Follow は凍結→実運用安定後
 1回のリクエストで3クエリ＋アプリ内マージ:
 
 ```
-follows  = SELECT targetUserId, targetTeamId FROM "Subscription" WHERE subscriberId = :me   -- 数十行
+follows  = SELECT targetUserId, targetTeamId FROM "Follow" WHERE followerId = :me   -- 数十行
 sessions = Session WHERE visibility='public' AND teamId IN (:teams)
              AND (publishedAt, id) < (:cursorTime, :cursorId)     -- カーソル条件
              ORDER BY publishedAt DESC, id DESC LIMIT :limit
@@ -274,7 +285,7 @@ entries  = Entry WHERE ( (visibility='public' AND (teamId IN (:teams) OR authorI
 
 | 状態 | 条件 | 表示 |
 |---|---|---|
-| E-1 フォロー0人 | `Subscription` 0行 | 「まだ誰もフォローしていません」＋**公開チーム索引 `/teams` への導線**＋「チームページや公開プロフィールのフォローボタンから購読できます」の説明。**コンテンツの流し込みはしない**（下記9.2） |
+| E-1 フォロー0人 | `Follow` 0行 | 「まだ誰もフォローしていません」＋**公開チーム索引 `/teams` への導線**＋「チームページや公開プロフィールのフォローボタンから購読できます」の説明。**コンテンツの流し込みはしない**（下記9.2） |
 | E-2 フォロー中・アイテム0件 | 購読はあるが該当コンテンツ0 | 「フォロー中のチーム・ユーザーの公開コンテンツはまだありません。公開されるとここに時系列で並びます」。壊れているのではなく「まだ無い」ことを言い切る |
 | E-3 終端 | `nextCursor: null` | 「これで全部です」。無限スピナー・「もっと読み込む」の空振りを出さない |
 
@@ -292,7 +303,7 @@ E-1 のフォールバックとして「全公開コンテンツの新着」を�
 
 ### 10.1 代替案A: 「新着公開コンテンツの横断一覧」（フォロー・フィードを作らない）
 
-**内容**: `/whats-new` のような1ページに、全チーム・全ユーザーの `public` コンテンツを publishedAt 降順で並べるだけ。フォロー関係・Subscription テーブル・followers 可視性を一切作らない。実装量は本設計の1/3以下（8.3 のクエリからフォロー集合の絞り込みを外したもの＋画面1枚）。
+**内容**: `/whats-new` のような1ページに、全チーム・全ユーザーの `public` コンテンツを publishedAt 降順で並べるだけ。フォロー関係・Follow テーブル・followers 可視性を一切作らない。実装量は本設計の1/3以下（8.3 のクエリからフォロー集合の絞り込みを外したもの＋画面1枚）。
 
 **この案が強い理由（正面から認める)**: 母集団が小さいうちは、フォローで絞る意味がそもそも無い——全体の新着が月10件なら「全部見る」方が「選んで購読する」より合理的で、フォロー0人の空フィード問題（§9）も原理的に消える。過疎リスクへの耐性は代替案Aの方が高い。
 
@@ -331,16 +342,16 @@ E-1 のフォールバックとして「全公開コンテンツの新着」を�
 
 | migration | 種別 | 内容 | 前提 |
 |---|---|---|---|
-| M-A | expand（純追加） | `Subscription` 新設（＋CHECK 制約1行）＋`Entry`/`Session` へフィード用インデックス追加。既存カラムの変更・削除・バックフィルはゼロ。適用しただけでは挙動が一切変わらない | 共有3実装着手 |
+| M-A | expand（純追加） | 新 `Follow` 新設（＋CHECK 制約1行）＋`Entry`/`Session` へフィード用インデックス追加。既存カラムの変更・削除・バックフィルはゼロ。適用しただけでは挙動が一切変わらない | 共有3実装着手・**M-B 適用済みであること** |
 | M-B | contract（BL-01） | 旧 `Follow`・`Post`・`PostLike` の DROP＋対応する410ルート（`/api/follows` 等）の registry からの削除 | **オーナー承認**（ADR-005 の残条件。§5.1） |
 
-M-A と M-B は**順序制約なし・互いに独立**（`Subscription` という別名を選んだ効果。§5.2）。ロールバックはどちらも DROP / 再CREATE のみ。本番適用は AGENTS.md 危険操作規約どおり `DATABASE_URL` をコマンド単位で渡す。
+**M-B が先・M-A が後**（2026-08-02 の `Follow` 改名により順序制約が発生。同名衝突を避けるため旧テーブルの DROP が新設に必ず先行する＝§5.2。BL-01 は承認済みのためこの制約は実害にならない）。ロールバックはどちらも DROP / 再CREATE のみ。本番適用は AGENTS.md 危険操作規約どおり `DATABASE_URL` をコマンド単位で渡す。
 
 ### 12.2 テスト計画（qa-engineer への引き継ぎ骨子。共有2 §11.2 の形式を継承）
 
 | 種別 | 内容 |
 |---|---|
-| **禁止キー非含有**（値検査） | 全 `/api/public/**` 応答に `followers` 状態の Entry の title/bodyMd の**実値**・フォロワー数・`subscriberId` 等 Subscription 由来の値が出現しない。公開チーム索引に未オプトインチーム名が出現しない |
+| **禁止キー非含有**（値検査） | 全 `/api/public/**` 応答に `followers` 状態の Entry の title/bodyMd の**実値**・フォロワー数・`followerId` 等 Follow 由来の値が出現しない。公開チーム索引に未オプトインチーム名が出現しない |
 | 認可マトリクス | §7.4 を1行1テストで写経（非フォロワー404 / フォロワーは閲覧のみ / admin 権限は followers 投稿に及ばない / 非公開主体へのフォロー404） |
 | XOR・冪等 | 両対象指定400・自分フォロー400・二重フォロー200(冪等)・未フォロー解除204(冪等)・CHECK 制約違反が DB 層でも落ちる |
 | followers 可視性 | チーム文脈×followers は400 / followers 投稿に publicSlug が発行されない / フォロー解除後は404に変わる / `private⇄followers⇄public` 遷移 |
@@ -356,12 +367,13 @@ M-A と M-B は**順序制約なし・互いに独立**（`Subscription` とい�
 
 | ID | スライス | 内容（検証方法つき） | 見積 |
 |---|---|---|---|
-| SH3-01 | フォロー＋フィード縦貫通 | M-A migration＋Subscription API（作成/解除/mine）＋`GET /api/feed`（public のみ・カーソル込み）＋`/feed` 最小画面。**検証**: フォロー→相手の public 昇格が /feed に出る。認可・XOR・カーソルテスト同梱 | 1.5日 |
+| SH3-00 | BL-01（contract・M-B） | 旧 `Follow`/`Post`/`PostLike` の DROP＋対応410ルート（`/api/follows` 等）のレジストリ削除。**2026-08-02 の `Follow` 改名により SH3-01 の前提**（同名衝突回避＝§5.2。承認済みのため着手可能。共有3着手より前に単独実施してもよい）。**検証**: 回帰全グリーン＋frontend の旧ルート参照 grep ゼロ | 0.5日 |
+| SH3-01 | フォロー＋フィード縦貫通 | M-A migration（新 `Follow`）＋Follow API（作成/解除/mine）＋`GET /api/feed`（public のみ・カーソル込み）＋`/feed` 最小画面。**前提: SH3-00 適用済み**。**検証**: フォロー→相手の public 昇格が /feed に出る。認可・XOR・カーソルテスト同梱 | 1.5日 |
 | SH3-02 | フォローボタン＋索引＋空状態 | チームページ/プロフィールのフォローボタン＋`GET /api/public/teams`＋`/teams` 索引＋E-1〜E-3。**検証**: E2E 一式 | 1日 |
 | SH3-03 | followers 可視性 | 許可リスト追加＋認可分岐＋フィードへの合流＋作成UIの説明文＋followers テスト群。**検証**: §12.2 followers 行全通過 | 1日 |
-| SH3-04 | BL-01（contract）＋仕上げ | M-B（オーナー承認取得後）＋禁止キーテスト拡充＋Q&Aドキュメント（deliverables.md）＋計測SQL整備。**検証**: 回帰全グリーン | 0.5日 |
+| SH3-04 | 仕上げ | 禁止キーテスト拡充＋Q&Aドキュメント（deliverables.md）＋計測SQL整備（BL-01 は SH3-00 へ移動＝2026-08-02 改名の順序依存）。**検証**: 回帰全グリーン | 0.5日 |
 
-**合計約4日。間に合わない場合に削る順序**: ① SH3-03（followers。公開軸は public/unlisted で当面足りる。PRD Phase 4 スコープの一部繰り延べとして Team Lead へ報告）→ ② SH3-02 の索引（フォロー導線はチームページ URL 直行で代替）→ SH3-01 の縦1本と SH3-04 の BL-01 は削らない（BL-01 は2年越しの宿題の決着であり、共有3の中で最も確実に価値が出る作業）。
+**合計約4.5日。間に合わない場合に削る順序**: ① SH3-03（followers。公開軸は public/unlisted で当面足りる。PRD Phase 4 スコープの一部繰り延べとして Team Lead へ報告）→ ② SH3-02 の索引（フォロー導線はチームページ URL 直行で代替）→ SH3-00・SH3-01 の縦1本は削らない（SH3-00＝BL-01 は2年越しの宿題の決着であり承認済み。共有3の中で最も確実に価値が出る作業である上、`Follow` 改名後は SH3-01 の技術的前提でもある）。
 
 ## 13. リスクと自己反論
 
@@ -387,7 +399,7 @@ M-A と M-B は**順序制約なし・互いに独立**（`Subscription` とい�
 - [ ] 着手条件4項目（§0 表）の実測値を SQL で確認したか
 - [ ] **§11 N-1〜N-4 をすべて数値で判定し、「作る／縮小する／代替案AでPRD改訂提案」のどれかを明示したか**
 - [ ] 共有2の実測（K1〜K4）とテンプレ経由率から、フィードに載る種別の比率想定（Session/Entry）を見直したか
-- [ ] BL-01 のオーナー承認は取得済みか（未取得でも M-A は独立に進められることを確認）
+- [ ] BL-01（SH3-00・M-B）は**適用済みか**（承認は取得済み＝GATES.md。2026-08-02 の `Follow` 改名により M-A は M-B 適用後にしか流せない＝§5.2・§12.1）
 - [ ] 共有2実装で `visibility` 検証・シリアライザの実装形が本書の想定（§6.3「1値足すだけ」）と一致しているか
 - [ ] UI-DESIGN への反映（フォローボタン・/feed・/teams 索引）は Team Lead 承認を得たか
 
@@ -397,12 +409,12 @@ M-A と M-B は**順序制約なし・互いに独立**（`Subscription` とい�
 
 ### 14.1 ADR-016 案（ADR-005 の決着）
 
-> ### ADR-016: 旧 Follow は再利用せず物理削除（BL-01 実施条件成立）。フォローは新テーブル `Subscription`（User→公開User/公開Team・XOR 2カラム）で新設する
-> - **状況:** ADR-005 が「Follow の物理削除は共有3設計確定まで保留」としていた。共有3の詳細設計（SPEC-share3-follow-feed.md・Issue #4）で決着させる
-> - **決定:** ①旧 `Follow` は再利用しない。Post/PostLike とともに BL-01（contract migration）で物理削除する。実施条件「共有3設計確定」は本ADRで成立し、**残る未充足はオーナー承認のみ** ②新フォローは `Subscription` として新設。フォローする側は常に User、対象は公開 User または公開 Team の XOR 2カラム（FK＋CHECK 制約）③名前を `Follow` に戻さない（BL-01 と共有3実装の migration を疎結合にする・「v2 Follow の復活」という誤読の防止）
-> - **理由:** 旧 Follow は User→User 専用で Team フォローに形が合わず、拡張は「既存モデル無改変」原則（ARCH §3）に反する。v1 の関係データは購読として復元する価値が無く、温存すると初回フィードに覚えのない配信が混ざる。詳細は SPEC-share3 §5
-> - **選ばなかった側の最強の擁護論（再利用）:** 「テーブルは既にあり、列を足す方が migration が小さい」— 行数の節約は、3回の漏洩事故を経て確立した無改変原則と交換しない、が反駁
-> - **結果として受け入れるデメリット:** スキーマに「Follow（死・削除待ち）」と「Subscription（生）」が併存する期間が生じる（解消は BL-01。オーナー承認の取得を Team Lead のアクションアイテムとする）
+> ### ADR-016: 旧 Follow は再利用せず物理削除（BL-01・オーナー承認済み）。フォローは旧テーブルの drop 後に新テーブル `Follow`（User→公開User/公開Team・XOR 2カラム）として新設する
+> - **状況:** ADR-005 が「Follow の物理削除は共有3設計確定まで保留」としていた。共有3の詳細設計（SPEC-share3-follow-feed.md・Issue #4）で決着させる。初版（2026-08-01）は新テーブル名を `Subscription` としたが、2026-08-02 オーナー裁定（「お金は発生しないので名前はフォローに似たもので。既存SNSを参考に」）により `Follow` へ改名
+> - **決定:** ①旧 `Follow` は再利用しない（行データ・意味論とも）。Post/PostLike とともに BL-01（contract migration）で物理削除する。実施条件「共有3設計確定＋オーナー承認」は**両方充足済み**（承認は GATES.md 記録） ②新フォローは `Follow` として新設。フォローする側は常に User、対象は公開 User または公開 Team の XOR 2カラム（FK＋CHECK 制約）③**migration は「BL-01 の DROP（contract）が先・新 `Follow` の CREATE（expand）が後」の順序を必須とする**（同名衝突の回避。対応する API も旧 `/api/follows`(410) のレジストリ削除後に新 `/api/follows` を実装する）
+> - **理由:** 旧 Follow は User→User 専用で Team フォローに形が合わず、拡張は「既存モデル無改変」原則（ARCH §3）に反する。v1 の関係データは購読として復元する価値が無く、温存すると初回フィードに覚えのない配信が混ざる。名前は UI 語彙（フォロー）・既存SNS慣習と一致させる（`Subscription` は有料購読の誤連想）。詳細は SPEC-share3 §5
+> - **選ばなかった側の最強の擁護論:** （再利用案）「テーブルは既にあり、列を足す方が migration が小さい」— 行数の節約は、3回の漏洩事故を経て確立した無改変原則と交換しない、が反駁。（`Subscription` 維持案）「別名なら BL-01 と新設が順序独立で、BL-01 の遅延が共有3をブロックしない」— 初版がこの理由で別名を選んだのは正しかったが、BL-01 承認済みの現在は守るものが無い保険であり、巻き戻し条件（BL-01 撤回時は `Subscription` へ戻す）を SPEC §5.2 に明記して手放す、が反駁
+> - **結果として受け入れるデメリット:** ①BL-01 実施までスキーマに旧 `Follow`（死・削除待ち）が残り、新設はその実施を待つ（順序制約の発生。初版の順序独立性は改名の対価として喪失）②同名テーブルが「消えて・別物として再生した」履歴になるため、将来の考古学には migration の並び順の読解が必要（ADR と SPEC §5.2 が注記で補う）
 
 ### 14.2 ADR-017 案（フィードとフォローの設計原則）
 
@@ -420,7 +432,7 @@ M-A と M-B は**順序制約なし・互いに独立**（`Subscription` とい�
 | 1 | チーム間フォロー承認（インスタ鍵アカ型・フォローを承認制にする） | 作らない（PRD §5-4 の将来枠のまま。承認制は「公開ページ＋購読」という現モデルと別物のため、需要実測後に別SPEC） | オーナー（プロダクト判断） |
 | 2 | 通知（フォロー先の新着をメール等で知らせる） | 作らない（§3.2）。フィードの閲覧頻度が実測で月1回未満に沈み、かつ供給が続いている場合のみ再検討 | オーナー |
 | 3 | 公開チーム索引 `/teams` の掲載順・掲載基準 | オプトイン済全チーム・登録順と仮置き。活動状況での並び替えはランキングの入口になるため入れていない | Team Lead |
-| 4 | **BL-01（旧 Follow/Post/PostLike 物理削除）のオーナー承認** | 本書で実施条件は成立（§5.1・ADR-016案）。承認の取得と実施時期の決定が残る | オーナー → Team Lead |
+| 4 | ~~**BL-01（旧 Follow/Post/PostLike 物理削除）のオーナー承認**~~ | **決着: 承認済み**（GATES.md「BL-01（旧Follow の物理削除）の承認」欄）。残るは実施時期の決定のみ（`Follow` 改名により新設の前提となったため、共有3着手前の単独実施も可＝SH3-00） | ~~オーナー~~ Team Lead（実施時期） |
 | 5 | ADR-016/017 の ARCH.md 追記と ADR-005 への相互参照追記 | 文面提案まで（§14。既存正本は未変更） | Team Lead（Architecture Gate） |
 | 6 | §11 N-2 該当時の代替案A採用（＝PRD Phase 4 縮小と SPEC-share1 §3.2 の裁定変更） | 着手時判定。本書は判定基準の提示まで | product-lead / Team Lead → オーナー |
 | 7 | F（ショート動画）の再判定 | PRD §5 が「共有3以降で再判定」とするが、本書スコープ外（フィードと独立の供給・コスト問題）。共有3着手判定と同時に product-lead が扱う | product-lead |
