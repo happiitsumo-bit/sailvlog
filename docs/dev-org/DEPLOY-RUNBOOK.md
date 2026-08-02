@@ -11,6 +11,14 @@
 
 ## 0. 事前確認
 
+**⚠ 最初に必ず作業ディレクトリへ移動する。** `~/workspace/dev` は別のリポジトリなので、
+そこで実行すると `unknown revision` や `No such file or directory` になる（2026-08-02に実際に発生）。
+
+```bash
+cd ~/workspace/dev/sailvlog
+git rev-parse --show-toplevel   # /Users/nova/workspace/dev/sailvlog と出ることを確認
+```
+
 ```bash
 git fetch --all
 git log --oneline origin/main..origin/v3/replay-mvp | wc -l   # 未反映のコミット数
