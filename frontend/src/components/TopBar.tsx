@@ -47,8 +47,10 @@ export default function TopBar() {
                 自分のプロダクトの公開ホームを見られない副作用がある。当面はここに置くが、
                 本来はSPEC-share2-team-pages.md §8.1のヘッダーメニュー「じぶんの」束に入る導線。
                 そのメニュー実装時にこちらへ移す。 */}
+            {/* m-13(Issue #43): 遷移先は特定セッションの公開ページではなく、未ログイン時に見える
+                ランディング（公開ホーム）。旧ラベルは内容が読めなかったため改名した。 */}
             <Link href="/?preview=1" className="btn btn-ghost" style={{ fontSize: "0.85rem" }}>
-              公開ページを見る
+              公開ホームを確認
             </Link>
             <span style={{ fontSize: "0.85rem", color: "var(--fg-2)", fontFamily: "var(--font-mono)" }}>
               @{username}
