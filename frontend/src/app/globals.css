@@ -129,6 +129,10 @@
 
     --color-separator: rgba(84,84,88,0.6);
 
+    /* M-1(Issue #41): ライトテーマ由来の rgba(28,28,31,0.28) は黒背景で1:1近いコントラストに潰れる
+       ため、ダークではラベル同様に白ベースへ反転する（実測: 反転前 約1.0:1 → 反転後 約3.7:1）。 */
+    --border-strong: rgba(255,255,255,0.40);
+
     --color-success: #34c07a;
     --color-warning: #f0a72e;
     --color-danger: #ff5b52;
@@ -164,6 +168,9 @@
   --color-label-tertiary: rgba(242,242,247,0.38);
 
   --color-separator: rgba(84,84,88,0.6);
+
+  /* M-1(Issue #41): @media ブロックと同じ反転（[data-theme="dark"] 明示指定経路にも適用） */
+  --border-strong: rgba(255,255,255,0.40);
 
   --color-success: #34c07a;
   --color-warning: #f0a72e;
@@ -3554,9 +3561,21 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg, 12px);
   box-shadow: var(--shadow);
-  padding: 1.75rem;
+  padding: 1.75rem 1.75rem 0;
   width: 100%;
   max-width: 520px;
+  /* M-7(Issue #41): ビューポート高に対しダイアログが長すぎると、確定ボタン（.dialog-actions）が
+     画面外に出て「先制エラーだけが見える」状態になる。パネル自体を縦flexにし、本文だけを
+     内部スクロールさせ、確定ボタンは常にビューポート内に留める。 */
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 1rem;
 }
 .dialog-title {
   font-family: var(--font-display);
@@ -3647,7 +3666,10 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  margin-top: 1.4rem;
+  flex-shrink: 0;
+  padding: 1.1rem 0 1.75rem;
+  margin-top: 0;
+  border-top: 1px solid var(--border);
 }
 .dialog-confirm-card {
   margin-top: 0.75rem;

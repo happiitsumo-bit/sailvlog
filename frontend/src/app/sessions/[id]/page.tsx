@@ -634,8 +634,12 @@ function SessionReplayPageContent() {
         />
       )}
 
-      <section
-        aria-labelledby="add-track-heading"
+      {/* M-2(Issue #41): このセクションが常時展開だと、反省会で画面を開いた瞬間に見えるのが
+          ファイルアップロード欄になり、地図（.replay-layout）が700pxスクロールしないと現れない。
+          既定で折りたたみ、地図＋再生バーをファーストビューに置く（details/summaryは
+          比較・メモパネルと同じ既存パターン=.replay-accordionを流用）。 */}
+      <details
+        className="replay-accordion"
         style={{
           marginBottom: "1rem",
           padding: "1rem",
@@ -644,9 +648,9 @@ function SessionReplayPageContent() {
           borderRadius: 8,
         }}
       >
-        <h2 id="add-track-heading" className="sidebar-title" style={{ marginBottom: "0.5rem" }}>
+        <summary className="sidebar-title" style={{ marginBottom: "0.5rem", cursor: "pointer" }}>
           航跡を追加
-        </h2>
+        </summary>
         <p style={{ color: "var(--fg-mute)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
           このセッションと同じ時間帯のGPXを1艇ずつ追加できます。
         </p>
@@ -697,7 +701,7 @@ function SessionReplayPageContent() {
             </div>
           </div>
         )}
-      </section>
+      </details>
 
       {/* UI-DESIGN §4.6: モバイルではDOM順が正（Canvas→再生コントロール→タイムライン→レグ→比較→メモ）。
           このdivの子はcanvas〜legsまでをまとめた.replay-mainと、比較・メモをまとめた.replay-asideの
@@ -1028,8 +1032,15 @@ function SessionReplayPageContent() {
                 §7項目2のDOM順修正で、艇の表示切替→比較→メモの並びに揃えるため
                 main列からこちら（aside＝メモパネル内）へ移設した（2026-07-25）。 */}
             <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
-              <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <h3 className="sidebar-title" style={{ marginBottom: "0.6rem", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span>現在時刻({formatTime(simTimeDisplay)})に議論を残す</span>
+                {/* M-8(Issue #41): 1500字入れても1行のままで読み返せない問題への対応。textarea化に伴い
+                    公開ダイアログの「学びの要約」と同様、文字数カウンタを追加する。 */}
+                <span style={{ fontSize: "0.72rem", color: "var(--fg-mute)", fontFamily: "var(--font-mono)" }}>
+                  {newAnnotationBody.length}/2000
+                </span>
+              </h3>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
                 <select
                   aria-label="メモの種類"
                   value={newAnnotationKind}
@@ -1040,13 +1051,23 @@ function SessionReplayPageContent() {
                     <option key={value} value={value}>{kind.label}</option>
                   ))}
                 </select>
-                <input
-                  type="text"
+                <textarea
                   value={newAnnotationBody}
                   onChange={(e) => setNewAnnotationBody(e.target.value)}
                   placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
                   maxLength={2000}
-                  style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
+                  rows={2}
+                  style={{
+                    flex: "1 1 240px",
+                    minHeight: "2.6rem",
+                    resize: "vertical",
+                    background: "var(--paper)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    padding: "0.5rem 0.75rem",
+                    color: "var(--fg)",
+                    font: "inherit",
+                  }}
                 />
                 <select
                   value={newAnnotationTrackId}
