@@ -5,7 +5,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn, getUser } from "@/lib/auth";
-import { Annotation, SessionDetail, Track } from "@/types";
+import { Annotation, SessionDetail, TeamMember, Track } from "@/types";
 import { GpxParseError, normalizeToGrid, parseGpx } from "@/lib/gpx";
 import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
 import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
@@ -15,7 +15,8 @@ import {
   shouldWarnBeforeAnnotationEdit,
   shouldWarnBeforeTrackAdd,
 } from "@/lib/publish";
-import { fetchIsTeamAdmin } from "@/lib/teamRole";
+import { fetchIsTeamAdmin, fetchTeamMembers } from "@/lib/teamRole";
+import { computeSubmissionStatus } from "@/lib/submissionStatus";
 import { VisibilityChip } from "@/components/VisibilityChip";
 import { PublishDialog, PublishResult } from "@/components/PublishDialog";
 
@@ -75,6 +76,7 @@ function SessionReplayPageContent() {
   const [annotationEditError, setAnnotationEditError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [pendingTrack, setPendingTrack] = useState<PendingTrack | null>(null);
   const [addingTrack, setAddingTrack] = useState(false);
   const [trackError, setTrackError] = useState<string | null>(null);
@@ -156,6 +158,9 @@ function SessionReplayPageContent() {
             if (admin) setCanManage(true);
           });
         }
+
+        // Issue #29: 提出状況の可視化に使うチームメンバー一覧
+        fetchTeamMembers(d.session.teamId).then(setTeamMembers);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "セッションの取得に失敗しました"));
   }, [sessionId, router]);
@@ -183,6 +188,12 @@ function SessionReplayPageContent() {
   const renderTracks: RenderTrack[] = useMemo(
     () => detail?.tracks.map((t) => ({ id: t.id, boatLabel: t.boatLabel, startSec: t.startSec, pointCount: t.pointCount, gridJson: t.gridJson })) ?? [],
     [detail]
+  );
+
+  // Issue #29: 提出状況（N人中M人が提出済み・まだの人）。
+  const submissionStatus = useMemo(
+    () => computeSubmissionStatus(teamMembers, detail?.tracks.map((t) => t.uploaderId) ?? []),
+    [teamMembers, detail]
   );
 
   // rAF+ref 再生ループ（ARCH.md §4 ADR-001）。React stateはUIパネル同期用に≦10Hzでのみ更新する。
@@ -634,6 +645,33 @@ function SessionReplayPageContent() {
         />
       )}
 
+      {/* Issue #29: 提出状況の可視化。「あと誰待ちか」が見えないと、まとめ役が一人ずつ催促することになる。
+          teamMembersが取得できるまで（0件）は判定材料が無いため表示しない。 */}
+      {submissionStatus.totalCount > 0 && (
+        <section
+          aria-labelledby="submission-status-heading"
+          role="status"
+          style={{
+            marginBottom: "1rem",
+            padding: "1rem",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+          }}
+        >
+          <h2 id="submission-status-heading" className="sidebar-title" style={{ marginBottom: "0.5rem" }}>
+            提出状況（{submissionStatus.totalCount}人中{submissionStatus.submittedCount}人が提出済み）
+          </h2>
+          {submissionStatus.missingMembers.length > 0 ? (
+            <p style={{ color: "var(--fg-mute)", fontSize: "0.82rem" }}>
+              まだの人: {submissionStatus.missingMembers.map((m) => m.user.username).join("、")}
+            </p>
+          ) : (
+            <p style={{ color: "var(--fg-mute)", fontSize: "0.82rem" }}>全員が提出済みです。</p>
+          )}
+        </section>
+      )}
+
       <section
         aria-labelledby="add-track-heading"
         style={{
@@ -644,8 +682,10 @@ function SessionReplayPageContent() {
           borderRadius: 8,
         }}
       >
+        {/* Issue #29-2: 「航跡を追加」だと他人のぶんを足す操作にも読めるため、
+            自分のGPXを出す操作だと分かる文言にする。 */}
         <h2 id="add-track-heading" className="sidebar-title" style={{ marginBottom: "0.5rem" }}>
-          航跡を追加
+          自分の航跡を出す
         </h2>
         <p style={{ color: "var(--fg-mute)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
           このセッションと同じ時間帯のGPXを1艇ずつ追加できます。

@@ -39,6 +39,7 @@ model User {
   uploadedSessions    Session[]    @relation("SessionUploader")
   authoredAnnotations Annotation[] @relation("AnnotationAuthor")
   publishedSessions   Session[]    @relation("SessionPublisher")
+  uploadedTracks      Track[]      @relation("TrackUploader")
 }
 
 model BoatType {
@@ -381,6 +382,12 @@ model Track {
   rawGpx     String  @db.Text         // 原本GPX（無損失の正。gridは表示用キャッシュで再生成可能）
   sourceApp  String? @db.VarChar(50)  // "Geo Tracker" 等
   createdAt  DateTime @default(now())
+
+  // Issue #29: 提出状況の可視化に必要（「誰が出したか」）。既存行はnull（過去分は帰属不明のまま扱う。
+  // バックフィルはしない＝T-30のinviteCode遅延生成と同じ方針）。ユーザー削除時はTrack自体は
+  // チームの共有資産として残すため、onDelete: SetNull（Cascadeにしない）。
+  uploaderId Int?
+  uploader   User? @relation("TrackUploader", fields: [uploaderId], references: [id], onDelete: SetNull)
 
   annotations Annotation[]
 

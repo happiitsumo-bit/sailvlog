@@ -106,6 +106,7 @@ router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Pr
   // publicSlug/learningSummary/publishedAt/publishedById/publicViewCountは
   // そもそもクエリに含めない（frontend/src/types/index.ts の SessionSummary が
   // 要求するフィールドのみ）。
+  const userId = req.userId as number;
   const sessions = await prisma.session.findMany({
     where: { teamId },
     orderBy: { startedAt: "desc" },
@@ -121,10 +122,15 @@ router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Pr
       uploaderId: true,
       visibility: true,
       _count: { select: { tracks: true, annotations: true } },
+      // Issue #29「セッション一覧から未提出のセッションが分かる」用。自分がこのセッションに
+      // 航跡を1本でも出しているか（存在確認のみ・take:1）。raw tracksは返さずbooleanへ畳む。
+      tracks: { where: { uploaderId: userId }, select: { id: true }, take: 1 },
     },
   });
 
-  res.json({ sessions });
+  const withSubmissionFlag = sessions.map(({ tracks, ...s }) => ({ ...s, mySubmitted: tracks.length > 0 }));
+
+  res.json({ sessions: withSubmissionFlag });
 }));
 
 // GET /api/sessions/:id — 詳細（tracksはgridJson込み・rawGpx除外、annotations込み）
@@ -148,6 +154,7 @@ router.get(
           gridJson: true,
           sourceApp: true,
           createdAt: true,
+          uploaderId: true, // Issue #29: 提出状況の可視化に使う。チーム内メンバーのみ閲覧可（requireSessionTeamMember）
           // rawGpxは除外（ARCH.md §4）
         },
       }),
@@ -235,8 +242,9 @@ router.post(
     }
 
     const { boatLabel, startSec, pointCount, gridJson, rawGpx, sourceApp } = req.body;
+    // Issue #29: 誰が出したかを記録する（提出状況の可視化の土台）。POSTした本人＝アップロード実行者。
     const track = await prisma.track.create({
-      data: { sessionId, boatLabel, startSec, pointCount, gridJson, rawGpx, sourceApp },
+      data: { sessionId, boatLabel, startSec, pointCount, gridJson, rawGpx, sourceApp, uploaderId: req.userId as number },
     });
 
     // gridJson/rawGpxを除くメタのみ返す（ARCH.md §4）

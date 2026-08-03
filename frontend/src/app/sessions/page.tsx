@@ -97,6 +97,20 @@ function SessionsPageContent() {
               <h3 className="question-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                 {s.title}
                 <VisibilityChip visibility={s.visibility} />
+                {/* Issue #29-3: 自分がまだ航跡を出していないセッションが一覧から分かるようにする */}
+                {!s.mySubmitted && (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--color-danger)",
+                      border: "1px solid var(--color-danger)",
+                      borderRadius: 999,
+                      padding: "0.05rem 0.5rem",
+                    }}
+                  >
+                    未提出
+                  </span>
+                )}
               </h3>
               <div className="question-meta">
                 <span>{s.type === "race" ? "レース" : "練習"}</span>
