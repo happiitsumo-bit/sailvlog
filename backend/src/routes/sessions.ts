@@ -8,7 +8,7 @@ import {
   isUploaderOrTeamAdmin,
   SessionScopedRequest,
 } from "../middleware/requireTeamMember";
-import { validateTrackPayload } from "../lib/validateTrackPayload";
+import { validateTrackPayload, TrackPayloadInput } from "../lib/validateTrackPayload";
 import { validateAnnotationPayload } from "../lib/validateAnnotationPayload";
 import { validatePublishPayload } from "../lib/validatePublishPayload";
 import { validateSessionPatchPayload } from "../lib/validateSessionPatchPayload";
@@ -32,13 +32,18 @@ function generatePublicSlug(): string {
   return crypto.randomBytes(9).toString("base64url");
 }
 
-// POST /api/sessions — 新規セッション作成
+// POST /api/sessions — 新規セッション作成。
+// 任意で tracks（艇ごとのトラック配列）を同時に渡すと、セッション作成とトラック投入を
+// 1トランザクションにまとめる（Issue #40・REVIEW-codex.md C-05修正案(b)）。
+// 複数艇アップロードの途中失敗でセッションと先行トラックだけが残る事故を、
+// フロント側のロールバックではなくDBのアトミック性で構造的に防ぐ。
+// tracksを省略した場合は従来どおりセッションのみ作成する（後方互換）。
 router.post(
   "/",
   authMiddleware,
   requireTeamMemberByBody(),
   wrap(async (req: AuthRequest, res: Response): Promise<void> => {
-    const { title, type, startedAt, durationSec, teamId, venue, notes } = req.body;
+    const { title, type, startedAt, durationSec, teamId, venue, notes, tracks } = req.body;
 
     if (typeof title !== "string" || title.trim().length === 0 || title.length > MAX_TITLE_LEN) {
       res.status(400).json({ error: `title は必須です（1〜${MAX_TITLE_LEN}文字）` });
@@ -62,21 +67,66 @@ router.post(
       return;
     }
 
-    const session = await prisma.session.create({
-      data: {
-        title: title.trim(),
-        type: type ?? "practice",
-        startedAt: startedAtDate,
-        durationSec,
-        teamId: Number(teamId),
-        uploaderId: req.userId as number,
-        venue: venue ?? null,
-        notes: notes ?? null,
-      },
+    let trackInputs: Array<{
+      boatLabel: string;
+      startSec: number;
+      pointCount: number;
+      gridJson: object;
+      rawGpx: string;
+      sourceApp?: string;
+    }> = [];
+    if (tracks !== undefined) {
+      if (!Array.isArray(tracks) || tracks.length === 0) {
+        res.status(400).json({ error: "tracks を指定する場合は1件以上の配列である必要があります" });
+        return;
+      }
+      for (let i = 0; i < tracks.length; i++) {
+        const result = validateTrackPayload(tracks[i] as TrackPayloadInput, durationSec);
+        if (!result.ok) {
+          res.status(result.status).json({ error: `tracks[${i}]: ${result.error}` });
+          return;
+        }
+      }
+      trackInputs = tracks;
+    }
+
+    const { session, trackMetas } = await prisma.$transaction(async (tx) => {
+      const session = await tx.session.create({
+        data: {
+          title: title.trim(),
+          type: type ?? "practice",
+          startedAt: startedAtDate,
+          durationSec,
+          teamId: Number(teamId),
+          uploaderId: req.userId as number,
+          venue: venue ?? null,
+          notes: notes ?? null,
+        },
+      });
+
+      const trackMetas: unknown[] = [];
+      for (const t of trackInputs) {
+        const track = await tx.track.create({
+          data: {
+            sessionId: session.id,
+            boatLabel: t.boatLabel,
+            startSec: t.startSec,
+            pointCount: t.pointCount,
+            gridJson: t.gridJson,
+            rawGpx: t.rawGpx,
+            sourceApp: t.sourceApp,
+          },
+        });
+        // gridJson/rawGpxを除くメタのみ返す（単一トラック投入エンドポイントと同じ整形。ARCH.md §4）
+        const { gridJson: _g, rawGpx: _r, ...meta } = track;
+        trackMetas.push(meta);
+      }
+
+      return { session, trackMetas };
     });
 
     // M3-05修正: publicViewCountはPRD §6により非公開。共通シリアライザで一貫して除外する。
-    res.status(201).json({ session: serializeSession(session) });
+    res.status(201).json({ session: serializeSession(session), tracks: trackMetas });
   })
 );
 

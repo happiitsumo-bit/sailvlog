@@ -128,24 +128,25 @@ export default function NewSessionPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const { session } = await api.post<{ session: { id: number } }>("/api/sessions", {
+      // セッション作成とトラック投入を1リクエストにまとめる（Issue #40）。
+      // 以前は艇ごとにPOSTをループしていたため、途中の1本が失敗すると
+      // セッションと先行トラックだけがDBに残った。バックエンド側で
+      // 1トランザクションにしたため、失敗時はセッションごと作られない。
+      await api.post<{ session: { id: number } }>("/api/sessions", {
         title: title.trim(),
         type,
         startedAt: new Date(normalized.sessionStartMs).toISOString(),
         durationSec: normalized.durationSec,
         teamId,
         venue: venue.trim() || undefined,
-      });
-
-      for (const g of normalized.grids) {
-        await api.post(`/api/sessions/${session.id}/tracks`, {
+        tracks: normalized.grids.map((g) => ({
           boatLabel: g.boatLabel,
           startSec: g.startSec,
           pointCount: g.pointCount,
           gridJson: g.gridJson,
           rawGpx: g.rawGpx,
-        });
-      }
+        })),
+      });
 
       router.push(`/sessions?teamId=${teamId}`);
     } catch (err) {
