@@ -31,6 +31,10 @@ export interface HomeFeature {
   height: number;
 }
 
+// Issue #35: ログイン不要で見られる合成データのデモセッション。値は
+// backend/src/lib/demoData.ts の DEMO_PUBLIC_SLUG と一致させること（投入スクリプトが発行するslug）。
+export const DEMO_SESSION_SLUG = "sailvlog-demo";
+
 // DEMO-ASSETS.md: 公開ビュー`/p/[slug]`を未ログイン状態で撮影した、ホームのヒーロー専用素材。
 export const HERO_POSTER: HeroPoster = {
   src: "/screenshots/hero-public-replay.jpg",
