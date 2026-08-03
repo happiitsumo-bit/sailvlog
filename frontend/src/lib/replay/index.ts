@@ -3,3 +3,6 @@ export { renderFrame, BOAT_COLORS, getTrackEmphasis, shortBoatLabel } from "./Ca
 export type { TrackEmphasis } from "./CanvasRenderer";
 export { computeProjection, project, isIndexInGap, splitByGapRuns } from "./geo";
 export type { RenderTrack, LocalProjection } from "./geo";
+export { IDENTITY_VIEWPORT, resetViewport, zoomAt, panBy, applyViewport, pinchDistance, pinchMidpoint } from "./viewport";
+export type { Viewport } from "./viewport";
+export { useCanvasViewport } from "./useCanvasViewport";
