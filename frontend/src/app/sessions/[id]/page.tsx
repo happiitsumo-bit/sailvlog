@@ -212,6 +212,7 @@ function SessionReplayPageContent() {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: comparisonTrackIdsRef.current,
         tailSeconds: TAIL_SECONDS,
+        playing: clock.playing,
       });
 
       if (now - lastSyncTimeRef.current >= UI_SYNC_INTERVAL_MS) {

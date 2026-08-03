@@ -78,6 +78,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: NO_COMPARISON,
         tailSeconds: TAIL_SECONDS,
+        playing: clock.playing,
       });
 
       if (now - lastSyncTimeRef.current >= UI_SYNC_INTERVAL_MS) {
