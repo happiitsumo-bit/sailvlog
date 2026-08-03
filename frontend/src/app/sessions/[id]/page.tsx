@@ -18,6 +18,7 @@ import {
 import { fetchIsTeamAdmin } from "@/lib/teamRole";
 import { VisibilityChip } from "@/components/VisibilityChip";
 import { PublishDialog, PublishResult } from "@/components/PublishDialog";
+import { buildLoginRedirectUrl } from "@/lib/loginRedirect";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -112,7 +113,11 @@ function SessionReplayPageContent() {
   const trackFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isLoggedIn()) { router.push("/login"); return; }
+    if (!isLoggedIn()) {
+      const qs = searchParams.toString();
+      router.push(buildLoginRedirectUrl(`/sessions/${sessionId}`, qs ? `?${qs}` : ""));
+      return;
+    }
     api
       .get<SessionDetail>(`/api/sessions/${sessionId}`)
       .then((d) => {
@@ -590,7 +595,7 @@ function SessionReplayPageContent() {
             ) : (
               <>
                 <button type="button" className="btn btn-ghost" onClick={copyPublicUrl}>
-                  {publishUrlCopied ? "コピーしました" : "公開URLをコピー"}
+                  {publishUrlCopied ? "コピーしました" : "公開リンク（部外可）をコピー"}
                 </button>
                 <button
                   type="button"
@@ -732,8 +737,27 @@ function SessionReplayPageContent() {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-mute)" }}>
               {formatTime(simTimeDisplay)} / {formatTime(session.durationSec)}
             </span>
-            <button type="button" onClick={copyShareUrl} className="btn btn-ghost" style={{ marginLeft: "auto" }}>
-              {copied ? "URLをコピーしました" : "共有URLをコピー"}
+            <button
+              type="button"
+              onClick={copyShareUrl}
+              className="btn btn-ghost"
+              style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              {copied ? "URLをコピーしました" : "部内リンクをコピー"}
+              {/* M-9(Issue #42): 「公開リンク（部外可）」と紛らわしいため、未公開中は部内限定であることを明示する */}
+              {session.visibility === "team" && (
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    color: "var(--fg-mute)",
+                    border: "1px solid var(--border-strong)",
+                    borderRadius: 999,
+                    padding: "0.05rem 0.5rem",
+                  }}
+                >
+                  部内のみ
+                </span>
+              )}
             </button>
           </div>
 
