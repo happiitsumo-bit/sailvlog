@@ -48,6 +48,19 @@ export function shouldWarnBeforeTrackAdd(detail: SessionDetail | null): boolean 
   return sessionIsPublished(detail);
 }
 
+// Issue #36 (C-01): 公開ダイアログでの艇ラベル確認・編集。GPX取込時の既定値はファイル名
+// （例: "boat1_clean"）で、未編集のまま公開すると意味の無い表記が出る（実名露出そのものではないが、
+// 「編集していない＝内容を確認していない」ことの代理指標として使う）。
+const FILENAME_LIKE_LABEL_RE = /^[A-Za-z0-9_-]+$/;
+
+/** ラベルが「ファイル名そのまま（未編集）」に見えるか。半角英数字・アンダースコア・ハイフンのみ
+    （日本語や空白を含まない）場合をヒューリスティックにそう判定する。 */
+export function looksLikeUneditedBoatLabel(label: string): boolean {
+  const trimmed = label.trim();
+  if (trimmed.length === 0) return false;
+  return FILENAME_LIKE_LABEL_RE.test(trimmed);
+}
+
 /** 注釈編集の前に警告を挟むべきか（R-05）。
     新規注釈の作成には出さず、既に公開済み（isPublic===true）の注釈の編集にのみ出す
     （REVIEW-4.md良い点2: 全ミューテーションに出すと「警告疲れ」で誰も読まなくなる）。 */

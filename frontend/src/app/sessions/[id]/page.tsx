@@ -281,6 +281,15 @@ function SessionReplayPageContent() {
     }
   }
 
+  /** Issue #36: 公開ダイアログで艇ラベルが編集された（PATCH成功済み）ので画面側の表示も揃える。 */
+  function handleTrackLabelsUpdated(updates: { id: number; boatLabel: string }[]) {
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const byId = new Map(updates.map((u) => [u.id, u.boatLabel]));
+      return { ...prev, tracks: prev.tracks.map((t) => (byId.has(t.id) ? { ...t, boatLabel: byId.get(t.id)! } : t)) };
+    });
+  }
+
   /** T-32: 昇格ダイアログでの公開確定後（UI-DESIGN §5.2「確定後: URLを自動コピーし、role="status"のトースト」）。 */
   async function handlePublished(result: PublishResult) {
     setShowPublishDialog(false);
@@ -629,8 +638,10 @@ function SessionReplayPageContent() {
         <PublishDialog
           sessionId={sessionId}
           annotations={annotations}
+          tracks={tracks.map((t) => ({ id: t.id, boatLabel: t.boatLabel }))}
           onClose={() => setShowPublishDialog(false)}
           onPublished={handlePublished}
+          onTrackLabelsUpdated={handleTrackLabelsUpdated}
         />
       )}
 

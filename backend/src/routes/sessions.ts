@@ -245,6 +245,46 @@ router.post(
   })
 );
 
+const MAX_BOAT_LABEL_LEN = 50; // schema.prisma Track.boatLabel @db.VarChar(50)
+
+// PATCH /api/sessions/:id/tracks/:trackId — 艇ラベルの更新。
+// Issue #34（公開ダイアログでの実名露出防止）: 公開前に本人がラベルを確認・編集できるようにする窓口。
+// バックエンドでの自動マスク・内容バリデーション（実名検出等）は行わない（対象外。選別は呼び出し側=本人に委ねる）。
+router.patch(
+  "/:id/tracks/:trackId",
+  authMiddleware,
+  requireSessionTeamMember(),
+  wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
+    const sessionId = req.sessionRecord!.id;
+    const trackId = Number(req.params.trackId);
+    if (!Number.isInteger(trackId)) {
+      res.status(400).json({ error: "不正なtrackIdです" });
+      return;
+    }
+
+    const { boatLabel } = req.body ?? {};
+    if (typeof boatLabel !== "string" || boatLabel.trim().length === 0 || boatLabel.length > MAX_BOAT_LABEL_LEN) {
+      res.status(400).json({ error: `boatLabel は1〜${MAX_BOAT_LABEL_LEN}文字である必要があります` });
+      return;
+    }
+
+    const track = await prisma.track.findUnique({ where: { id: trackId } });
+    if (!track || track.sessionId !== sessionId) {
+      res.status(404).json({ error: "トラックが見つかりません" });
+      return;
+    }
+
+    const updated = await prisma.track.update({
+      where: { id: trackId },
+      data: { boatLabel: boatLabel.trim() },
+    });
+
+    // gridJson/rawGpxを除くメタのみ返す（ARCH.md §4）
+    const { gridJson: _g, rawGpx: _r, ...meta } = updated;
+    res.json({ track: meta });
+  })
+);
+
 // POST /api/sessions/:id/annotations — 注釈追加（T-15, ARCH.md §4。本エンドポイントが唯一の作成担当）
 router.post(
   "/:id/annotations",
