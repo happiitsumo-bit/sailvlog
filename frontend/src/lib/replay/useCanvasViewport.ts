@@ -6,7 +6,16 @@
 // （@testing-library/react未導入のためこのフック自体はユニットテスト対象外。touchSeek.tsと同じ切り分け）。
 
 import { RefObject, useCallback, useEffect, useRef } from "react";
-import { IDENTITY_VIEWPORT, Viewport, zoomAt, panBy, resetViewport, pinchDistance, pinchMidpoint } from "./viewport";
+import {
+  IDENTITY_VIEWPORT,
+  Viewport,
+  zoomAt,
+  panBy,
+  resetViewport,
+  pinchDistance,
+  pinchMidpoint,
+  toCanvasDelta,
+} from "./viewport";
 
 const ZOOM_STEP = 1.15;
 const MIN_ZOOM = 1;
@@ -43,12 +52,26 @@ export function useCanvasViewport(canvasRef: RefObject<HTMLCanvasElement | null>
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     dragRef.current = { x: e.clientX, y: e.clientY };
   }, []);
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    viewportRef.current = panBy(viewportRef.current, e.clientX - drag.x, e.clientY - drag.y);
-    dragRef.current = { x: e.clientX, y: e.clientY };
-  }, []);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      const drag = dragRef.current;
+      if (!canvas || !drag) return;
+      // clientX/Yの差分はCSSピクセル。zoomAt/pinchが使う内部座標と揃える（PR #50 レビュー指摘）。
+      const rect = canvas.getBoundingClientRect();
+      const [dx, dy] = toCanvasDelta(
+        e.clientX - drag.x,
+        e.clientY - drag.y,
+        rect.width,
+        rect.height,
+        canvas.width,
+        canvas.height
+      );
+      viewportRef.current = panBy(viewportRef.current, dx, dy);
+      dragRef.current = { x: e.clientX, y: e.clientY };
+    },
+    [canvasRef]
+  );
   const handleMouseUp = useCallback(() => {
     dragRef.current = null;
   }, []);

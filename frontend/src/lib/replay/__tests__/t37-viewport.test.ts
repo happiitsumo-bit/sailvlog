@@ -7,6 +7,7 @@ import {
   applyViewport,
   pinchDistance,
   pinchMidpoint,
+  toCanvasDelta,
 } from "../viewport";
 
 describe("lib/replay/viewport (Issue #37 ズーム・パン)", () => {
@@ -64,5 +65,38 @@ describe("lib/replay/viewport (Issue #37 ズーム・パン)", () => {
     expect(v.zoom).toBeCloseTo(1, 10);
     expect(v.panX).toBeCloseTo(0, 10);
     expect(v.panY).toBeCloseTo(0, 10);
+  });
+});
+
+// PR #50 レビュー指摘の回帰:
+// ズーム(zoomAt)とピンチは toCanvasPoint() で canvas内部座標に直していたのに、
+// マウスドラッグのパンだけ clientX/Y の差分をCSSピクセルのまま渡していた。
+// canvas の内部解像度と表示サイズが違うとき（レスポンシブ縮小・DPR>1）に
+// ズーム中心とパン量の座標系が食い違うため、移動量にも同じ倍率をかける。
+describe("toCanvasDelta: CSSピクセル→canvas内部ピクセルの変換", () => {
+  it("表示サイズと内部解像度が同じなら等倍（既存の挙動を変えない）", () => {
+    expect(toCanvasDelta(10, -5, 800, 600, 800, 600)).toEqual([10, -5]);
+  });
+
+  it("DPR=2相当（内部解像度が表示の2倍）なら移動量も2倍になる", () => {
+    expect(toCanvasDelta(10, -5, 400, 300, 800, 600)).toEqual([20, -10]);
+  });
+
+  it("レスポンシブ縮小（表示が内部解像度より小さい）でX/Yそれぞれの倍率が使われる", () => {
+    // 横は2倍・縦は3倍という非等方なケースでも軸ごとに正しく変換する
+    expect(toCanvasDelta(3, 4, 400, 200, 800, 600)).toEqual([6, 12]);
+  });
+
+  it("表示サイズが0（非表示・レイアウト前）でも0除算でNaNにならない", () => {
+    expect(toCanvasDelta(7, 9, 0, 0, 800, 600)).toEqual([7, 9]);
+  });
+
+  it("ズームの中心とパンが同じ座標系になる: 変換後の移動量はズーム中心の移動と一致する", () => {
+    // 表示400px幅・内部800pxのcanvasで、カーソルを100CSSpx動かしたときの内部座標の移動量は200。
+    // toCanvasPoint相当の計算（(clientX - left) * canvas.width / rect.width）と一致すること。
+    const [dx] = toCanvasDelta(100, 0, 400, 300, 800, 600);
+    const beforeX = (100 - 0) * (800 / 400);
+    const afterX = (200 - 0) * (800 / 400);
+    expect(dx).toBe(afterX - beforeX);
   });
 });

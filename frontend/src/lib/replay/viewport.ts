@@ -40,9 +40,32 @@ export function zoomAt(
   };
 }
 
-/** ドラッグ量(dx, dy: 画面ピクセル)だけ平行移動する。 */
+/** ドラッグ量(dx, dy: canvas内部ピクセル)だけ平行移動する。 */
 export function panBy(viewport: Viewport, dx: number, dy: number): Viewport {
   return { ...viewport, panX: viewport.panX + dx, panY: viewport.panY + dy };
+}
+
+/**
+ * マウス/タッチの移動量（CSSピクセル）を canvas 内部ピクセルへ変換する。
+ *
+ * レビュー指摘（PR #50）: zoomAt と pinch は toCanvasPoint() で内部座標に直していたのに、
+ * マウスドラッグのパンだけ clientX/clientY の差分をそのまま渡していた。
+ * canvas の内部解像度（canvas.width）と表示サイズ（rect.width）が一致しない状況
+ * ——レスポンシブで縮んだとき、DPR>1 のとき——では、ズームの中心とパン量の座標系が食い違い、
+ * カーソルより速く/遅く地図が動く。移動量にも同じ倍率をかける。
+ */
+export function toCanvasDelta(
+  dx: number,
+  dy: number,
+  rectWidth: number,
+  rectHeight: number,
+  canvasWidth: number,
+  canvasHeight: number
+): [number, number] {
+  // 表示サイズが0（非表示・レイアウト前）のときは倍率を求められないので等倍で返す
+  const scaleX = rectWidth > 0 ? canvasWidth / rectWidth : 1;
+  const scaleY = rectHeight > 0 ? canvasHeight / rectHeight : 1;
+  return [dx * scaleX, dy * scaleY];
 }
 
 /** 投影済みのcanvas座標(x, y)にビューポート変換(ズーム＋パン)を適用する。 */
