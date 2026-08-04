@@ -28,6 +28,12 @@ export function isSummaryValid(text: string, max: number = LEARNING_SUMMARY_MAX)
   return trimmed.length > 0 && trimmed.length <= max;
 }
 
+/** M-7(Issue #41): 開いた直後に「学びの要約は必須です」が先制表示されると詰まったと勘違いされる。
+    初回submit試行後（submitAttempted=true）にのみエラーを表示する。 */
+export function shouldShowSummaryError(submitAttempted: boolean, summary: string, max: number = LEARNING_SUMMARY_MAX): boolean {
+  return submitAttempted && !isSummaryValid(summary, max);
+}
+
 export type VisibilityChipLabel = "公開中" | "リンク限定";
 
 /** セッション一覧・リプレイ画面のチップ文言（UI-DESIGN §5.2「非公開セッションには何も出さない」）。 */
