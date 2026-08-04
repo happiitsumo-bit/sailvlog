@@ -147,7 +147,8 @@ export default function NewSessionPage() {
         });
       }
 
-      router.push(`/sessions?teamId=${teamId}`);
+      // m-8(Issue #43): 取込完了後は一覧ではなく、作ったセッションへ直行する
+      router.push(`/sessions/${session.id}`);
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : "保存に失敗しました。ログインしているか確認してください。"
@@ -258,7 +259,9 @@ export default function NewSessionPage() {
                   gap: "0.75rem",
                   padding: "0.6rem 0.85rem",
                   background: "var(--card)",
-                  border: `1px solid ${t.error ? "var(--terra)" : "var(--border)"}`,
+                  // m-6(Issue #43): --terra は実体が --color-accent（青系のリンク/アクセント色）で、
+                  // 警告色に見えない。壊れたGPXの枠・文字は明確な危険色 --color-danger にする。
+                  border: `1px solid ${t.error ? "var(--color-danger)" : "var(--border)"}`,
                   borderRadius: 8,
                 }}
               >
@@ -266,7 +269,10 @@ export default function NewSessionPage() {
                   {t.fileName}
                 </span>
                 {t.error ? (
-                  <span role="alert" style={{ color: "var(--terra)", fontSize: "0.85rem" }}>{t.error}</span>
+                  <span role="alert" style={{ color: "var(--color-danger)", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                    <span aria-hidden="true">⚠</span>
+                    {t.error}
+                  </span>
                 ) : (
                   <>
                     <input
