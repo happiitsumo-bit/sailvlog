@@ -4,13 +4,15 @@ import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
 import { Annotation } from "@/types";
 import { formatClockTime } from "@/lib/utils";
-import { isSummaryValid, LEARNING_SUMMARY_MAX } from "@/lib/publish";
+import { isSummaryValid, LEARNING_SUMMARY_MAX, looksLikeUneditedBoatLabel } from "@/lib/publish";
 
 // UI-DESIGN §5.2 公開昇格ダイアログ。SPEC-share1-phase1.md §3.1 F-1〜F-3の入力3点
 // （学びの要約・注釈選別・公開範囲）をここに集約する。§7の必須修正10項目を満たす:
 // label関連付け(#5)・role="status"にあたるアラート箇所はrole="alert"で即時通知(#6)・
 // alert()/prompt()不使用(#6)・checkbox/radioのタップ対象は<label>全体をクリック可能にして
 // 実質のヒット領域を24px以上確保(#7)。
+
+const MAX_BOAT_LABEL_LEN = 50; // backend schema.prisma Track.boatLabel @db.VarChar(50) と同じ上限
 
 export interface PublishResult {
   publicSlug: string;
@@ -19,14 +21,28 @@ export interface PublishResult {
   publishedAt: string;
 }
 
+export interface PublishDialogTrack {
+  id: number;
+  boatLabel: string;
+}
+
 interface PublishDialogProps {
   sessionId: string;
   annotations: Annotation[];
+  tracks: PublishDialogTrack[];
   onClose: () => void;
   onPublished: (result: PublishResult) => void;
+  onTrackLabelsUpdated: (updates: PublishDialogTrack[]) => void;
 }
 
-export function PublishDialog({ sessionId, annotations, onClose, onPublished }: PublishDialogProps) {
+export function PublishDialog({
+  sessionId,
+  annotations,
+  tracks,
+  onClose,
+  onPublished,
+  onTrackLabelsUpdated,
+}: PublishDialogProps) {
   const headingId = useId();
   const summaryId = useId();
   const visibilityGroupName = useId();
@@ -36,6 +52,10 @@ export function PublishDialog({ sessionId, annotations, onClose, onPublished }: 
   const [summary, setSummary] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [visibility, setVisibility] = useState<"unlisted" | "public">("unlisted");
+  // Issue #36 (C-01): 公開ダイアログでその場で艇ラベルを確認・編集できるようにする。
+  const [boatLabels, setBoatLabels] = useState<Record<number, string>>(() =>
+    Object.fromEntries(tracks.map((t) => [t.id, t.boatLabel]))
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,18 +79,36 @@ export function PublishDialog({ sessionId, annotations, onClose, onPublished }: 
   const summaryLen = summary.trim().length;
   const summaryEmpty = summaryLen === 0;
   const summaryTooLong = summaryLen > LEARNING_SUMMARY_MAX;
-  const canSubmit = isSummaryValid(summary) && !submitting;
+  const boatLabelsValid = tracks.every((t) => {
+    const label = (boatLabels[t.id] ?? "").trim();
+    return label.length > 0 && label.length <= MAX_BOAT_LABEL_LEN;
+  });
+  const canSubmit = isSummaryValid(summary) && boatLabelsValid && !submitting;
 
   async function handleSubmit() {
-    if (!isSummaryValid(summary) || submitting) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
+      // 変更された艇ラベルは公開リクエストに同梱する（未変更のものは送らない）。
+      // レビュー指摘（PR #48）: 以前はラベルをPromise.allで個別PATCHしてから公開していたため、
+      // 1件でも失敗すると「公開されないのに一部のラベルだけ永続化される」状態になった。
+      // バックエンド側で公開と同じトランザクションに入れ、成否をまとめる。
+      const changed = tracks.filter((t) => (boatLabels[t.id] ?? "").trim() !== t.boatLabel);
+
       const result = await api.post<PublishResult>(`/api/sessions/${sessionId}/publish`, {
         visibility,
         learningSummary: summary.trim(),
         publicAnnotationIds: [...selectedIds],
+        ...(changed.length > 0 && {
+          trackLabels: changed.map((t) => ({ id: t.id, boatLabel: boatLabels[t.id].trim() })),
+        }),
       });
+
+      // 公開が成功して初めて、画面上のラベルを更新する
+      if (changed.length > 0) {
+        onTrackLabelsUpdated(changed.map((t) => ({ id: t.id, boatLabel: boatLabels[t.id].trim() })));
+      }
       onPublished(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "公開に失敗しました");
@@ -89,6 +127,42 @@ export function PublishDialog({ sessionId, annotations, onClose, onPublished }: 
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id={headingId} className="dialog-title">このセッションを公開する</h2>
+
+        {tracks.length > 0 && (
+          <fieldset className="dialog-fieldset">
+            <legend>艇ラベルを確認・編集する</legend>
+            <p className="dialog-hint dialog-warning">
+              部外に見える表示名です。実名（部員名）を含めたくない場合はここで書き換えてください。
+            </p>
+            <ul className="dialog-annotation-list">
+              {tracks.map((t) => {
+                const labelInputId = `${summaryId}-boatlabel-${t.id}`;
+                const value = boatLabels[t.id] ?? "";
+                const unedited = looksLikeUneditedBoatLabel(value);
+                return (
+                  <li key={t.id} className="dialog-annotation-item" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                    <label htmlFor={labelInputId}>艇 {t.id}</label>
+                    <input
+                      id={labelInputId}
+                      type="text"
+                      value={value}
+                      maxLength={MAX_BOAT_LABEL_LEN}
+                      onChange={(e) => setBoatLabels((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                    />
+                    {unedited && (
+                      <p className="dialog-hint dialog-warning">
+                        GPXファイル名のままのようです。部外に見せてよい表示名か確認してください。
+                      </p>
+                    )}
+                    {value.trim().length === 0 && (
+                      <p className="form-error" role="alert">艇ラベルは必須です</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </fieldset>
+        )}
 
         <div className="form-group">
           <label htmlFor={summaryId}>
