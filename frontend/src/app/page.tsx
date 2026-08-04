@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import HomeRedirect from "@/components/home/HomeRedirect";
-import { HERO_POSTER, HOME_FEATURES } from "@/lib/home";
+import { HERO_POSTER, HOME_FEATURES, DEMO_SESSION_SLUG } from "@/lib/home";
 
 const GITHUB_URL = "https://github.com/happiitsumo-bit/sailvlog";
 
@@ -39,7 +39,10 @@ export default function HomePage() {
             fetchPriority="high"
           />
           <div className="home-hero-cta-group">
-            <Link href="/login" className="btn btn-primary">
+            <Link href={`/p/${DEMO_SESSION_SLUG}`} className="btn btn-primary">
+              デモを見る（ログイン不要）
+            </Link>
+            <Link href="/login" className="btn btn-ghost">
               ログイン
             </Link>
             <Link href="/handbook" className="btn btn-ghost">
