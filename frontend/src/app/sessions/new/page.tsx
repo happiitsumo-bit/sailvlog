@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { parseGpx, normalizeToGrid, computeSessionStart, GpxParseError, GpxPoint } from "@/lib/gpx";
+import { describeOversizedPayload } from "@/lib/importPayload";
 import { SessionType, TeamSummary } from "@/types";
 import SessionPreviewCanvas from "./SessionPreviewCanvas";
 
@@ -132,7 +133,7 @@ export default function NewSessionPage() {
       // 以前は艇ごとにPOSTをループしていたため、途中の1本が失敗すると
       // セッションと先行トラックだけがDBに残った。バックエンド側で
       // 1トランザクションにしたため、失敗時はセッションごと作られない。
-      await api.post<{ session: { id: number } }>("/api/sessions", {
+      const payload = {
         title: title.trim(),
         type,
         startedAt: new Date(normalized.sessionStartMs).toISOString(),
@@ -146,7 +147,18 @@ export default function NewSessionPage() {
           gridJson: g.gridJson,
           rawGpx: g.rawGpx,
         })),
-      });
+      };
+
+      // 1リクエストに統合した副作用として、全艇の合計サイズがサーバのbody上限に当たりうる。
+      // 上限を超えると express が本文をパースする前に413を返し、アプリのエラー処理も通らないため
+      // 「保存に失敗しました」としか出せない。何が起きたかを言えるよう手前で判定する。
+      const tooLarge = describeOversizedPayload(payload);
+      if (tooLarge) {
+        setSubmitError(tooLarge);
+        return;
+      }
+
+      await api.post<{ session: { id: number } }>("/api/sessions", payload);
 
       router.push(`/sessions?teamId=${teamId}`);
     } catch (err) {

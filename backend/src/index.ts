@@ -41,7 +41,20 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:3001,http:/
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 // v3(T-12, ARCH.md §4): /api/sessions系はgridJson/rawGpxを含むためlimitを拡張。
 // 既存ルートのlimitは変えない（express.jsonは既にreq._bodyがtrueなら再パースをスキップするため安全に併存できる）。
-app.use("/api/sessions", express.json({ limit: "8mb" }));
+//
+// Issue #40 でセッション作成と全艇のトラック投入を1リクエストに統合した（部分永続化を防ぐため）。
+// これにより従来「艇ごとに8MBまで」だったものが「全艇合計で8MBまで」に変わるので上限を引き上げる。
+// Team Lead 実測（2026-08-04・spike/gpx の2時間1Hzデータ）:
+//   1艇あたり rawGpx 661KB + gridJson 146KB = POST body 843KB
+// ただしフィクスチャは lat/lon/time のみの合成データで、実機（Geo Tracker等）の
+// ele や extensions を含むGPXはこれより嵩む。上限の4時間（MAX_DURATION_SEC=14400）と
+// 実機の冗長さを見込むと 1艇あたり約3MB、6艇で約17MB になりうる。
+// 24MB あれば上限4時間×6艇でも収まる見積り。
+//
+// より筋の良い解は「rawGpx をこのリクエストに載せず、トラック単位で後から送る」だが、
+// Track.rawGpx が NOT NULL のためスキーマ変更（expand-first のマイグレーション）が要る。
+// 現時点では上限引き上げで足り、必要になったら別Issueで扱う。
+app.use("/api/sessions", express.json({ limit: "24mb" }));
 app.use("/api/tracks", express.json({ limit: "8mb" }));
 app.use(express.json());
 
