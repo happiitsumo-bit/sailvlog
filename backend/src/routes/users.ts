@@ -3,6 +3,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../database";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { wrap } from "../lib/asyncHandler";
+import { Prisma } from "@prisma/client";
 
 const router = Router();
 
@@ -67,27 +68,24 @@ router.put("/me", authMiddleware, wrap(async (req: AuthRequest, res: Response) =
 router.delete("/me", authMiddleware, wrap(async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.userId as number;
 
-  const adminMemberships = await prisma.teamMember.findMany({
-    where: { userId, role: "admin" },
-    select: { teamId: true, team: { select: { slug: true } } },
-  });
-
-  const blockingTeamSlugs: string[] = [];
-  for (const membership of adminMemberships) {
-    const adminCount = await prisma.teamMember.count({
-      where: { teamId: membership.teamId, role: "admin" },
+  // レビュー指摘の修正: 判定と削除が別トランザクションだと、2人のadminが同時に自分を削除したとき
+  // 両方が「adminは2人いる」を見て通過し、admin 0人のチームが残る（teams.ts の C-06 と同型）。
+  // 判定から書き込みまでを1つの Serializable トランザクションに入れる。
+  const blockingTeamSlugs = await prisma.$transaction(async (tx) => {
+    const adminMemberships = await tx.teamMember.findMany({
+      where: { userId, role: "admin" },
+      select: { teamId: true, team: { select: { slug: true } } },
     });
-    if (adminCount <= 1) blockingTeamSlugs.push(membership.team.slug);
-  }
-  if (blockingTeamSlugs.length > 0) {
-    res.status(409).json({
-      error: "唯一の管理者になっているチームがあります。先に他のメンバーをadminにしてから削除してください",
-      teams: blockingTeamSlugs,
-    });
-    return;
-  }
 
-  await prisma.$transaction(async (tx) => {
+    const blocking: string[] = [];
+    for (const membership of adminMemberships) {
+      const adminCount = await tx.teamMember.count({
+        where: { teamId: membership.teamId, role: "admin" },
+      });
+      if (adminCount <= 1) blocking.push(membership.team.slug);
+    }
+    if (blocking.length > 0) return blocking;
+
     await tx.teamMember.deleteMany({ where: { userId } });
     await tx.user.update({
       where: { id: userId },
@@ -105,7 +103,16 @@ router.delete("/me", authMiddleware, wrap(async (req: AuthRequest, res: Response
         boatTypeId: null,
       },
     });
-  });
+    return [];
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  if (blockingTeamSlugs.length > 0) {
+    res.status(409).json({
+      error: "唯一の管理者になっているチームがあります。先に他のメンバーをadminにしてから削除してください",
+      teams: blockingTeamSlugs,
+    });
+    return;
+  }
 
   res.status(204).send();
 }));

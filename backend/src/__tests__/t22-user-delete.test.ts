@@ -8,6 +8,8 @@
 //   ④唯一のadminであるチームがあれば409で拒否し、他のメンバーをadminにすれば削除できる
 //   ⑤権限のないユーザーが他人を削除する経路が無い（/meは常に呼び出し本人のみが対象）
 //   ⑥削除されたユーザーがuploadしたSession・投稿したAnnotationは残り、チームの記録が消えない
+//   ⑦削除前に発行済みのJWTが、削除後は通用しない（レビュー指摘: 署名しか見ないと有効期限2時間の間
+//     書き込みが通り続ける。authMiddlewareでisActiveを確認する形に変更したことの回帰）
 import request from "supertest";
 import { setupTestServer } from "./helpers/testServer";
 import prisma from "../database";
@@ -171,5 +173,40 @@ describe("DELETE /api/users/me", () => {
       .get(`/api/sessions/${sessionId}`)
       .set("Authorization", `Bearer ${admin.token}`);
     expect(detail.status).toBe(200);
+  });
+  // ⑦ レビュー指摘の回帰: ソフトデリートではUser行が残るため、署名検証だけの認証だと
+  // 削除直前のJWT（有効期限2時間）でチーム作成のような書き込みまで通ってしまっていた。
+  test("削除前に発行されたトークンは、削除後は認証・書き込みの両方で通らない", async () => {
+    const victim = await registerUser("t22-revoked");
+    const tokenIssuedBeforeDelete = victim.token;
+
+    // 削除前は通ること（テスト自体が無意味になっていないことの確認）
+    const beforeRes = await request(getServer())
+      .get("/api/users/me")
+      .set("Authorization", `Bearer ${tokenIssuedBeforeDelete}`);
+    expect(beforeRes.status).toBe(200);
+
+    const deleteRes = await request(getServer())
+      .delete("/api/users/me")
+      .set("Authorization", `Bearer ${tokenIssuedBeforeDelete}`);
+    expect(deleteRes.status).toBe(204);
+
+    // 読み取りが塞がれている
+    const readAfter = await request(getServer())
+      .get("/api/users/me")
+      .set("Authorization", `Bearer ${tokenIssuedBeforeDelete}`);
+    expect(readAfter.status).toBe(401);
+
+    // 書き込み（チーム作成）も塞がれている ＝ 指摘された経路そのもの
+    const writeAfter = await request(getServer())
+      .post("/api/teams")
+      .set("Authorization", `Bearer ${tokenIssuedBeforeDelete}`)
+      .send({ name: "削除済みユーザーが作れてはいけないチーム" });
+    expect(writeAfter.status).toBe(401);
+
+    const created = await prisma.team.findFirst({
+      where: { name: "削除済みユーザーが作れてはいけないチーム" },
+    });
+    expect(created).toBeNull();
   });
 });
