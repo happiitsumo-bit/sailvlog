@@ -87,13 +87,24 @@ jobs:
             echo "PRODUCTION_WATCHDOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # レビュー指摘（2026-08-04）: GitHub APIへのcurlがHTTP失敗を検出していなかった。
+      # -s だけだと422/403でもexit 0になり、「ジョブは成功したがアラートIssueは作られていない」
+      # という、監視として最悪の状態（黙って死ぬ）になりうる。
+      # --fail-with-body を付けて4xx/5xxで異常終了させ、本文はログに残す。
+      # -S は -s と併用してエラーメッセージだけは出す指定。
       - name: Find existing open alert issue
         id: find
         run: |
-          resp=$(curl -s \
+          resp=$(curl -sS --fail-with-body --max-time 20 \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/search/issues?q=repo:${{ github.repository }}+is:issue+is:open+in:body+%22production-watchdog-alert%22")
+          # 検索が失敗すると number が空になり「既存アラート無し」と誤認して重複起票する。
+          # レスポンスの形（items配列を持つか）まで確認する。
+          if ! echo "$resp" | jq -e 'has("items")' >/dev/null; then
+            echo "::error::検索APIのレスポンスが想定外です: $resp"
+            exit 1
+          fi
           number=$(echo "$resp" | jq -r '.items[0].number // empty')
           echo "number=$number" >> "$GITHUB_OUTPUT"
 
@@ -109,11 +120,18 @@ jobs:
           payload=$(jq -n --arg title "本番監視アラート: ヘルスチェック/デプロイ遅れ検知" \
             --arg body "$body" \
             '{title: $title, body: $body, labels: ["blocker"]}')
-          curl -s -X POST \
+          created=$(curl -sS --fail-with-body --max-time 20 -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues" \
-            -d "$payload"
+            -d "$payload")
+          # 起票できたことを number の存在で確認する（200系でも本文が想定外なら気づけるように）
+          number=$(echo "$created" | jq -r '.number // empty')
+          if [ -z "$number" ]; then
+            echo "::error::アラートIssueの起票に失敗しました: $created"
+            exit 1
+          fi
+          echo "アラートIssue #${number} を起票しました"
 
       - name: Comment on existing alert issue (still failing)
         if: steps.eval.outputs.fail == '1' && steps.find.outputs.number != ''
@@ -122,10 +140,29 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE_NUMBER: ${{ steps.find.outputs.number }}
         run: |
+          # レビュー指摘（2026-08-04）: 30分ごとに実行されるため、障害が続くとコメントが延々と増える。
+          # 障害中に必要なのは「まだ直っていない」という事実であって、48件/日の通知ではない。
+          # 直近のwatchdogコメントから6時間経っていなければ、今回はコメントしない。
+          THROTTLE_SEC=21600
+          comments=$(curl -sS --fail-with-body --max-time 20 \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}/comments?per_page=100")
+          last_at=$(echo "$comments" | jq -r '[.[] | select(.body | contains("引き続き異常を検知")) | .created_at] | last // empty')
+          if [ -n "$last_at" ]; then
+            last_epoch=$(date -u -d "$last_at" +%s)
+            now_epoch=$(date -u +%s)
+            elapsed=$((now_epoch - last_epoch))
+            if [ "$elapsed" -lt "$THROTTLE_SEC" ]; then
+              echo "直近のコメントから ${elapsed}秒 しか経っていないため今回はコメントしない（閾値 ${THROTTLE_SEC}秒）"
+              exit 0
+            fi
+          fi
+
           detected_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           comment=$(printf '引き続き異常を検知（%s UTC）:\n\n%s' "$detected_at" "$ALERT_MESSAGE")
           payload=$(jq -n --arg body "$comment" '{body: $body}')
-          curl -s -X POST \
+          curl -sS --fail-with-body --max-time 20 -o /dev/null -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
@@ -139,16 +176,23 @@ jobs:
         run: |
           recovered_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           comment_payload=$(jq -n --arg body "正常確認できたためcloseする（${recovered_at} UTC）。" '{body: $body}')
-          curl -s -X POST \
+          curl -sS --fail-with-body --max-time 20 -o /dev/null -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
             -d "$comment_payload"
-          curl -s -X PATCH \
+          closed=$(curl -sS --fail-with-body --max-time 20 -X PATCH \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}" \
-            -d '{"state":"closed","state_reason":"completed"}'
+            -d '{"state":"closed","state_reason":"completed"}')
+          # closeできたことを確認する。ここが黙って失敗すると、復旧後もアラートが開いたままになり
+          # 次の障害で「既存アラートあり」と誤認してコメントだけになる（新規起票されない）。
+          state=$(echo "$closed" | jq -r '.state // empty')
+          if [ "$state" != "closed" ]; then
+            echo "::error::アラートIssue #${ISSUE_NUMBER} のcloseに失敗しました: $closed"
+            exit 1
+          fi
 
       - name: Fail the job if any check failed
         if: steps.eval.outputs.fail == '1'
