@@ -15,6 +15,19 @@ import { Prisma } from "@prisma/client";
 
 const router = Router();
 
+// C-06修正（Issue #39）: 「最後の管理者を降格/削除させない」不変条件をSerializableトランザクション内で
+// 検知したときに使う内部シグナル用エラー。ハンドラのcatchでHTTPステータスへ変換するためだけの型で、
+// レスポンスボディには使わない。
+class LastAdminGuardError extends Error {}
+class MemberNotFoundError extends Error {}
+
+// PostgreSQLのSerializable分離レベルは、count()→update()/delete()の間に割り込む同時実行を
+// 書き込みスキュー（write skew）として検知するとトランザクションを中断する。Prismaはこれを
+// P2034（"Transaction failed due to a write conflict or a deadlock"）として投げる。
+function isSerializationFailure(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034";
+}
+
 // ADR-013決定2: 招待コードは暗号論的乱数。短い人間可読コード(6桁等)は却下——この鍵1つで
 // 部員名簿(username/specialty/experienceYears)が開く(ADR-012)ため、総当たり可能な鍵長にしない。
 // crypto.randomBytes(16).toString("base64url") で128bit・22文字（Node標準・新規npm依存なし、
@@ -335,32 +348,52 @@ router.patch("/:slug/members/:userId", authMiddleware, wrap(async (req: AuthRequ
     return;
   }
 
-  const target = await prisma.teamMember.findUnique({
-    where: { userId_teamId: { userId: targetUserId, teamId: admin.teamId } },
-  });
-  if (!target) {
-    res.status(404).json({ error: "指定されたメンバーが見つかりません" });
-    return;
-  }
+  // C-06修正（Issue #39）: ADR-013決定6の不変条件は「チームを管理不能にさせない」であり、
+  // DELETEだけでは守れない。count()とupdate()の間にトランザクションが無いと、adminが2人のときに
+  // 2つの降格リクエストが同時に来て両方が adminCount<=1 を通過し、adminが0人のチームが残りうる
+  // （招待コード経由でしか復旧できないため外から直せない）。
+  // Serializable分離レベルで count→update を1トランザクションに閉じ込め、
+  // 同時実行が実際に競合した場合はPostgreSQL側がP2034（シリアライズ失敗）を返すので409として扱う。
+  let updated;
+  try {
+    updated = await prisma.$transaction(
+      async (tx) => {
+        const target = await tx.teamMember.findUnique({
+          where: { userId_teamId: { userId: targetUserId, teamId: admin.teamId } },
+        });
+        if (!target) return null;
 
-  // ADR-013決定6の不変条件は「チームを管理不能にさせない」であり、DELETEだけでは守れない。
-  // 最後のadminをmember/obへ降格させると、招待コードの発行もロール変更も誰もできないチームが残る
-  // （加入は招待コード経由でしか行えないため、外から復旧する経路も無い）。DELETEの409と同型として塞ぐ。
-  // Team Lead追加（2026-07-30）: 実装者はこの穴を「ADR未規定」として報告のみに留めたが、
-  // 規定の目的から演繹できる同一の不変条件なので、報告どおりに残さず修正した。
-  if (target.role === "admin" && role !== "admin") {
-    const adminCount = await prisma.teamMember.count({ where: { teamId: admin.teamId, role: "admin" } });
-    if (adminCount <= 1) {
+        if (target.role === "admin" && role !== "admin") {
+          const adminCount = await tx.teamMember.count({ where: { teamId: admin.teamId, role: "admin" } });
+          if (adminCount <= 1) {
+            throw new LastAdminGuardError();
+          }
+        }
+
+        return tx.teamMember.update({
+          where: { userId_teamId: { userId: targetUserId, teamId: admin.teamId } },
+          data: { role },
+          select: { id: true, userId: true, role: true, joinedAt: true },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  } catch (err) {
+    if (err instanceof LastAdminGuardError) {
       res.status(409).json({ error: "最後の管理者を降格することはできません" });
       return;
     }
+    if (isSerializationFailure(err)) {
+      res.status(409).json({ error: "他の更新と競合したため処理できませんでした。再度お試しください" });
+      return;
+    }
+    throw err;
   }
 
-  const updated = await prisma.teamMember.update({
-    where: { userId_teamId: { userId: targetUserId, teamId: admin.teamId } },
-    data: { role },
-    select: { id: true, userId: true, role: true, joinedAt: true },
-  });
+  if (!updated) {
+    res.status(404).json({ error: "指定されたメンバーが見つかりません" });
+    return;
+  }
 
   res.json({ member: updated });
 }));
@@ -404,15 +437,44 @@ router.delete("/:slug/members/:userId", authMiddleware, wrap(async (req: AuthReq
     return;
   }
 
-  if (target.role === "admin") {
-    const adminCount = await prisma.teamMember.count({ where: { teamId: team.id, role: "admin" } });
-    if (adminCount <= 1) {
+  // C-06修正（Issue #39）: PATCH側と同型の非トランザクションな count→delete。
+  // count()とdelete()をSerializable分離レベルの1トランザクションに閉じ込め、
+  // 同時実行が実際に競合した場合はP2034（シリアライズ失敗）を409として扱う。
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const freshTarget = await tx.teamMember.findUnique({
+          where: { userId_teamId: { userId: targetUserId, teamId: team.id } },
+        });
+        if (!freshTarget) throw new MemberNotFoundError();
+
+        if (freshTarget.role === "admin") {
+          const adminCount = await tx.teamMember.count({ where: { teamId: team.id, role: "admin" } });
+          if (adminCount <= 1) {
+            throw new LastAdminGuardError();
+          }
+        }
+
+        await tx.teamMember.delete({ where: { userId_teamId: { userId: targetUserId, teamId: team.id } } });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  } catch (err) {
+    if (err instanceof MemberNotFoundError) {
+      res.status(404).json({ error: "指定されたメンバーが見つかりません" });
+      return;
+    }
+    if (err instanceof LastAdminGuardError) {
       res.status(409).json({ error: "最後の管理者は削除できません" });
       return;
     }
+    if (isSerializationFailure(err)) {
+      res.status(409).json({ error: "他の更新と競合したため処理できませんでした。再度お試しください" });
+      return;
+    }
+    throw err;
   }
 
-  await prisma.teamMember.delete({ where: { userId_teamId: { userId: targetUserId, teamId: team.id } } });
   res.status(204).send();
 }));
 

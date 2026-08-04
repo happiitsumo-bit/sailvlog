@@ -12,6 +12,7 @@
 //   ④最後のadminは削除できない（409）。自分自身の脱退は成功する
 import request from "supertest";
 import { setupTestServer } from "./helpers/testServer";
+import prisma from "../database";
 import {
   _resetJoinRateLimiterForTests,
   _resetCreateTeamRateLimiterForTests,
@@ -437,5 +438,71 @@ describe("T-103 ADR-013: PATCH /:slug/members/:userId", () => {
       .send({ role: "admin" });
     expect(res.status).toBe(200);
     expect(res.body.member.role).toBe("admin");
+  });
+});
+
+// C-06回帰（Issue #39）: count()→update()/delete()が非トランザクションだと、adminが2人のときに
+// 2つの降格/削除リクエストが同時に来て両方が「adminCount<=1ではない」を通過し、
+// adminが0人のチームが残ってしまう。Serializableトランザクションで直したことの検証として、
+// 「同時実行後もadminが必ず1人以上残る」という不変条件を固定する
+// （並行実行の勝敗自体はDBのスケジューリング依存で決定的ではないため、それはテストしない）。
+describe("C-06: PATCH/DELETEの同時実行でもadminが0人にならない", () => {
+  async function makeTwoAdminTeam(tag: string) {
+    const admin = await registerUser(`${tag}-admin`);
+    const admin2 = await registerUser(`${tag}-admin2`);
+    const { slug, inviteCode } = await createTeam(admin.token, tag);
+
+    await request(getServer())
+      .post("/api/teams/join")
+      .set("Authorization", `Bearer ${admin2.token}`)
+      .send({ inviteCode });
+
+    const promote = await request(getServer())
+      .patch(`/api/teams/${slug}/members/${admin2.userId}`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ role: "admin" });
+    expect(promote.status).toBe(200);
+
+    return { slug, admin, admin2 };
+  }
+
+  test("2人のadminを同時にPATCH降格させても、admin0人にはならない", async () => {
+    const { slug, admin, admin2 } = await makeTwoAdminTeam("c06-patch");
+
+    const [res1, res2] = await Promise.all([
+      request(getServer())
+        .patch(`/api/teams/${slug}/members/${admin.userId}`)
+        .set("Authorization", `Bearer ${admin.token}`)
+        .send({ role: "member" }),
+      request(getServer())
+        .patch(`/api/teams/${slug}/members/${admin2.userId}`)
+        .set("Authorization", `Bearer ${admin2.token}`)
+        .send({ role: "member" }),
+    ]);
+
+    expect([res1.status, res2.status].every((s) => s === 200 || s === 409)).toBe(true);
+    expect([res1.status, res2.status].filter((s) => s === 200).length).toBeLessThanOrEqual(1);
+
+    const remainingAdmins = await prisma.teamMember.count({ where: { role: "admin", team: { slug } } });
+    expect(remainingAdmins).toBeGreaterThanOrEqual(1);
+  });
+
+  test("2人のadminを同時にDELETEしても、admin0人にはならない", async () => {
+    const { slug, admin, admin2 } = await makeTwoAdminTeam("c06-delete");
+
+    const [res1, res2] = await Promise.all([
+      request(getServer())
+        .delete(`/api/teams/${slug}/members/${admin.userId}`)
+        .set("Authorization", `Bearer ${admin.token}`),
+      request(getServer())
+        .delete(`/api/teams/${slug}/members/${admin2.userId}`)
+        .set("Authorization", `Bearer ${admin2.token}`),
+    ]);
+
+    expect([res1.status, res2.status].every((s) => s === 204 || s === 409)).toBe(true);
+    expect([res1.status, res2.status].filter((s) => s === 204).length).toBeLessThanOrEqual(1);
+
+    const remainingAdmins = await prisma.teamMember.count({ where: { role: "admin", team: { slug } } });
+    expect(remainingAdmins).toBeGreaterThanOrEqual(1);
   });
 });
