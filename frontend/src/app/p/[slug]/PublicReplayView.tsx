@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
+import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection, useCanvasViewport } from "@/lib/replay";
 import { formatClockTime } from "@/lib/utils";
 import { PublicSessionResponse } from "@/types";
 
@@ -33,6 +33,18 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
   const lastFrameTimeRef = useRef<number | null>(null);
   const lastSyncTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+
+  // Issue #37: 部内版(/sessions/[id])と同じ実装をそのまま再利用する（ADR-007）。
+  const {
+    viewportRef,
+    handleMouseDown: handleCanvasMouseDown,
+    handleMouseMove: handleCanvasMouseMove,
+    handleMouseUp: handleCanvasMouseUp,
+    handleTouchStartPinch,
+    handleTouchMovePinch,
+    handleTouchEndPinch,
+    reset: resetViewport,
+  } = useCanvasViewport(canvasRef);
 
   useEffect(() => {
     clockRef.current = new ReplayClock(session.durationSec);
@@ -78,6 +90,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: NO_COMPARISON,
         tailSeconds: TAIL_SECONDS,
+        viewport: viewportRef.current,
       });
 
       if (now - lastSyncTimeRef.current >= UI_SYNC_INTERVAL_MS) {
@@ -151,6 +164,13 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         ref={canvasRef}
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
+        onTouchStart={handleTouchStartPinch}
+        onTouchMove={handleTouchMovePinch}
+        onTouchEnd={handleTouchEndPinch}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
+        onMouseLeave={handleCanvasMouseUp}
         style={{
           width: "100%",
           height: "auto",
@@ -159,6 +179,8 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
           borderRadius: 8,
           display: "block",
           marginTop: "1rem",
+          touchAction: "pan-y",
+          cursor: "grab",
         }}
       />
 
@@ -180,6 +202,9 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-mute)" }}>
           {formatClockTime(simTimeDisplay)} / {formatClockTime(session.durationSec)}
         </span>
+        <button type="button" onClick={resetViewport} className="btn btn-ghost">
+          表示をリセット
+        </button>
       </div>
 
       {tracks.length > 1 && (
