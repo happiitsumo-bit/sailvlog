@@ -4,6 +4,7 @@
 // を踏襲するが、コードは新規実装（spikeはコピー禁止・参照のみ）。
 
 import { LocalProjection, RenderTrack, project, splitByGapRuns } from "./geo";
+import { IDENTITY_VIEWPORT, Viewport, applyViewport } from "./viewport";
 
 // DS rev.3の艇識別カラー（design-system/theme.json color.sailvlog.boats.dark、
 // UI-DESIGN.md §4.2「6艇の識別ルール」）。Canvasは常時ダーク海図面のため、ダーク値を固定で使う。
@@ -30,6 +31,8 @@ export interface RenderFrameOptions {
   tailSeconds: number;
   /** 再生中かどうか（Issue #38: 静止時は艇ラベルを隠す判定に使う） */
   playing: boolean;
+  /** ズーム・パン（Issue #37）。省略時は全体表示（等倍・パン無し）。 */
+  viewport?: Viewport;
 }
 
 export interface TrackEmphasis {
@@ -68,11 +71,18 @@ export function shouldDrawBoatLabels(playing: boolean): boolean {
   return playing;
 }
 
+/** project()の結果にビューポート（ズーム・パン）を重ねてcanvas座標を返す。 */
+function projectScreen(proj: LocalProjection, viewport: Viewport, lat: number, lon: number): [number, number] {
+  const [x, y] = project(proj, lat, lon);
+  return applyViewport(viewport, x, y);
+}
+
 export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, opts: RenderFrameOptions): void {
   const { tracks, proj, simTimeSec, visibleTrackIds, comparisonTrackIds, tailSeconds, playing } = opts;
+  const viewport = opts.viewport ?? IDENTITY_VIEWPORT;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawScaleBar(ctx, canvas, proj);
+  drawScaleBar(ctx, canvas, proj, viewport);
 
   tracks.forEach((track, trackIndex) => {
     if (!visibleTrackIds.has(track.id)) return;
@@ -96,7 +106,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
         ctx.setLineDash(run.dashed ? [4, 3] : []);
         ctx.beginPath();
         for (let i = run.from; i <= run.to; i++) {
-          const [x, y] = project(proj, lat[i], lon[i]);
+          const [x, y] = projectScreen(proj, viewport, lat[i], lon[i]);
           if (i === run.from) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
@@ -107,7 +117,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
     }
 
     // 現在位置マーカー
-    const [x, y] = project(proj, lat[idx], lon[idx]);
+    const [x, y] = projectScreen(proj, viewport, lat[idx], lon[idx]);
     ctx.globalAlpha = emphasis.alpha;
     ctx.beginPath();
     ctx.arc(x, y, emphasis.markerRadius, 0, Math.PI * 2);
@@ -135,9 +145,9 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
   });
 }
 
-function drawScaleBar(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, proj: LocalProjection): void {
+function drawScaleBar(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, proj: LocalProjection, viewport: Viewport): void {
   const meters = 500;
-  const pxLen = meters * proj.scale;
+  const pxLen = meters * proj.scale * viewport.zoom;
   const x0 = 20;
   const y0 = canvas.height - 16;
   // DS rev.3の「水面上のグリッド/等深線インク」トークン相当（常時ダーク面上の白系半透明）
