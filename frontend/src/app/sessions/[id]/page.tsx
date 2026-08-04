@@ -224,6 +224,7 @@ function SessionReplayPageContent() {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: comparisonTrackIdsRef.current,
         tailSeconds: TAIL_SECONDS,
+        playing: clock.playing,
         viewport: viewportRef.current,
       });
 

@@ -29,6 +29,8 @@ export interface RenderFrameOptions {
   comparisonTrackIds?: Set<number>;
   /** テールで遡って表示する秒数 */
   tailSeconds: number;
+  /** 再生中かどうか（Issue #38: 静止時は艇ラベルを隠す判定に使う） */
+  playing: boolean;
   /** ズーム・パン（Issue #37）。省略時は全体表示（等倍・パン無し）。 */
   viewport?: Viewport;
 }
@@ -60,6 +62,15 @@ export function shortBoatLabel(boatLabel: string, maxChars = 8): string {
   return firstToken.length > maxChars ? `${firstToken.slice(0, maxChars - 1)}…` : firstToken;
 }
 
+/**
+ * 艇ラベルを描画してよいか（Issue #38「静止時のラベル非表示」UX-AUDIT M-5）。
+ * 再生停止中（t=0の初期表示を含む）は複数艇のラベルが同じ位置に重なり判読不能な塊になるため、
+ * 再生中のみ描く。純関数として切り出しユニットテスト対象にする。
+ */
+export function shouldDrawBoatLabels(playing: boolean): boolean {
+  return playing;
+}
+
 /** project()の結果にビューポート（ズーム・パン）を重ねてcanvas座標を返す。 */
 function projectScreen(proj: LocalProjection, viewport: Viewport, lat: number, lon: number): [number, number] {
   const [x, y] = project(proj, lat, lon);
@@ -67,7 +78,7 @@ function projectScreen(proj: LocalProjection, viewport: Viewport, lat: number, l
 }
 
 export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, opts: RenderFrameOptions): void {
-  const { tracks, proj, simTimeSec, visibleTrackIds, comparisonTrackIds, tailSeconds } = opts;
+  const { tracks, proj, simTimeSec, visibleTrackIds, comparisonTrackIds, tailSeconds, playing } = opts;
   const viewport = opts.viewport ?? IDENTITY_VIEWPORT;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -116,16 +127,19 @@ export function renderFrame(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEle
     ctx.strokeStyle = "#ffffff";
     ctx.stroke();
 
-    // 艇ラベル（色以外の識別手段。UI-DESIGN §7項目8）。マーカーの右上に常時描画する。
-    const label = shortBoatLabel(track.boatLabel);
-    const labelX = x + emphasis.markerRadius + 4;
-    const labelY = y - emphasis.markerRadius - 4;
-    ctx.font = "bold 12px -apple-system, system-ui";
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(3, 13, 22, 0.85)"; // 水面と同系の暗色縁取りで、どの艇色の上でも読める
-    ctx.strokeText(label, labelX, labelY);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(label, labelX, labelY);
+    // 艇ラベル（色以外の識別手段。UI-DESIGN §7項目8）。マーカーの右上に、再生中のみ描画する
+    // （Issue #38: 静止時は複数艇のラベルが重なり判読不能な塊になるため、航跡だけを見せる）。
+    if (shouldDrawBoatLabels(playing)) {
+      const label = shortBoatLabel(track.boatLabel);
+      const labelX = x + emphasis.markerRadius + 4;
+      const labelY = y - emphasis.markerRadius - 4;
+      ctx.font = "bold 12px -apple-system, system-ui";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(3, 13, 22, 0.85)"; // 水面と同系の暗色縁取りで、どの艇色の上でも読める
+      ctx.strokeText(label, labelX, labelY);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(label, labelX, labelY);
+    }
 
     ctx.globalAlpha = 1;
   });
