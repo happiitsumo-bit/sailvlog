@@ -198,7 +198,8 @@ body {
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100vh;
+  min-height: 100vh; /* Issue #27: dvh未対応ブラウザ向けフォールバック */
+  min-height: 100dvh; /* iOS Safariのアドレスバー分の過大表示を補正 */
   overflow-x: hidden;
   background:
     radial-gradient(circle at 10% -5%, rgba(201,100,66,0.05), transparent 50%),
@@ -2255,7 +2256,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100vh; /* Issue #27: dvh未対応ブラウザ向けフォールバック */
+  min-height: 100dvh; /* iOS Safariのアドレスバー分の過大表示を補正 */
 }
 
 .app-topbar {
@@ -2489,7 +2491,8 @@ button { font-family: inherit; cursor: pointer; }
   z-index: 200;
   background: var(--card);
   border-top: 1px solid var(--border);
-  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+  /* Issue #27: 横向き時にホームインジケータ/ノッチと重ならないよう左右のsafe-areaも確保 */
+  padding: 0.5rem calc(0.5rem + env(safe-area-inset-right)) calc(0.5rem + env(safe-area-inset-bottom)) calc(0.5rem + env(safe-area-inset-left));
 }
 .bottom-tab-bar-inner {
   display: flex;
@@ -2524,6 +2527,8 @@ button { font-family: inherit; cursor: pointer; }
   .app-main { padding: 1rem; }
   .bottom-tab-bar { display: block; }
   .topbar-search { display: none; }
+  /* Issue #27: Apple HIG準拠の44x44px最小タップ領域（濡れた手・手袋での操作を想定） */
+  .btn { min-height: 44px; }
 }
 
 /* ===== a11y: screen-reader only ===== */
