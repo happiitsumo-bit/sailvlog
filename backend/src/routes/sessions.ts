@@ -36,7 +36,8 @@ function generatePublicSlug(): string {
 router.post(
   "/",
   authMiddleware,
-  requireTeamMemberByBody(),
+  // C-03修正（Issue #39）: async ミドルウェアはwrap()の外だとreject時にリクエストがハングする。
+  wrap(requireTeamMemberByBody()),
   wrap(async (req: AuthRequest, res: Response): Promise<void> => {
     const { title, type, startedAt, durationSec, teamId, venue, notes } = req.body;
 
@@ -131,7 +132,8 @@ router.get("/", authMiddleware, wrap(async (req: AuthRequest, res: Response): Pr
 router.get(
   "/:id",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const id = req.sessionRecord!.id;
 
@@ -165,7 +167,8 @@ router.get(
 router.patch(
   "/:id",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const { title, notes, marks, legs } = req.body;
     const data: Record<string, unknown> = {};
@@ -203,7 +206,8 @@ router.patch(
 router.delete(
   "/:id",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
     if (!allowed) {
@@ -219,7 +223,8 @@ router.delete(
 router.post(
   "/:id/tracks",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const sessionId = req.sessionRecord!.id;
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
@@ -249,7 +254,8 @@ router.post(
 router.post(
   "/:id/annotations",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const sessionId = req.sessionRecord!.id;
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
@@ -294,7 +300,8 @@ router.post(
 router.post(
   "/:id/publish",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const sessionId = req.sessionRecord!.id;
 
@@ -366,7 +373,8 @@ router.post(
 router.post(
   "/:id/unpublish",
   authMiddleware,
-  requireSessionTeamMember(),
+  // C-03修正（Issue #39, 横断確認）: requireTeamMemberByBody()と同型の未wrap async middleware。
+  wrap(requireSessionTeamMember()),
   wrap(async (req: SessionScopedRequest, res: Response): Promise<void> => {
     const allowed = await isUploaderOrTeamAdmin(req.userId as number, req.sessionRecord!);
     if (!allowed) {
