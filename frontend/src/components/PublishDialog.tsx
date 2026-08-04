@@ -90,22 +90,25 @@ export function PublishDialog({
     setSubmitting(true);
     setError(null);
     try {
-      // 変更された艇ラベルだけを先に確定させる（未変更のものはAPIを叩かない）。
+      // 変更された艇ラベルは公開リクエストに同梱する（未変更のものは送らない）。
+      // レビュー指摘（PR #48）: 以前はラベルをPromise.allで個別PATCHしてから公開していたため、
+      // 1件でも失敗すると「公開されないのに一部のラベルだけ永続化される」状態になった。
+      // バックエンド側で公開と同じトランザクションに入れ、成否をまとめる。
       const changed = tracks.filter((t) => (boatLabels[t.id] ?? "").trim() !== t.boatLabel);
-      if (changed.length > 0) {
-        await Promise.all(
-          changed.map((t) =>
-            api.patch(`/api/sessions/${sessionId}/tracks/${t.id}`, { boatLabel: boatLabels[t.id].trim() })
-          )
-        );
-        onTrackLabelsUpdated(changed.map((t) => ({ id: t.id, boatLabel: boatLabels[t.id].trim() })));
-      }
 
       const result = await api.post<PublishResult>(`/api/sessions/${sessionId}/publish`, {
         visibility,
         learningSummary: summary.trim(),
         publicAnnotationIds: [...selectedIds],
+        ...(changed.length > 0 && {
+          trackLabels: changed.map((t) => ({ id: t.id, boatLabel: boatLabels[t.id].trim() })),
+        }),
       });
+
+      // 公開が成功して初めて、画面上のラベルを更新する
+      if (changed.length > 0) {
+        onTrackLabelsUpdated(changed.map((t) => ({ id: t.id, boatLabel: boatLabels[t.id].trim() })));
+      }
       onPublished(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "公開に失敗しました");

@@ -350,12 +350,42 @@ router.post(
       return;
     }
 
-    const { visibility, learningSummary, publicAnnotationIds } = req.body as {
+    const { visibility, learningSummary, publicAnnotationIds, trackLabels } = req.body as {
       visibility: "unlisted" | "public";
       learningSummary: string;
       publicAnnotationIds?: number[];
+      trackLabels?: { id: number; boatLabel: string }[];
     };
     const ids = publicAnnotationIds ?? [];
+
+    // レビュー指摘（2026-08-04・PR #48）: 公開ダイアログでの艇ラベル編集を
+    // クライアントが Promise.all で個別PATCHしてから publish していたため、
+    // 1件でも失敗すると「公開はされないのに一部のラベルだけ永続化される」状態になった。
+    // ラベル更新を公開と同じトランザクションに入れ、まとめて成否を揃える。
+    const labels = trackLabels ?? [];
+    if (labels.length > 0) {
+      const invalid = labels.some(
+        (l) =>
+          !Number.isInteger(l?.id) ||
+          typeof l?.boatLabel !== "string" ||
+          l.boatLabel.trim().length === 0 ||
+          l.boatLabel.length > MAX_BOAT_LABEL_LEN
+      );
+      if (invalid) {
+        res.status(400).json({ error: `boatLabel は1〜${MAX_BOAT_LABEL_LEN}文字である必要があります` });
+        return;
+      }
+      const labelIds = labels.map((l) => l.id);
+      if (new Set(labelIds).size !== labelIds.length) {
+        res.status(400).json({ error: "trackLabels に同じトラックIDが重複しています" });
+        return;
+      }
+      const matched = await prisma.track.count({ where: { id: { in: labelIds }, sessionId } });
+      if (matched !== labelIds.length) {
+        res.status(400).json({ error: "trackLabels に他セッションのトラックIDが含まれています" });
+        return;
+      }
+    }
 
     if (ids.length > 0) {
       const matched = await prisma.annotation.count({
@@ -391,6 +421,10 @@ router.post(
       ...(ids.length > 0
         ? [prisma.annotation.updateMany({ where: { sessionId, id: { in: ids } }, data: { isPublic: true } })]
         : []),
+      // 艇ラベルの編集も同じトランザクションに入れる（公開が失敗したらラベルも戻る）
+      ...labels.map((l) =>
+        prisma.track.update({ where: { id: l.id }, data: { boatLabel: l.boatLabel.trim() } })
+      ),
     ]);
 
     res.status(200).json({

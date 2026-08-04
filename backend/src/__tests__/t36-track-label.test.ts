@@ -130,3 +130,87 @@ describe("PATCH /api/sessions/:id/tracks/:trackId (T-36)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// レビュー指摘（2026-08-04・PR #48）の回帰:
+// 公開ダイアログが艇ラベルをPromise.allで個別PATCHしてから publish していたため、
+// 1件でも失敗すると「公開はされないのに一部のラベルだけ永続化される」状態になった。
+// ラベル更新を publish と同じトランザクションに入れたことを固定する。
+describe("POST /api/sessions/:id/publish の trackLabels（公開とラベル更新の原子性）", () => {
+  test("公開に成功すると、同梱した艇ラベルも更新される", async () => {
+    const { sessionId, trackId, uploader } = await createSessionWithTrack();
+
+    const res = await request(getServer())
+      .post(`/api/sessions/${sessionId}/publish`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({
+        visibility: "unlisted",
+        learningSummary: "公開とラベル更新が同時に確定することの確認。",
+        trackLabels: [{ id: trackId, boatLabel: "4423号艇" }],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.publicSlug).toBeTruthy();
+
+    const track = await prisma.track.findUnique({ where: { id: trackId } });
+    expect(track?.boatLabel).toBe("4423号艇");
+  });
+
+  test("公開が失敗する入力なら、艇ラベルも更新されない（部分永続化しない）", async () => {
+    const { sessionId, trackId, uploader } = await createSessionWithTrack();
+
+    // learningSummary が空 = publish のバリデーションで弾かれる入力。
+    // 旧実装ではラベルだけ先に確定していたので、ここでラベルが変わってしまっていた。
+    const res = await request(getServer())
+      .post(`/api/sessions/${sessionId}/publish`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({
+        visibility: "unlisted",
+        learningSummary: "",
+        trackLabels: [{ id: trackId, boatLabel: "確定してはいけないラベル" }],
+      });
+    expect(res.status).toBe(400);
+
+    const track = await prisma.track.findUnique({ where: { id: trackId } });
+    expect(track?.boatLabel).toBe("boat1_clean");
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    expect(session?.publicSlug).toBeNull();
+  });
+
+  test("他セッションのトラックIDを混ぜると400で、公開もラベル更新も起きない", async () => {
+    const a = await createSessionWithTrack();
+    const b = await createSessionWithTrack();
+
+    const res = await request(getServer())
+      .post(`/api/sessions/${a.sessionId}/publish`)
+      .set("Authorization", `Bearer ${a.uploader.token}`)
+      .send({
+        visibility: "unlisted",
+        learningSummary: "他セッションのトラックを混ぜた場合の確認。",
+        trackLabels: [{ id: b.trackId, boatLabel: "他人のセッションの艇" }],
+      });
+    expect(res.status).toBe(400);
+
+    const otherTrack = await prisma.track.findUnique({ where: { id: b.trackId } });
+    expect(otherTrack?.boatLabel).toBe("boat1_clean");
+
+    const session = await prisma.session.findUnique({ where: { id: a.sessionId } });
+    expect(session?.publicSlug).toBeNull();
+  });
+
+  test("長すぎるラベルは400で弾き、公開もしない", async () => {
+    const { sessionId, trackId, uploader } = await createSessionWithTrack();
+
+    const res = await request(getServer())
+      .post(`/api/sessions/${sessionId}/publish`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({
+        visibility: "unlisted",
+        learningSummary: "文字数境界の確認。",
+        trackLabels: [{ id: trackId, boatLabel: "x".repeat(51) }],
+      });
+    expect(res.status).toBe(400);
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    expect(session?.publicSlug).toBeNull();
+  });
+});
