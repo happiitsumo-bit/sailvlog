@@ -185,7 +185,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
       />
 
       {/* 再生コントロール（DOM順3番目）。艇の表示切替も「読む体験に必要」としてここに含める（UI-DESIGN §5.3）。 */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
+      <div className="replay-controls" style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
         <button type="button" onClick={togglePlay} className="btn btn-primary" style={{ minWidth: 88 }}>
           {playing ? "一時停止" : "再生"}
         </button>
@@ -210,7 +210,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
       {tracks.length > 1 && (
         <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.6rem" }} role="group" aria-label="艇の表示切替">
           {tracks.map((t, i) => (
-            <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.82rem", minHeight: 24, cursor: "pointer" }}>
+            <label key={t.id} className="replay-boat-toggle">
               <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
               {t.boatLabel}
@@ -223,6 +223,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
       <div style={{ position: "relative", marginTop: "0.6rem" }}>
         <input
           type="range"
+          className="replay-seek-input"
           min={0}
           max={session.durationSec}
           step={1}
