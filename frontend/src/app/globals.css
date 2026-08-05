@@ -2529,6 +2529,22 @@ button { font-family: inherit; cursor: pointer; }
   .topbar-search { display: none; }
   /* Issue #27: Apple HIG準拠の44x44px最小タップ領域（濡れた手・手袋での操作を想定） */
   .btn { min-height: 44px; }
+  /* Issue #27 項目3: リプレイ画面の操作系（速度・レグ切替チップ／シークバー）。
+     .replay-boat-toggleの44px化は、後段のデスクトップ既定値(24px)が同じ詳細度で
+     ソース順により上書きしてしまうため、その定義の直後（このファイル末尾寄り）に置く。 */
+  .replay-controls .filter-chip,
+  .replay-legs-row .filter-chip {
+    min-height: 44px;
+  }
+  .replay-seek-input {
+    height: 44px;
+  }
+  /* Issue #27 項目4: ログイン済みモバイル幅でtopbar-actions（公開ページ導線+ユーザー名+Logout）が
+     収まらず横スクロールが発生していた（実測: 390px幅でscrollWidth 397px）。
+     優先度が低い副次導線を隠して解消する（主要導線はbottom-tab-barが担う）。 */
+  .topbar-preview-link {
+    display: none;
+  }
 }
 
 /* ===== a11y: screen-reader only ===== */
@@ -3466,6 +3482,24 @@ button { font-family: inherit; cursor: pointer; }
 .replay-aside {
   flex: 0 0 240px;
   min-width: 200px;
+}
+/* チェックボックスのタップ対象をlabel全体まで広げる（Issue #27 項目3。24pxはWCAG 2.2 Target Size §7項目7と同基準、
+   767px以下では.btnと同じApple HIG 44pxへ拡大する） */
+.replay-boat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  min-height: 24px;
+  cursor: pointer;
+}
+@media (max-width: 767px) {
+  /* Issue #27 項目3: Apple HIG準拠の44pxへ拡大（このメディアクエリを.replay-boat-toggleの
+     直後に置くのは、767px以下のグローバルメディアクエリより後段でソース順により勝たせるため） */
+  .replay-boat-toggle {
+    min-height: 44px;
+    padding: 0.4rem 0.2rem;
+  }
 }
 @media (max-width: 860px) {
   .replay-main,

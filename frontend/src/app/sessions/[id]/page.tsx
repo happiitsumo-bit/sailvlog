@@ -742,7 +742,7 @@ function SessionReplayPageContent() {
             style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block", touchAction: "pan-y", cursor: "grab" }}
           />
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
+          <div className="replay-controls" style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
             <button type="button" onClick={togglePlay} className="btn btn-primary" style={{ minWidth: 88 }}>
               {playing ? "一時停止" : "再生"}
             </button>
@@ -783,6 +783,7 @@ function SessionReplayPageContent() {
           <div style={{ position: "relative", marginTop: "0.6rem" }}>
             <input
               type="range"
+              className="replay-seek-input"
               min={0}
               max={session.durationSec}
               step={1}
@@ -875,7 +876,7 @@ function SessionReplayPageContent() {
           <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>艇の表示</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
             {tracks.map((t, i) => (
-              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+              <label key={t.id} className="replay-boat-toggle">
                 <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
                 <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
                 <span>{t.boatLabel}</span>
@@ -900,7 +901,7 @@ function SessionReplayPageContent() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
               {tracks.map((t, i) => (
-                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                <label key={t.id} className="replay-boat-toggle">
                   <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
                   <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
                   <span>{t.boatLabel}</span>
