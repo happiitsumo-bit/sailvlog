@@ -26,7 +26,8 @@ export default function RegisterPage() {
         form
       );
       saveAuth(res.token, res.user);
-      router.push("/sessions");
+      // 登録直後は所属チーム0件のため、セッション一覧ではなくチーム作成・参加へ誘導する（Issue #34）
+      router.push("/teams");
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");

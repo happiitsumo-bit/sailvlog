@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { isLoggedIn, getUser } from "@/lib/auth";
 import { Annotation, SessionDetail, Track } from "@/types";
 import { GpxParseError, normalizeToGrid, parseGpx } from "@/lib/gpx";
-import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
+import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection, useCanvasViewport } from "@/lib/replay";
 import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
 import { formatClockTime as formatTime } from "@/lib/utils";
 import {
@@ -111,6 +111,18 @@ function SessionReplayPageContent() {
   const lastSyncTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const trackFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Issue #37: ホイールズーム・ドラッグパン・ピンチ（部内版・公開版で共通の実装。ADR-007の再利用方針を操作系にも適用）。
+  const {
+    viewportRef,
+    handleMouseDown: handleCanvasMouseDown,
+    handleMouseMove: handleCanvasMouseMove,
+    handleMouseUp: handleCanvasMouseUp,
+    handleTouchStartPinch,
+    handleTouchMovePinch,
+    handleTouchEndPinch,
+    reset: resetViewport,
+  } = useCanvasViewport(canvasRef);
 
   useEffect(() => {
     if (!isLoggedIn()) {
@@ -217,6 +229,7 @@ function SessionReplayPageContent() {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: comparisonTrackIdsRef.current,
         tailSeconds: TAIL_SECONDS,
+        viewport: viewportRef.current,
       });
 
       if (now - lastSyncTimeRef.current >= UI_SYNC_INTERVAL_MS) {
@@ -339,9 +352,18 @@ function SessionReplayPageContent() {
       タイムラインバーの直接ドラッグとは独立した経路で、シークバーの値は変えず
       seekAndSync経由でclockとURLを直接更新する。 */
   function handleCanvasTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
+    // 2本指はピンチ（ズーム・パン）。1本指スワイプ・シークとは別経路として排他にする。
+    if (handleTouchStartPinch(e)) {
+      touchStartXRef.current = null;
+      return;
+    }
     touchStartXRef.current = e.touches[0]?.clientX ?? null;
   }
+  function handleCanvasTouchMove(e: React.TouchEvent<HTMLCanvasElement>) {
+    handleTouchMovePinch(e);
+  }
   function handleCanvasTouchEnd(e: React.TouchEvent<HTMLCanvasElement>) {
+    handleTouchEndPinch(e);
     const startX = touchStartXRef.current;
     touchStartXRef.current = null;
     if (startX == null) return;
@@ -716,8 +738,13 @@ function SessionReplayPageContent() {
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
             onTouchStart={handleCanvasTouchStart}
+            onTouchMove={handleCanvasTouchMove}
             onTouchEnd={handleCanvasTouchEnd}
-            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block", touchAction: "pan-y" }}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleCanvasMouseUp}
+            onMouseLeave={handleCanvasMouseUp}
+            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block", touchAction: "pan-y", cursor: "grab" }}
           />
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
@@ -737,6 +764,9 @@ function SessionReplayPageContent() {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-mute)" }}>
               {formatTime(simTimeDisplay)} / {formatTime(session.durationSec)}
             </span>
+            <button type="button" onClick={resetViewport} className="btn btn-ghost">
+              表示をリセット
+            </button>
             <button
               type="button"
               onClick={copyShareUrl}
