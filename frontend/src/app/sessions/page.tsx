@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { SessionSummary, TeamSummary } from "@/types";
 import { VisibilityChip } from "@/components/VisibilityChip";
+import { buildLoginRedirectUrl } from "@/lib/loginRedirect";
+import { readLastTeamId, resolveAutoSelectedTeamId, writeLastTeamId } from "@/lib/teamSelection";
 
 export default function SessionsPage() {
   return (
@@ -27,16 +29,26 @@ function SessionsPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoggedIn()) { router.push("/login"); return; }
+    if (!isLoggedIn()) { router.push(buildLoginRedirectUrl("/sessions", teamIdParam ? `?teamId=${teamIdParam}` : "")); return; }
     api
       .get<{ teams: TeamSummary[] }>("/api/teams")
       .then((r) => setTeams(r.teams))
       .catch(() => {})
       .finally(() => setTeamsLoaded(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // M-3(Issue #42): teamId未指定なら、直近の選択 or 所属1件のみのケースを自動選択してURLへ反映する。
+  useEffect(() => {
+    if (teamIdParam || teams.length === 0) return;
+    const autoTeamId = resolveAutoSelectedTeamId(teams.map((t) => t.id), readLastTeamId());
+    if (autoTeamId !== null) router.replace(`/sessions?teamId=${autoTeamId}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams, teamIdParam]);
 
   useEffect(() => {
     if (!teamIdParam) { setSessions(null); return; }
+    writeLastTeamId(Number(teamIdParam));
     setError(null);
     api
       .get<{ sessions: SessionSummary[] }>(`/api/sessions?teamId=${teamIdParam}`)

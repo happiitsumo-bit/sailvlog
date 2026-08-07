@@ -8,6 +8,7 @@ import { isLoggedIn } from "@/lib/auth";
 import { parseGpx, normalizeToGrid, computeSessionStart, GpxParseError, GpxPoint } from "@/lib/gpx";
 import { SessionType, TeamSummary } from "@/types";
 import SessionPreviewCanvas from "./SessionPreviewCanvas";
+import { buildLoginRedirectUrl } from "@/lib/loginRedirect";
 
 const MAX_DURATION_SEC = 14400; // 4時間（ARCH.md §3・backendと同じ上限）
 
@@ -33,7 +34,7 @@ export default function NewSessionPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isLoggedIn()) { router.push("/login"); return; }
+    if (!isLoggedIn()) { router.push(buildLoginRedirectUrl("/sessions/new")); return; }
     api.get<{ teams: TeamSummary[] }>("/api/teams").then((r) => setTeams(r.teams)).catch(() => {});
   }, [router]);
 

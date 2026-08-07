@@ -1,13 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { saveAuth } from "@/lib/auth";
+import { resolveLoginDestination } from "@/lib/loginRedirect";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +33,8 @@ export default function LoginPage() {
         { email, password }
       );
       saveAuth(res.token, res.user);
-      router.push("/sessions");
+      // M-4(Issue #42): 深いリンク（/login?next=/sessions/2）から来た場合はそこへ復帰する。
+      router.push(resolveLoginDestination(searchParams.get("next")));
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "ログインに失敗しました");
