@@ -5,9 +5,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
-import { parseGpx, normalizeToGrid, computeSessionStart, GpxParseError, GpxPoint } from "@/lib/gpx";
+import {
+  parseGpx,
+  normalizeToGrid,
+  computeSessionStart,
+  computeStartOffsetSummary,
+  formatOffsetSec,
+  NOTABLE_OFFSET_SEC,
+  StartOffsetSeverity,
+  GpxParseError,
+  GpxPoint,
+} from "@/lib/gpx";
 import { SessionType, TeamSummary } from "@/types";
 import SessionPreviewCanvas from "./SessionPreviewCanvas";
+import { buildLoginRedirectUrl } from "@/lib/loginRedirect";
 
 const MAX_DURATION_SEC = 14400; // 4時間（ARCH.md §3・backendと同じ上限）
 
@@ -33,7 +44,7 @@ export default function NewSessionPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isLoggedIn()) { router.push("/login"); return; }
+    if (!isLoggedIn()) { router.push(buildLoginRedirectUrl("/sessions/new")); return; }
     api.get<{ teams: TeamSummary[] }>("/api/teams").then((r) => setTeams(r.teams)).catch(() => {});
   }, [router]);
 
@@ -111,6 +122,14 @@ export default function NewSessionPage() {
   }, [validTracks, hasErrors]);
 
   const durationTooLong = !!normalized && normalized.durationSec > MAX_DURATION_SEC;
+
+  // 艇ごとの記録開始時刻の差の検知（Issue #30）。補正はしない・気づけるようにするだけ。
+  const startOffsetSummary = useMemo(() => {
+    if (!normalized) return null;
+    return computeStartOffsetSummary(
+      normalized.grids.map((g) => ({ boatLabel: g.boatLabel, startSec: g.startSec }))
+    );
+  }, [normalized]);
 
   const canSubmit =
     title.trim().length > 0 &&
@@ -300,6 +319,35 @@ export default function NewSessionPage() {
           </div>
         )}
 
+        {startOffsetSummary && startOffsetSummary.offsets.length > 1 && (
+          <div>
+            <label style={fieldLabelStyle}>記録開始時刻の差（Issue #30・検知のみ・補正はしません）</label>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              {startOffsetSummary.offsets.map((o, i) => (
+                <li
+                  key={`${o.boatLabel}-${i}`}
+                  style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", fontSize: "0.85rem" }}
+                >
+                  <span>{o.boatLabel}</span>
+                  <span
+                    style={{
+                      color: severityColor(o.severity),
+                      fontWeight: o.severity === "aligned" ? 400 : 700,
+                    }}
+                  >
+                    {formatOffsetSec(o.startSec)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {startOffsetSummary.allBoatsPresentAtSec >= NOTABLE_OFFSET_SEC && (
+              <p role="status" style={{ fontSize: "0.8rem", color: "var(--color-warning)", marginTop: "0.5rem" }}>
+                全艇がそろうまで{formatOffsetSec(startOffsetSummary.allBoatsPresentAtSec)}かかっています（先頭に無風区間ができます）。
+              </p>
+            )}
+          </div>
+        )}
+
         {/* エラー帯・状態通知は支援技術にも伝える（UI-DESIGN §7-6） */}
         {durationTooLong && (
           <p role="alert" style={{ color: "var(--terra)", fontSize: "0.85rem" }}>
@@ -322,6 +370,12 @@ export default function NewSessionPage() {
       </form>
     </div>
   );
+}
+
+function severityColor(severity: StartOffsetSeverity): string {
+  if (severity === "large") return "var(--color-danger)";
+  if (severity === "notable") return "var(--color-warning)";
+  return "var(--fg-mute)";
 }
 
 const fieldLabelStyle: React.CSSProperties = {

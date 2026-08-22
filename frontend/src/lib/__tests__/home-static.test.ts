@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { showBottomTabBar } from "../navVisibility";
-import { HERO_POSTER, HOME_FEATURES, shouldRedirectToSessions } from "../home";
+import { HERO_POSTER, HOME_FEATURES, shouldRedirectToSessions, DEMO_SESSION_SLUG } from "../home";
 
 describe("T-a: showBottomTabBar（ナビ可視性ユニット・T-33原則の自動検知化）", () => {
   it("/p/[slug] 配下は false", () => {
@@ -89,6 +89,12 @@ describe("T-d: API非依存スモーク", () => {
     for (const needle of [...forbiddenAll, ...forbiddenPageOnly]) {
       expect(src.includes(needle)).toBe(false);
     }
+  });
+
+  it("DEMO_SESSION_SLUGはbackend/src/lib/demoData.tsのDEMO_PUBLIC_SLUGと一致する値のまま固定されている", () => {
+    // 直接importはできない（別ワークスペース）ため、値そのものを固定して回帰を検知する。
+    // 変更する場合はbackend側のdemoData.ts・投入済みの本番デモセッションのpublicSlugも合わせて変えること。
+    expect(DEMO_SESSION_SLUG).toBe("sailvlog-demo");
   });
 
   it("components/home/*.tsx が fetch・apiFetch・NEXT_PUBLIC_API_URL を含まない", () => {
