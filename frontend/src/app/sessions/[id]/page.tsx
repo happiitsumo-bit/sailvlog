@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { isLoggedIn, getUser } from "@/lib/auth";
 import { Annotation, SessionDetail, TeamMember, Track } from "@/types";
 import { GpxParseError, normalizeToGrid, parseGpx } from "@/lib/gpx";
-import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
+import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection, useCanvasViewport } from "@/lib/replay";
 import { computeSwipeSeekStepSec, clampSeekTarget } from "@/lib/replay/touchSeek";
 import { formatClockTime as formatTime } from "@/lib/utils";
 import {
@@ -19,6 +19,7 @@ import { fetchIsTeamAdmin, fetchTeamMembers } from "@/lib/teamRole";
 import { computeSubmissionStatus } from "@/lib/submissionStatus";
 import { VisibilityChip } from "@/components/VisibilityChip";
 import { PublishDialog, PublishResult } from "@/components/PublishDialog";
+import { buildLoginRedirectUrl } from "@/lib/loginRedirect";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -113,8 +114,24 @@ function SessionReplayPageContent() {
   const rafRef = useRef<number | null>(null);
   const trackFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Issue #37: ホイールズーム・ドラッグパン・ピンチ（部内版・公開版で共通の実装。ADR-007の再利用方針を操作系にも適用）。
+  const {
+    viewportRef,
+    handleMouseDown: handleCanvasMouseDown,
+    handleMouseMove: handleCanvasMouseMove,
+    handleMouseUp: handleCanvasMouseUp,
+    handleTouchStartPinch,
+    handleTouchMovePinch,
+    handleTouchEndPinch,
+    reset: resetViewport,
+  } = useCanvasViewport(canvasRef);
+
   useEffect(() => {
-    if (!isLoggedIn()) { router.push("/login"); return; }
+    if (!isLoggedIn()) {
+      const qs = searchParams.toString();
+      router.push(buildLoginRedirectUrl(`/sessions/${sessionId}`, qs ? `?${qs}` : ""));
+      return;
+    }
     api
       .get<SessionDetail>(`/api/sessions/${sessionId}`)
       .then((d) => {
@@ -223,6 +240,8 @@ function SessionReplayPageContent() {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: comparisonTrackIdsRef.current,
         tailSeconds: TAIL_SECONDS,
+        playing: clock.playing,
+        viewport: viewportRef.current,
       });
 
       if (now - lastSyncTimeRef.current >= UI_SYNC_INTERVAL_MS) {
@@ -345,9 +364,18 @@ function SessionReplayPageContent() {
       タイムラインバーの直接ドラッグとは独立した経路で、シークバーの値は変えず
       seekAndSync経由でclockとURLを直接更新する。 */
   function handleCanvasTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
+    // 2本指はピンチ（ズーム・パン）。1本指スワイプ・シークとは別経路として排他にする。
+    if (handleTouchStartPinch(e)) {
+      touchStartXRef.current = null;
+      return;
+    }
     touchStartXRef.current = e.touches[0]?.clientX ?? null;
   }
+  function handleCanvasTouchMove(e: React.TouchEvent<HTMLCanvasElement>) {
+    handleTouchMovePinch(e);
+  }
   function handleCanvasTouchEnd(e: React.TouchEvent<HTMLCanvasElement>) {
+    handleTouchEndPinch(e);
     const startX = touchStartXRef.current;
     touchStartXRef.current = null;
     if (startX == null) return;
@@ -601,7 +629,7 @@ function SessionReplayPageContent() {
             ) : (
               <>
                 <button type="button" className="btn btn-ghost" onClick={copyPublicUrl}>
-                  {publishUrlCopied ? "コピーしました" : "公開URLをコピー"}
+                  {publishUrlCopied ? "コピーしました" : "公開リンク（部外可）をコピー"}
                 </button>
                 <button
                   type="button"
@@ -672,8 +700,12 @@ function SessionReplayPageContent() {
         </section>
       )}
 
-      <section
-        aria-labelledby="add-track-heading"
+      {/* M-2(Issue #41): このセクションが常時展開だと、反省会で画面を開いた瞬間に見えるのが
+          ファイルアップロード欄になり、地図（.replay-layout）が700pxスクロールしないと現れない。
+          既定で折りたたみ、地図＋再生バーをファーストビューに置く（details/summaryは
+          比較・メモパネルと同じ既存パターン=.replay-accordionを流用）。 */}
+      <details
+        className="replay-accordion"
         style={{
           marginBottom: "1rem",
           padding: "1rem",
@@ -683,10 +715,11 @@ function SessionReplayPageContent() {
         }}
       >
         {/* Issue #29-2: 「航跡を追加」だと他人のぶんを足す操作にも読めるため、
-            自分のGPXを出す操作だと分かる文言にする。 */}
-        <h2 id="add-track-heading" className="sidebar-title" style={{ marginBottom: "0.5rem" }}>
+            自分のGPXを出す操作だと分かる文言にする。M-2(Issue #41)の
+            details/summary 構造は維持したまま、summary のラベルだけ差し替える。 */}
+        <summary className="sidebar-title" style={{ marginBottom: "0.5rem", cursor: "pointer" }}>
           自分の航跡を出す
-        </h2>
+        </summary>
         <p style={{ color: "var(--fg-mute)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
           このセッションと同じ時間帯のGPXを1艇ずつ追加できます。
         </p>
@@ -737,7 +770,7 @@ function SessionReplayPageContent() {
             </div>
           </div>
         )}
-      </section>
+      </details>
 
       {/* UI-DESIGN §4.6: モバイルではDOM順が正（Canvas→再生コントロール→タイムライン→レグ→比較→メモ）。
           このdivの子はcanvas〜legsまでをまとめた.replay-mainと、比較・メモをまとめた.replay-asideの
@@ -751,11 +784,16 @@ function SessionReplayPageContent() {
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
             onTouchStart={handleCanvasTouchStart}
+            onTouchMove={handleCanvasTouchMove}
             onTouchEnd={handleCanvasTouchEnd}
-            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block", touchAction: "pan-y" }}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleCanvasMouseUp}
+            onMouseLeave={handleCanvasMouseUp}
+            style={{ width: "100%", height: "auto", backgroundImage: "var(--gradient-water-deep)", border: "1px solid var(--border)", borderRadius: 8, display: "block", touchAction: "pan-y", cursor: "grab" }}
           />
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
+          <div className="replay-controls" style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
             <button type="button" onClick={togglePlay} className="btn btn-primary" style={{ minWidth: 88 }}>
               {playing ? "一時停止" : "再生"}
             </button>
@@ -772,8 +810,30 @@ function SessionReplayPageContent() {
             <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-mute)" }}>
               {formatTime(simTimeDisplay)} / {formatTime(session.durationSec)}
             </span>
-            <button type="button" onClick={copyShareUrl} className="btn btn-ghost" style={{ marginLeft: "auto" }}>
-              {copied ? "URLをコピーしました" : "共有URLをコピー"}
+            <button type="button" onClick={resetViewport} className="btn btn-ghost">
+              表示をリセット
+            </button>
+            <button
+              type="button"
+              onClick={copyShareUrl}
+              className="btn btn-ghost"
+              style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              {copied ? "URLをコピーしました" : "部内リンクをコピー"}
+              {/* M-9(Issue #42): 「公開リンク（部外可）」と紛らわしいため、未公開中は部内限定であることを明示する */}
+              {session.visibility === "team" && (
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    color: "var(--fg-mute)",
+                    border: "1px solid var(--border-strong)",
+                    borderRadius: 999,
+                    padding: "0.05rem 0.5rem",
+                  }}
+                >
+                  部内のみ
+                </span>
+              )}
             </button>
           </div>
 
@@ -793,6 +853,7 @@ function SessionReplayPageContent() {
           <div style={{ position: "relative", marginTop: "0.6rem" }}>
             <input
               type="range"
+              className="replay-seek-input"
               min={0}
               max={session.durationSec}
               step={1}
@@ -885,7 +946,7 @@ function SessionReplayPageContent() {
           <h3 className="sidebar-title" style={{ marginBottom: "0.75rem" }}>艇の表示</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
             {tracks.map((t, i) => (
-              <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+              <label key={t.id} className="replay-boat-toggle">
                 <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
                 <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
                 <span>{t.boatLabel}</span>
@@ -910,7 +971,7 @@ function SessionReplayPageContent() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
               {tracks.map((t, i) => (
-                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                <label key={t.id} className="replay-boat-toggle">
                   <input type="checkbox" checked={comparisonTrackIds.has(t.id)} onChange={() => toggleComparison(t.id)} />
                   <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
                   <span>{t.boatLabel}</span>
@@ -1068,8 +1129,15 @@ function SessionReplayPageContent() {
                 §7項目2のDOM順修正で、艇の表示切替→比較→メモの並びに揃えるため
                 main列からこちら（aside＝メモパネル内）へ移設した（2026-07-25）。 */}
             <div style={{ marginTop: "1.25rem", padding: "1rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}>
-              <h3 className="sidebar-title" style={{ marginBottom: "0.6rem" }}>現在時刻({formatTime(simTimeDisplay)})に議論を残す</h3>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <h3 className="sidebar-title" style={{ marginBottom: "0.6rem", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span>現在時刻({formatTime(simTimeDisplay)})に議論を残す</span>
+                {/* M-8(Issue #41): 1500字入れても1行のままで読み返せない問題への対応。textarea化に伴い
+                    公開ダイアログの「学びの要約」と同様、文字数カウンタを追加する。 */}
+                <span style={{ fontSize: "0.72rem", color: "var(--fg-mute)", fontFamily: "var(--font-mono)" }}>
+                  {newAnnotationBody.length}/2000
+                </span>
+              </h3>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
                 <select
                   aria-label="メモの種類"
                   value={newAnnotationKind}
@@ -1080,13 +1148,23 @@ function SessionReplayPageContent() {
                     <option key={value} value={value}>{kind.label}</option>
                   ))}
                 </select>
-                <input
-                  type="text"
+                <textarea
                   value={newAnnotationBody}
                   onChange={(e) => setNewAnnotationBody(e.target.value)}
                   placeholder={newAnnotationKind === "action" ? "例: 次回は上マーク300m前で左右を確認する" : "例: ここでタック判断が遅れた"}
                   maxLength={2000}
-                  style={{ flex: "1 1 240px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 6, padding: "0.5rem 0.75rem", color: "var(--fg)" }}
+                  rows={2}
+                  style={{
+                    flex: "1 1 240px",
+                    minHeight: "2.6rem",
+                    resize: "vertical",
+                    background: "var(--paper)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    padding: "0.5rem 0.75rem",
+                    color: "var(--fg)",
+                    font: "inherit",
+                  }}
                 />
                 <select
                   value={newAnnotationTrackId}

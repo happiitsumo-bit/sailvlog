@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TopBar from "@/components/TopBar";
 import BottomTabBar from "@/components/BottomTabBar";
@@ -9,6 +9,16 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001"),
   title: "sailvlog — 反省会リプレイ・デバッガ",
   description: "大学ヨット部の反省会のための、複数艇GPX航跡リプレイ・注釈共有ツール。",
+  // Issue #28: ホーム画面に追加できるようにする（PWA化）。Service Worker/オフライン対応は対象外。
+  manifest: "/manifest.webmanifest",
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  // design-system/theme.json color.accent.light.accent と同値
+  themeColor: "#0b6a9e",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
