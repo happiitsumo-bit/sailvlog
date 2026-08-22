@@ -49,7 +49,11 @@ export default function RegisterPage() {
           <input id="register-email" type="email" name="email" value={form.email} onChange={onChange} required />
         </div>
         <div className="form-group">
-          <label htmlFor="register-password">パスワード</label>
+          <label htmlFor="register-password">
+            パスワード
+            {/* m-1(Issue #43): 8文字未満で送信して初めて分かる要件を、入力前に明記する */}
+            <span style={{ fontWeight: 400, color: "var(--fg-mute)", fontSize: "0.78rem" }}> （8文字以上）</span>
+          </label>
           <input id="register-password" type="password" name="password" value={form.password} onChange={onChange} required minLength={8} />
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
