@@ -90,6 +90,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: NO_COMPARISON,
         tailSeconds: TAIL_SECONDS,
+        playing: clock.playing,
         viewport: viewportRef.current,
       });
 
