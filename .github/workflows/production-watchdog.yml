@@ -39,46 +39,62 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check backend health
-        id: health
+      # Issue #85: 初回リクエストが Render 無料プランのコールドスタート（アイドル後の起動に
+      # 数十秒かかる）でタイムアウトし、code=000 として「死活異常」を毎回誤報していた。
+      # 実測（2026-08-22）: watchdog は health=000 で起票したが、直後に手で叩くと
+      # health=200 / canary=401 が 0.3 秒で返り、本番は正常だった。
+      #
+      # 対策は「期待コードが返るまで最大3回試し、全て外れたときだけ異常とみなす」。
+      # 1回目のタイムアウトが起動のトリガーになり、2回目以降は温まった状態で応答する。
+      # 一時的なネットワーク揺れも同時に吸収できる。本当に落ちている場合は3回とも
+      # 外れるため、検知は失われない。実測（ローカルで到達不能URLに対して同じスクリプトを実行）:
+      # 1本あたり最長90秒（タイムアウト20秒×3 + 間隔15秒×2）、3本で最長約4.5分。
+      # スケジュールは30分間隔なので重ならない。
+      #
+      # 併せて `|| echo "000"` を廃止した。curl は接続失敗時に自分で "000" を出力し、
+      # かつ非ゼロ終了するため fallback の "000" と連結され、Issue #85 の本文には
+      # "000000" という読めない値が載っていた。
+      - name: Probe production
+        id: probe
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/api/health" || echo "000")
-          echo "code=$code" >> "$GITHUB_OUTPUT"
+          probe() {
+            name="$1"; expected="$2"; shift 2
+            code=""
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@" || true)
+              if [ -z "$code" ]; then code="000"; fi
+              if [ "$code" = "$expected" ]; then break; fi
+              echo "${name}: ${attempt}回目 => ${code}（期待 ${expected}）"
+              if [ "$attempt" -lt 3 ]; then sleep 15; fi
+            done
+            echo "${name}=${code}" >> "$GITHUB_OUTPUT"
+          }
 
-      - name: Check deploy freshness via canary route
-        id: canary
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-            -X POST "$BACKEND_URL/api/teams/join" \
-            -H "Content-Type: application/json" -d '{}' || echo "000")
-          echo "code=$code" >> "$GITHUB_OUTPUT"
-
-      - name: Check frontend
-        id: frontend
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL/" || echo "000")
-          echo "code=$code" >> "$GITHUB_OUTPUT"
+          probe health 200 "$BACKEND_URL/api/health"
+          probe canary 401 -X POST "$BACKEND_URL/api/teams/join" \
+            -H "Content-Type: application/json" -d '{}'
+          probe frontend 200 "$FRONTEND_URL/"
 
       - name: Evaluate results
         id: eval
         env:
-          HEALTH_CODE: ${{ steps.health.outputs.code }}
-          CANARY_CODE: ${{ steps.canary.outputs.code }}
-          FRONTEND_CODE: ${{ steps.frontend.outputs.code }}
+          HEALTH_CODE: ${{ steps.probe.outputs.health }}
+          CANARY_CODE: ${{ steps.probe.outputs.canary }}
+          FRONTEND_CODE: ${{ steps.probe.outputs.frontend }}
         run: |
           FAIL=0
           MSG=""
           if [ "$HEALTH_CODE" != "200" ]; then
             FAIL=1
-            MSG="${MSG}- GET /api/health => ${HEALTH_CODE}（200を期待。死活異常の疑い）"$'\n'
+            MSG="${MSG}- GET /api/health => ${HEALTH_CODE}（200を期待。3回試して全て外れた＝死活異常の疑い）"$'\n'
           fi
           if [ "$CANARY_CODE" != "401" ]; then
             FAIL=1
-            MSG="${MSG}- POST /api/teams/join（未認証） => ${CANARY_CODE}（401を期待。404はデプロイ遅れ＝Issue #20と同型の事象を示唆）"$'\n'
+            MSG="${MSG}- POST /api/teams/join（未認証） => ${CANARY_CODE}（401を期待。3回試して全て外れた。404はデプロイ遅れ＝Issue #20と同型の事象を示唆）"$'\n'
           fi
           if [ "$FRONTEND_CODE" != "200" ]; then
             FAIL=1
-            MSG="${MSG}- GET ${FRONTEND_URL}/ => ${FRONTEND_CODE}（200を期待）"$'\n'
+            MSG="${MSG}- GET ${FRONTEND_URL}/ => ${FRONTEND_CODE}（200を期待。3回試して全て外れた）"$'\n'
           fi
           echo "fail=$FAIL" >> "$GITHUB_OUTPUT"
           {
