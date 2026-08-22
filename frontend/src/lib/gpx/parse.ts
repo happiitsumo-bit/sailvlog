@@ -104,13 +104,13 @@ export function normalizeToGrid(points: GpxPoint[], sessionStartMs: number): Nor
     throw new GpxParseError("正規化対象の点列が空です");
   }
 
-  const t0 = points[0].timeMs;
-  const startSec = Math.round((t0 - sessionStartMs) / 1000);
+  // 全点を sessionStartMs 基準で1回だけ丸める（t0基準で二重に丸めると艇間で最大1秒ずれる）
+  const startSec = Math.round((points[0].timeMs - sessionStartMs) / 1000);
 
   // 相対秒 -> 実測点 のマップ（同一秒に複数点があれば先勝ち）
   const bySec = new Map<number, GpxPoint>();
   for (const p of points) {
-    const relSec = Math.round((p.timeMs - t0) / 1000);
+    const relSec = Math.round((p.timeMs - sessionStartMs) / 1000) - startSec;
     if (!bySec.has(relSec)) bySec.set(relSec, p);
   }
 

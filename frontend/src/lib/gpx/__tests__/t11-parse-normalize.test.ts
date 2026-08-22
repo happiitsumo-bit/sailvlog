@@ -3,7 +3,7 @@
 import { describe, test, expect } from "vitest";
 import fs from "fs";
 import path from "path";
-import { parseGpx, normalizeToGrid, computeSessionStart, GpxParseError } from "../parse";
+import { parseGpx, normalizeToGrid, computeSessionStart, GpxParseError, type GpxPoint } from "../parse";
 
 function readFixture(name: string): string {
   return fs.readFileSync(path.join(__dirname, "../__fixtures__", name), "utf-8");
@@ -78,5 +78,39 @@ describe("lib/gpx parseGpx + normalizeToGrid (T-11)", () => {
     const track = normalizeToGrid(points, points[0].timeMs);
     expect(track.gridJson.lat.length).toBe(track.pointCount);
     expect(track.gridJson.lon.length).toBe(track.pointCount);
+  });
+
+  // 回帰(Issue #33): t0基準とsessionStartMs基準の二重丸めにより、
+  // 小数秒位相が異なる艇間で同一時刻の記録が最大1秒ずれた絶対位置に正規化されてしまうバグの再発防止。
+  test("回帰: t0の小数秒位相が異なる2艇でも、同時刻の記録は同じ絶対グリッド位置に正規化される", () => {
+    const sessionStartMs = 0;
+    const marker = 19800; // 両艇が同時刻に記録した共通の点（例: 同じマークの通過）
+    const MARKER_LAT = 12.345;
+
+    const boatA: GpxPoint[] = [
+      { lat: 1, lon: 1, timeMs: 10400 }, // t0がx.4秒位相
+      { lat: MARKER_LAT, lon: 1, timeMs: marker },
+    ];
+    const boatB: GpxPoint[] = [
+      { lat: 2, lon: 2, timeMs: 10900 }, // t0がx.9秒位相
+      { lat: MARKER_LAT, lon: 2, timeMs: marker },
+    ];
+
+    const trackA = normalizeToGrid(boatA, sessionStartMs);
+    const trackB = normalizeToGrid(boatB, sessionStartMs);
+
+    const idxA = trackA.gridJson.lat.indexOf(MARKER_LAT);
+    const idxB = trackB.gridJson.lat.indexOf(MARKER_LAT);
+    expect(idxA).toBeGreaterThanOrEqual(0);
+    expect(idxB).toBeGreaterThanOrEqual(0);
+
+    const absA = sessionStartMs + (trackA.startSec + idxA) * 1000;
+    const absB = sessionStartMs + (trackB.startSec + idxB) * 1000;
+
+    // 修正前はboatAが19000・boatBが20000に置かれ、同時刻の記録が1秒ずれていた。
+    // 修正後はどちらも20000（sessionStartMs基準の単一の丸め）に揃う。
+    expect(absA).toBe(20000);
+    expect(absB).toBe(20000);
+    expect(absA).toBe(absB);
   });
 });

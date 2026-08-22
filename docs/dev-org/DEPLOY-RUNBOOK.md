@@ -29,6 +29,43 @@ ls backend/prisma/migrations/                                  # 新しいmigrat
 - **コード変更がゼロ（docsのみ）なら、Render/Vercel の再デプロイは不要**
 - **新しい migration があれば、手順2を必ず先に実行する**
 
+### 0.1 ローカル環境: 新しい migration を取り込んだら Prisma クライアントを再生成する
+
+<!-- 追記: 2026-08-03 / Issue #44（出典: UX-AUDIT.md 付録D-1）。
+     本番はbackend/Dockerfile:15の`RUN npx prisma generate`がデプロイのたびに走るため影響を受けない。
+     壊れるのは「migrationは`git pull`で追いつくが、生成物であるPrismaクライアントは追いつかない」
+     ローカル環境だけ。手順が無かったため、壊れていることに誰も気づかず監査で偶然踏むまで放置されていた。 -->
+
+**`git pull` で新しい `backend/prisma/migrations/*` を取り込んだら、DBへの適用だけでなく
+ローカルの Prisma クライアント（生成物・`node_modules/.prisma/client/`）も必ず再生成する。**
+マイグレーションを取り込んでもクライアントの型・実行時コードは自動更新されない。
+
+```bash
+cd backend
+DATABASE_URL="<ローカルDBの接続文字列。.env.test か .env>" npx prisma migrate deploy   # DBへ適用
+npx prisma generate                                                                  # クライアント再生成
+```
+
+Docker Compose でbackendコンテナを常駐させて開発している場合は、コンテナ内の
+`node_modules` にも同じ手順が要る（ホスト側で `npx prisma generate` してもコンテナには反映されない）。
+
+```bash
+docker compose exec backend npx prisma generate
+# もしくはコンテナを作り直す
+docker compose up -d --build backend
+```
+
+**やらないとどうなるか（実際に踏んだ事例）**: マイグレーション `20260730054748_add_team_invite_code`
+（`Team.inviteCode` 追加）をDBには適用したがクライアントを再生成しなかった環境で、
+`POST /api/teams` が次のエラーで500になった。
+
+```
+Unknown argument `inviteCode` at /app/src/routes/teams.ts:197
+```
+
+原因は「コードの欠陥」ではなく、コンテナ内 `node_modules/.prisma/client/index.d.ts` が
+migrationより古い日付で生成されたまま（`inviteCode` の記述が0件）だったこと。
+
 ---
 
 ## 1. `main` へマージ
@@ -159,3 +196,32 @@ A. `JWT_SECRET` を変更して再デプロイした。発行済みJWTが即座�
 **Q. 公開URLを外部に配ってよいか**
 A. `INTERNAL_PROXY_SECRET` が **Render と Vercel の両方に同じ値で設定されている**ことが条件。
 未設定だと1分61回で全公開URLが404になる。設定状況は `GATES.md` ③の運用制約欄と合わせて判断する。
+
+**Q. `Unknown argument` / `Unknown field` エラーが出る（Issue #44）**
+A. Prismaが「スキーマにその列・引数が存在しない」と主張しているエラー。切り分け手順:
+
+1. **本番かローカルかを先に切り分ける。** 本番（Render）は `backend/Dockerfile:15` の
+   `RUN npx prisma generate` がデプロイのたびに実行されるため、**本番ではこの種のズレは起きない**。
+   本番で発生していれば「クライアントの陳腐化」ではなく別の原因（migration未適用・スキーマ変更漏れ）を疑う。
+2. **ローカル/Dockerで発生しているなら、クライアントの生成日時を確認する。**
+   ```bash
+   ls -l backend/node_modules/.prisma/client/index.d.ts        # ローカル
+   docker compose exec backend ls -l node_modules/.prisma/client/index.d.ts   # コンテナ内
+   grep -c "該当のフィールド名" backend/node_modules/.prisma/client/index.d.ts  # 0件なら未反映
+   ```
+   マイグレーションのディレクトリ名（先頭のタイムスタンプ）より生成日時が古ければ、それが原因。
+3. 対処は上の **§0.1** の手順（`npx prisma generate`、Docker なら
+   `docker compose exec backend npx prisma generate` またはコンテナ再ビルド）。
+
+**検知の自動化について（YAGNI判断・見送り）**: 起動時にmigrationの最新タイムスタンプと
+生成済みクライアントの生成日時を比較して警告する案を検討したが、見送った。理由:
+- `git checkout`/`git pull` はファイルのmtimeを「取得した時刻」に更新するため、
+  migrationファイルとクライアント生成物のmtime比較はどちらもチェックアウト直後は同時刻近辺になり、
+  「本当にクライアントが古いか」を高い精度で判定できない（誤検知・見逃しの両方が起こりうる）。
+  正確にやるにはPrismaのschema hash相当を比較する仕組みが要り、新規実装コストが今回のIssueの
+  重大度（minor）に見合わない。
+- 起動時チェックを追加するとbackendの起動シーケンスに新しい失敗点が増える
+  （交渉不可の制約1「新規npm依存の追加はTeam Lead承認制」を回避するため依存ゼロで書くにしても、
+  誤検知で正常な起動をブロックするリスクの方が「たまに気づかず踏む」より害が大きいと判断）。
+- 上記のQ&Aとして**手動の切り分け手順**を明文化したことで、「本番かローカルか」「生成日時の確認方法」
+  という完了条件の該当項目は満たしている。自動化が必要になった場合は別Issueとして起票し直す。

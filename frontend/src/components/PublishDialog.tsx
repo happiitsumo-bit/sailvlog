@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
 import { Annotation } from "@/types";
 import { formatClockTime } from "@/lib/utils";
-import { isSummaryValid, LEARNING_SUMMARY_MAX, looksLikeUneditedBoatLabel } from "@/lib/publish";
+import { isSummaryValid, LEARNING_SUMMARY_MAX, looksLikeUneditedBoatLabel, shouldShowSummaryError } from "@/lib/publish";
 
 // UI-DESIGN §5.2 公開昇格ダイアログ。SPEC-share1-phase1.md §3.1 F-1〜F-3の入力3点
 // （学びの要約・注釈選別・公開範囲）をここに集約する。§7の必須修正10項目を満たす:
@@ -58,6 +58,9 @@ export function PublishDialog({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // M-7(Issue #41): 開いた直後に「学びの要約は必須です」が先制表示されると詰まったと勘違いされる。
+  // 初回submit試行後にのみバリデーションエラーを表示する。
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -83,10 +86,12 @@ export function PublishDialog({
     const label = (boatLabels[t.id] ?? "").trim();
     return label.length > 0 && label.length <= MAX_BOAT_LABEL_LEN;
   });
-  const canSubmit = isSummaryValid(summary) && boatLabelsValid && !submitting;
 
   async function handleSubmit() {
-    if (!canSubmit) return;
+    // M-7(Issue #41): ボタンは submitting 中しか無効化しない方針なので、
+    // 押せてしまう代わりに、押した後で不足を明示する。
+    setSubmitAttempted(true);
+    if (!isSummaryValid(summary) || !boatLabelsValid || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -128,131 +133,133 @@ export function PublishDialog({
       >
         <h2 id={headingId} className="dialog-title">このセッションを公開する</h2>
 
-        {tracks.length > 0 && (
+        <div className="dialog-body">
+          {tracks.length > 0 && (
+            <fieldset className="dialog-fieldset">
+              <legend>艇ラベルを確認・編集する</legend>
+              <p className="dialog-hint dialog-warning">
+                部外に見える表示名です。実名（部員名）を含めたくない場合はここで書き換えてください。
+              </p>
+              <ul className="dialog-annotation-list">
+                {tracks.map((t) => {
+                  const labelInputId = `${summaryId}-boatlabel-${t.id}`;
+                  const value = boatLabels[t.id] ?? "";
+                  const unedited = looksLikeUneditedBoatLabel(value);
+                  return (
+                    <li key={t.id} className="dialog-annotation-item" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                      <label htmlFor={labelInputId}>艇 {t.id}</label>
+                      <input
+                        id={labelInputId}
+                        type="text"
+                        value={value}
+                        maxLength={MAX_BOAT_LABEL_LEN}
+                        onChange={(e) => setBoatLabels((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                      />
+                      {unedited && (
+                        <p className="dialog-hint dialog-warning">
+                          GPXファイル名のままのようです。部外に見せてよい表示名か確認してください。
+                        </p>
+                      )}
+                      {submitAttempted && value.trim().length === 0 && (
+                        <p className="form-error" role="alert">艇ラベルは必須です</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </fieldset>
+          )}
+
+          <div className="form-group">
+            <label htmlFor={summaryId}>
+              学びの要約（必須）
+              <span className="dialog-char-count" aria-hidden="true">
+                {" "}{summaryLen}/{LEARNING_SUMMARY_MAX}
+              </span>
+            </label>
+            <textarea
+              id={summaryId}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="この練習で何が分かったか。部外の人が最初に読む本文です"
+              rows={4}
+              aria-describedby={`${summaryId}-hint`}
+            />
+            <p id={`${summaryId}-hint`} className="dialog-hint">部外の人が最初に読む文章です</p>
+            {shouldShowSummaryError(submitAttempted, summary) && (
+              <p className="form-error" role="alert">
+                {summaryEmpty
+                  ? "学びの要約は必須です"
+                  : `学びの要約は${LEARNING_SUMMARY_MAX}字以内にしてください（現在${summaryLen}字）`}
+              </p>
+            )}
+          </div>
+
           <fieldset className="dialog-fieldset">
-            <legend>艇ラベルを確認・編集する</legend>
+            <legend>公開するメモを選ぶ</legend>
             <p className="dialog-hint dialog-warning">
-              部外に見える表示名です。実名（部員名）を含めたくない場合はここで書き換えてください。
+              反省会のメモは既定で非公開です。選んだものだけが外から見えます。
             </p>
-            <ul className="dialog-annotation-list">
-              {tracks.map((t) => {
-                const labelInputId = `${summaryId}-boatlabel-${t.id}`;
-                const value = boatLabels[t.id] ?? "";
-                const unedited = looksLikeUneditedBoatLabel(value);
-                return (
-                  <li key={t.id} className="dialog-annotation-item" style={{ flexDirection: "column", alignItems: "stretch" }}>
-                    <label htmlFor={labelInputId}>艇 {t.id}</label>
-                    <input
-                      id={labelInputId}
-                      type="text"
-                      value={value}
-                      maxLength={MAX_BOAT_LABEL_LEN}
-                      onChange={(e) => setBoatLabels((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                    />
-                    {unedited && (
-                      <p className="dialog-hint dialog-warning">
-                        GPXファイル名のままのようです。部外に見せてよい表示名か確認してください。
-                      </p>
-                    )}
-                    {value.trim().length === 0 && (
-                      <p className="form-error" role="alert">艇ラベルは必須です</p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            {annotations.length === 0 ? (
+              <p className="dialog-hint">このセッションにはまだメモがありません。</p>
+            ) : (
+              <ul className="dialog-annotation-list">
+                {annotations.map((a) => {
+                  const checkboxId = `${summaryId}-ann-${a.id}`;
+                  return (
+                    <li key={a.id} className="dialog-annotation-item">
+                      <input
+                        id={checkboxId}
+                        type="checkbox"
+                        checked={selectedIds.has(a.id)}
+                        onChange={() => toggleAnnotation(a.id)}
+                      />
+                      <label htmlFor={checkboxId}>
+                        {formatClockTime(a.tSec)} — {a.body}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </fieldset>
-        )}
 
-        <div className="form-group">
-          <label htmlFor={summaryId}>
-            学びの要約（必須）
-            <span className="dialog-char-count" aria-hidden="true">
-              {" "}{summaryLen}/{LEARNING_SUMMARY_MAX}
-            </span>
-          </label>
-          <textarea
-            id={summaryId}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="この練習で何が分かったか。部外の人が最初に読む本文です"
-            rows={4}
-            aria-describedby={`${summaryId}-hint`}
-          />
-          <p id={`${summaryId}-hint`} className="dialog-hint">部外の人が最初に読む文章です</p>
-          {(summaryEmpty || summaryTooLong) && (
-            <p className="form-error" role="alert">
-              {summaryEmpty
-                ? "学びの要約は必須です"
-                : `学びの要約は${LEARNING_SUMMARY_MAX}字以内にしてください（現在${summaryLen}字）`}
-            </p>
-          )}
-        </div>
+          <fieldset className="dialog-fieldset">
+            <legend>だれが見られるか</legend>
+            <label className="dialog-radio-item" htmlFor={`${visibilityGroupName}-unlisted`}>
+              <input
+                id={`${visibilityGroupName}-unlisted`}
+                type="radio"
+                name={visibilityGroupName}
+                checked={visibility === "unlisted"}
+                onChange={() => setVisibility("unlisted")}
+              />
+              リンクを知っている人だけ（URLを知る人は誰でも見られます・検索には出ません）
+            </label>
+            <label className="dialog-radio-item" htmlFor={`${visibilityGroupName}-public`}>
+              <input
+                id={`${visibilityGroupName}-public`}
+                type="radio"
+                name={visibilityGroupName}
+                checked={visibility === "public"}
+                onChange={() => setVisibility("public")}
+              />
+              だれでも（検索にも出ます）
+            </label>
+          </fieldset>
 
-        <fieldset className="dialog-fieldset">
-          <legend>公開するメモを選ぶ</legend>
           <p className="dialog-hint dialog-warning">
-            反省会のメモは既定で非公開です。選んだものだけが外から見えます。
+            航跡の先頭・末尾に陸上の移動（自宅周辺など）が含まれていないか確認してください
           </p>
-          {annotations.length === 0 ? (
-            <p className="dialog-hint">このセッションにはまだメモがありません。</p>
-          ) : (
-            <ul className="dialog-annotation-list">
-              {annotations.map((a) => {
-                const checkboxId = `${summaryId}-ann-${a.id}`;
-                return (
-                  <li key={a.id} className="dialog-annotation-item">
-                    <input
-                      id={checkboxId}
-                      type="checkbox"
-                      checked={selectedIds.has(a.id)}
-                      onChange={() => toggleAnnotation(a.id)}
-                    />
-                    <label htmlFor={checkboxId}>
-                      {formatClockTime(a.tSec)} — {a.body}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </fieldset>
 
-        <fieldset className="dialog-fieldset">
-          <legend>だれが見られるか</legend>
-          <label className="dialog-radio-item" htmlFor={`${visibilityGroupName}-unlisted`}>
-            <input
-              id={`${visibilityGroupName}-unlisted`}
-              type="radio"
-              name={visibilityGroupName}
-              checked={visibility === "unlisted"}
-              onChange={() => setVisibility("unlisted")}
-            />
-            リンクを知っている人だけ（URLを知る人は誰でも見られます・検索には出ません）
-          </label>
-          <label className="dialog-radio-item" htmlFor={`${visibilityGroupName}-public`}>
-            <input
-              id={`${visibilityGroupName}-public`}
-              type="radio"
-              name={visibilityGroupName}
-              checked={visibility === "public"}
-              onChange={() => setVisibility("public")}
-            />
-            だれでも（検索にも出ます）
-          </label>
-        </fieldset>
-
-        <p className="dialog-hint dialog-warning">
-          航跡の先頭・末尾に陸上の移動（自宅周辺など）が含まれていないか確認してください
-        </p>
-
-        {error && <p className="form-error" role="alert">{error}</p>}
+          {error && <p className="form-error" role="alert">{error}</p>}
+        </div>
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
             キャンセル
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={!canSubmit}>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
             {submitting ? "公開しています…" : "公開する"}
           </button>
         </div>

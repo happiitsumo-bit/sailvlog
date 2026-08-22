@@ -75,12 +75,17 @@ export async function isUploaderOrTeamAdmin(
   return isTeamAdmin(userId, session.teamId);
 }
 
-/** 注釈のPATCH/DELETE等: author本人 または Team admin のみ許可（ARCH.md §4） */
+/**
+ * 注釈のPATCH/DELETE等: author本人 または Team admin のみ許可（ARCH.md §4）。
+ * C-02修正（Issue #39）: author本人であっても、脱退・除名済みなら「本人」だけでは通さない。
+ * このエンドポイントの手前には requireSessionTeamMember 等のTeamMemberチェックが無いため、
+ * ここで改めて呼び出しユーザーが現在もそのチームのTeamMemberであることを確認する。
+ */
 export async function isAuthorOrTeamAdmin(
   userId: number,
   teamId: number,
   authorId: number
 ): Promise<boolean> {
-  if (authorId === userId) return true;
+  if (authorId === userId) return isTeamMember(userId, teamId);
   return isTeamAdmin(userId, teamId);
 }
