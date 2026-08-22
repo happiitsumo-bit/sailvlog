@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection } from "@/lib/replay";
+import { ReplayClock, computeProjection, renderFrame, BOAT_COLORS, RenderTrack, LocalProjection, useCanvasViewport } from "@/lib/replay";
 import { formatClockTime } from "@/lib/utils";
 import { PublicSessionResponse } from "@/types";
 
@@ -33,6 +33,18 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
   const lastFrameTimeRef = useRef<number | null>(null);
   const lastSyncTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+
+  // Issue #37: 部内版(/sessions/[id])と同じ実装をそのまま再利用する（ADR-007）。
+  const {
+    viewportRef,
+    handleMouseDown: handleCanvasMouseDown,
+    handleMouseMove: handleCanvasMouseMove,
+    handleMouseUp: handleCanvasMouseUp,
+    handleTouchStartPinch,
+    handleTouchMovePinch,
+    handleTouchEndPinch,
+    reset: resetViewport,
+  } = useCanvasViewport(canvasRef);
 
   useEffect(() => {
     clockRef.current = new ReplayClock(session.durationSec);
@@ -78,6 +90,8 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         visibleTrackIds: visibleTrackIdsRef.current,
         comparisonTrackIds: NO_COMPARISON,
         tailSeconds: TAIL_SECONDS,
+        playing: clock.playing,
+        viewport: viewportRef.current,
       });
 
       if (now - lastSyncTimeRef.current >= UI_SYNC_INTERVAL_MS) {
@@ -151,6 +165,13 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         ref={canvasRef}
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
+        onTouchStart={handleTouchStartPinch}
+        onTouchMove={handleTouchMovePinch}
+        onTouchEnd={handleTouchEndPinch}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
+        onMouseLeave={handleCanvasMouseUp}
         style={{
           width: "100%",
           height: "auto",
@@ -159,11 +180,13 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
           borderRadius: 8,
           display: "block",
           marginTop: "1rem",
+          touchAction: "pan-y",
+          cursor: "grab",
         }}
       />
 
       {/* 再生コントロール（DOM順3番目）。艇の表示切替も「読む体験に必要」としてここに含める（UI-DESIGN §5.3）。 */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
+      <div className="replay-controls" style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.85rem", flexWrap: "wrap" }}>
         <button type="button" onClick={togglePlay} className="btn btn-primary" style={{ minWidth: 88 }}>
           {playing ? "一時停止" : "再生"}
         </button>
@@ -180,12 +203,15 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
         <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color: "var(--fg-mute)" }}>
           {formatClockTime(simTimeDisplay)} / {formatClockTime(session.durationSec)}
         </span>
+        <button type="button" onClick={resetViewport} className="btn btn-ghost">
+          表示をリセット
+        </button>
       </div>
 
       {tracks.length > 1 && (
         <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.6rem" }} role="group" aria-label="艇の表示切替">
           {tracks.map((t, i) => (
-            <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.82rem", minHeight: 24, cursor: "pointer" }}>
+            <label key={t.id} className="replay-boat-toggle">
               <input type="checkbox" checked={visibleTrackIds.has(t.id)} onChange={() => toggleBoat(t.id)} />
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: BOAT_COLORS[i % BOAT_COLORS.length], display: "inline-block", flexShrink: 0 }} />
               {t.boatLabel}
@@ -198,6 +224,7 @@ export function PublicReplayView({ data }: { data: PublicSessionResponse }) {
       <div style={{ position: "relative", marginTop: "0.6rem" }}>
         <input
           type="range"
+          className="replay-seek-input"
           min={0}
           max={session.durationSec}
           step={1}

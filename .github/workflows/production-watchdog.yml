@@ -1,0 +1,204 @@
+name: production-watchdog
+
+# Issue #24: 本番のデプロイ遅れ・死活を検知する仕組みが担当不在になった対応。
+#
+# クラウドルーチン（朝・夕）はオーナー裁定(2026-08-01)によりネットワークポリシーで
+# 本番（Neon/Render/Vercel）への到達が403で拒否されるため、本番監視はクラウドルーチン
+# ではなくGitHub Actionsのランナー（外部到達可）で行う。このワークフローはあなた自身が
+# 本番にcurlするのではなく、スケジュール実行が定期的にcurlする「仕組み」そのもの。
+#
+# 監視先URLはdocs/dev-org/DEPLOY-RUNBOOK.md・TASKS.md等に既に記載されている公開URLで、
+# 秘密情報ではないため直接記述している。新しい秘密値(secrets.*)は追加していない。
+# Issue自動起票・close はActionsが自動発行する secrets.GITHUB_TOKEN のみを使う
+# （追加のシークレット設定は不要）。
+#
+# デプロイ遅れの検知方法は docs/dev-org/DEPLOY-RUNBOOK.md の既存の運用知見をそのまま採用した:
+# 「POST /api/teams/join を未認証で叩くと401が正（404はデプロイ漏れ）」（Issue #20の再発を
+# このcanaryチェックで捉える）。
+#
+# 動的な値（前段ステップの出力）はすべて env: 経由でシェル変数として渡す。${{ }} をrun:内の
+# スクリプト本文に直接展開すると、値の中身（本チェックのメッセージはMarkdownのバッククォートを
+# 含む）がシェルによって再解釈され、コマンド置換等を引き起こしうるため（GitHub Actions公式が
+# 警告しているscript injectionパターンと同型の危険）。
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  BACKEND_URL: https://sailvlog-rfxx.onrender.com
+  FRONTEND_URL: https://sailvlog.vercel.app
+  ALERT_MARKER: "<!-- production-watchdog-alert -->"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backend health
+        id: health
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/api/health" || echo "000")
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Check deploy freshness via canary route
+        id: canary
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+            -X POST "$BACKEND_URL/api/teams/join" \
+            -H "Content-Type: application/json" -d '{}' || echo "000")
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Check frontend
+        id: frontend
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL/" || echo "000")
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate results
+        id: eval
+        env:
+          HEALTH_CODE: ${{ steps.health.outputs.code }}
+          CANARY_CODE: ${{ steps.canary.outputs.code }}
+          FRONTEND_CODE: ${{ steps.frontend.outputs.code }}
+        run: |
+          FAIL=0
+          MSG=""
+          if [ "$HEALTH_CODE" != "200" ]; then
+            FAIL=1
+            MSG="${MSG}- GET /api/health => ${HEALTH_CODE}（200を期待。死活異常の疑い）"$'\n'
+          fi
+          if [ "$CANARY_CODE" != "401" ]; then
+            FAIL=1
+            MSG="${MSG}- POST /api/teams/join（未認証） => ${CANARY_CODE}（401を期待。404はデプロイ遅れ＝Issue #20と同型の事象を示唆）"$'\n'
+          fi
+          if [ "$FRONTEND_CODE" != "200" ]; then
+            FAIL=1
+            MSG="${MSG}- GET ${FRONTEND_URL}/ => ${FRONTEND_CODE}（200を期待）"$'\n'
+          fi
+          echo "fail=$FAIL" >> "$GITHUB_OUTPUT"
+          {
+            echo "message<<PRODUCTION_WATCHDOG_EOF"
+            printf '%s' "$MSG"
+            echo "PRODUCTION_WATCHDOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # レビュー指摘（2026-08-04）: GitHub APIへのcurlがHTTP失敗を検出していなかった。
+      # -s だけだと422/403でもexit 0になり、「ジョブは成功したがアラートIssueは作られていない」
+      # という、監視として最悪の状態（黙って死ぬ）になりうる。
+      # --fail-with-body を付けて4xx/5xxで異常終了させ、本文はログに残す。
+      # -S は -s と併用してエラーメッセージだけは出す指定。
+      - name: Find existing open alert issue
+        id: find
+        run: |
+          resp=$(curl -sS --fail-with-body --max-time 20 \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/search/issues?q=repo:${{ github.repository }}+is:issue+is:open+in:body+%22production-watchdog-alert%22")
+          # 検索が失敗すると number が空になり「既存アラート無し」と誤認して重複起票する。
+          # レスポンスの形（items配列を持つか）まで確認する。
+          if ! echo "$resp" | jq -e 'has("items")' >/dev/null; then
+            echo "::error::検索APIのレスポンスが想定外です: $resp"
+            exit 1
+          fi
+          number=$(echo "$resp" | jq -r '.items[0].number // empty')
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Create alert issue
+        if: steps.eval.outputs.fail == '1' && steps.find.outputs.number == ''
+        env:
+          ALERT_MESSAGE: ${{ steps.eval.outputs.message }}
+          REPO: ${{ github.repository }}
+        run: |
+          detected_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          body=$(printf '%s\n\n検知時刻(UTC): %s\n\n%s\nIssue #24 の監視ワークフローによる自動起票。手動で本番を確認し、死活・デプロイ遅れ・一時的な障害のいずれかを切り分けること。正常に戻れば次回の実行時に自動でcloseされる。\n' \
+            "$ALERT_MARKER" "$detected_at" "$ALERT_MESSAGE")
+          payload=$(jq -n --arg title "本番監視アラート: ヘルスチェック/デプロイ遅れ検知" \
+            --arg body "$body" \
+            '{title: $title, body: $body, labels: ["blocker"]}')
+          created=$(curl -sS --fail-with-body --max-time 20 -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues" \
+            -d "$payload")
+          # 起票できたことを number の存在で確認する（200系でも本文が想定外なら気づけるように）
+          number=$(echo "$created" | jq -r '.number // empty')
+          if [ -z "$number" ]; then
+            echo "::error::アラートIssueの起票に失敗しました: $created"
+            exit 1
+          fi
+          echo "アラートIssue #${number} を起票しました"
+
+      - name: Comment on existing alert issue (still failing)
+        if: steps.eval.outputs.fail == '1' && steps.find.outputs.number != ''
+        env:
+          ALERT_MESSAGE: ${{ steps.eval.outputs.message }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.find.outputs.number }}
+        run: |
+          # レビュー指摘（2026-08-04）: 30分ごとに実行されるため、障害が続くとコメントが延々と増える。
+          # 障害中に必要なのは「まだ直っていない」という事実であって、48件/日の通知ではない。
+          # 直近のwatchdogコメントから6時間経っていなければ、今回はコメントしない。
+          THROTTLE_SEC=21600
+          comments=$(curl -sS --fail-with-body --max-time 20 \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}/comments?per_page=100")
+          last_at=$(echo "$comments" | jq -r '[.[] | select(.body | contains("引き続き異常を検知")) | .created_at] | last // empty')
+          if [ -n "$last_at" ]; then
+            last_epoch=$(date -u -d "$last_at" +%s)
+            now_epoch=$(date -u +%s)
+            elapsed=$((now_epoch - last_epoch))
+            if [ "$elapsed" -lt "$THROTTLE_SEC" ]; then
+              echo "直近のコメントから ${elapsed}秒 しか経っていないため今回はコメントしない（閾値 ${THROTTLE_SEC}秒）"
+              exit 0
+            fi
+          fi
+
+          detected_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          comment=$(printf '引き続き異常を検知（%s UTC）:\n\n%s' "$detected_at" "$ALERT_MESSAGE")
+          payload=$(jq -n --arg body "$comment" '{body: $body}')
+          curl -sS --fail-with-body --max-time 20 -o /dev/null -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
+            -d "$payload"
+
+      - name: Close alert issue on recovery
+        if: steps.eval.outputs.fail == '0' && steps.find.outputs.number != ''
+        env:
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.find.outputs.number }}
+        run: |
+          recovered_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          comment_payload=$(jq -n --arg body "正常確認できたためcloseする（${recovered_at} UTC）。" '{body: $body}')
+          curl -sS --fail-with-body --max-time 20 -o /dev/null -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
+            -d "$comment_payload"
+          closed=$(curl -sS --fail-with-body --max-time 20 -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${ISSUE_NUMBER}" \
+            -d '{"state":"closed","state_reason":"completed"}')
+          # closeできたことを確認する。ここが黙って失敗すると、復旧後もアラートが開いたままになり
+          # 次の障害で「既存アラートあり」と誤認してコメントだけになる（新規起票されない）。
+          state=$(echo "$closed" | jq -r '.state // empty')
+          if [ "$state" != "closed" ]; then
+            echo "::error::アラートIssue #${ISSUE_NUMBER} のcloseに失敗しました: $closed"
+            exit 1
+          fi
+
+      - name: Fail the job if any check failed
+        if: steps.eval.outputs.fail == '1'
+        env:
+          ALERT_MESSAGE: ${{ steps.eval.outputs.message }}
+        run: |
+          echo "本番監視で異常を検知した:"
+          printf '%s\n' "$ALERT_MESSAGE"
+          exit 1

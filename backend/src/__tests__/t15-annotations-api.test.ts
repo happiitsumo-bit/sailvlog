@@ -192,4 +192,32 @@ describe("PATCH/DELETE /api/annotations/:id (T-15)", () => {
       .send({ body: "x" });
     expect(res.status).toBe(404);
   });
+
+  // C-02回帰（Issue #39）: isAuthorOrTeamAdminはauthor本人でも即許可せず、
+  // 現在もそのチームのTeamMemberであることを確認する。脱退・除名後は403になる。
+  test("脱退・除名後は本人でもPATCHできない（403）", async () => {
+    const { annotationId, uploader, teamId } = await createAnnotation();
+
+    await prisma.teamMember.delete({ where: { userId_teamId: { userId: uploader.userId, teamId } } });
+
+    const res = await request(getServer())
+      .patch(`/api/annotations/${annotationId}`)
+      .set("Authorization", `Bearer ${uploader.token}`)
+      .send({ body: "除名後の書き換え" });
+    expect(res.status).toBe(403);
+  });
+
+  test("脱退・除名後は本人でもDELETEできない（403）", async () => {
+    const { annotationId, uploader, teamId } = await createAnnotation();
+
+    await prisma.teamMember.delete({ where: { userId_teamId: { userId: uploader.userId, teamId } } });
+
+    const res = await request(getServer())
+      .delete(`/api/annotations/${annotationId}`)
+      .set("Authorization", `Bearer ${uploader.token}`);
+    expect(res.status).toBe(403);
+
+    const remaining = await prisma.annotation.findUnique({ where: { id: annotationId } });
+    expect(remaining).not.toBeNull();
+  });
 });
