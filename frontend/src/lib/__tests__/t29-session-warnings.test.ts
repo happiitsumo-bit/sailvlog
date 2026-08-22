@@ -22,6 +22,7 @@ function makeDetail(visibility: SessionDetail["session"]["visibility"]): Session
       uploaderId: 1,
       visibility,
       _count: { tracks: 0, annotations: 0 },
+      mySubmitted: false,
     },
     tracks: [],
     annotations: [],

@@ -175,6 +175,8 @@ export interface SessionSummary {
   uploaderId: number;
   visibility: SessionVisibility;
   _count: { tracks: number; annotations: number };
+  // Issue #29: 自分がこのセッションに航跡を1本でも出しているか（一覧の「未提出」表示用）
+  mySubmitted: boolean;
 }
 
 export interface Track {
@@ -186,6 +188,8 @@ export interface Track {
   gridJson: { lat: number[]; lon: number[]; gaps: [number, number][] };
   sourceApp?: string;
   createdAt: string;
+  // Issue #29: このトラックを追加したユーザー。既存行（本Issue以前に作成）はnull
+  uploaderId?: number | null;
 }
 
 export interface Annotation {

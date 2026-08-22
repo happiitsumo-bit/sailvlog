@@ -3,7 +3,7 @@
 // 所属チーム限定（非メンバー404・ADR-012）の既存エンドポイント（GET /api/teams・GET /api/teams/:slug）を2段で叩いて代替する。
 // uploaderId一致で済むケース（canManageSessionの多くのケース）ではこの関数自体を呼ばない設計にすること。
 import { api } from "./api";
-import { TeamDetail, TeamSummary } from "@/types";
+import { TeamDetail, TeamMember, TeamSummary } from "@/types";
 
 /** 指定teamIdにおいて、userIdがTeam admin(role==="admin")かどうかを判定する。
     teamが見つからない・メンバーが見つからない場合は安全側でfalse。 */
@@ -19,5 +19,20 @@ export async function fetchIsTeamAdmin(teamId: number, userId: number): Promise<
   } catch {
     // ネットワークエラー等では「押せるが失敗する」より安全側（ボタン非表示）に倒す
     return false;
+  }
+}
+
+/** Issue #29: 提出状況の可視化に使うteamIdからの2段引き（fetchIsTeamAdminと同じ理由・同じ手法）。
+    取得できなければ空配列（呼び出し側は「表示しない」にフォールバックできる）。 */
+export async function fetchTeamMembers(teamId: number): Promise<TeamMember[]> {
+  try {
+    const { teams } = await api.get<{ teams: TeamSummary[] }>("/api/teams");
+    const team = teams.find((t) => t.id === teamId);
+    if (!team) return [];
+
+    const detail = await api.get<TeamDetail>(`/api/teams/${team.slug}`);
+    return detail.members;
+  } catch {
+    return [];
   }
 }
