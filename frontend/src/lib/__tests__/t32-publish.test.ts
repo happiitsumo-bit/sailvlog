@@ -2,9 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   canManageSession,
   isSummaryValid,
+  looksLikeUneditedBoatLabel,
   remainingSummaryChars,
   visibilityChipLabel,
 } from "../publish";
+
+describe("T-36: looksLikeUneditedBoatLabel", () => {
+  it("GPXファイル名そのままの艇ラベルはtrue", () => {
+    expect(looksLikeUneditedBoatLabel("boat1_clean")).toBe(true);
+    expect(looksLikeUneditedBoatLabel("GPX_2026-07-24")).toBe(true);
+  });
+  it("日本語・空白を含む編集済みラベルはfalse", () => {
+    expect(looksLikeUneditedBoatLabel("4423 田中/佐藤")).toBe(false);
+    expect(looksLikeUneditedBoatLabel("デモ艇1")).toBe(false);
+  });
+  it("空文字はfalse（必須チェックは別途行う）", () => {
+    expect(looksLikeUneditedBoatLabel("")).toBe(false);
+    expect(looksLikeUneditedBoatLabel("   ")).toBe(false);
+  });
+});
 
 describe("T-32: canManageSession", () => {
   it("未ログイン(null)はfalse", () => {
