@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 
 import { assertJwtSecretConfigured } from "./lib/assertJwtSecretConfigured";
+import { requireBearerSignature } from "./middleware/auth";
 import authRouter from "./routes/auth";
 import usersRouter from "./routes/users";
 import boatTypesRouter from "./routes/boatTypes";
@@ -41,8 +42,27 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:3001,http:/
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 // v3(T-12, ARCH.md §4): /api/sessions系はgridJson/rawGpxを含むためlimitを拡張。
 // 既存ルートのlimitは変えない（express.jsonは既にreq._bodyがtrueなら再パースをスキップするため安全に併存できる）。
-app.use("/api/sessions", express.json({ limit: "8mb" }));
-app.use("/api/tracks", express.json({ limit: "8mb" }));
+//
+// Issue #40 でセッション作成と全艇のトラック投入を1リクエストに統合した（部分永続化を防ぐため）。
+// これにより従来「艇ごとに8MBまで」だったものが「全艇合計で8MBまで」に変わるので上限を引き上げる。
+// Team Lead 実測（2026-08-04・spike/gpx の2時間1Hzデータ）:
+//   1艇あたり rawGpx 661KB + gridJson 146KB = POST body 843KB
+// ただしフィクスチャは lat/lon/time のみの合成データで、実機（Geo Tracker等）の
+// ele や extensions を含むGPXはこれより嵩む。上限の4時間（MAX_DURATION_SEC=14400）と
+// 実機の冗長さを見込むと 1艇あたり約3MB、6艇で約17MB になりうる。
+// 24MB あれば上限4時間×6艇でも収まる見積り。
+//
+// より筋の良い解は「rawGpx をこのリクエストに載せず、トラック単位で後から送る」だが、
+// Track.rawGpx が NOT NULL のためスキーマ変更（expand-first のマイグレーション）が要る。
+// 現時点では上限引き上げで足り、必要になったら別Issueで扱う。
+//
+// レビュー指摘（2026-08-04）: express.json は認証より前に動くため、上限を24MBに上げると
+// 未認証の第三者でも24MBの本文をパースさせられる（登録が誰でも通る以上、メモリ負荷の入口）。
+// 本文を読む前に署名だけを検証する軽量ゲートを挟む。DBは引かない（実際の認可は後段の
+// authMiddleware が担う）。/api/sessions・/api/tracks はどのみち全ルートが認証必須なので、
+// ここで落としても正当なリクエストの挙動は変わらない。
+app.use("/api/sessions", requireBearerSignature, express.json({ limit: "24mb" }));
+app.use("/api/tracks", requireBearerSignature, express.json({ limit: "8mb" }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
@@ -82,8 +102,24 @@ app.all("/api/courses/*", gone);
 // 確実に500応答へ落とす（プロセスは継続する）。
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Unhandled error:", err);
   if (res.headersSent) return;
+
+  // レビュー指摘（2026-08-04・PR #53）: body-parser が上限超過で投げる例外は
+  // type === "entity.too.large" を持つが、ここで一律500に変換していたため
+  // 「大きすぎる」という原因がクライアントに伝わらなかった（サーバ障害と区別できない）。
+  // 不正な JSON（entity.parse.failed）も同様にクライアント起因なので400で返す。
+  const type = (err as { type?: string })?.type;
+  if (type === "entity.too.large") {
+    console.warn("Payload too large:", (err as { length?: number })?.length);
+    res.status(413).json({ error: "取込データが大きすぎます。艇を分けて取り込んでください" });
+    return;
+  }
+  if (type === "entity.parse.failed") {
+    res.status(400).json({ error: "リクエストの形式が不正です" });
+    return;
+  }
+
+  console.error("Unhandled error:", err);
   res.status(500).json({ error: "Internal Server Error" });
 });
 
