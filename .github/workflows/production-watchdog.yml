@@ -42,15 +42,25 @@ jobs:
       - name: Check backend health
         id: health
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/api/health" || echo "000")
+          # Render無料プランはスリープ復帰（cold start）に10秒超かかることがある。
+          # 監視のタイムアウトを短くすると、復帰待ちを障害と誤判定するため30秒待つ。
+          if code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$BACKEND_URL/api/health"); then
+            :
+          else
+            code="000"
+          fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Check deploy freshness via canary route
         id: canary
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+          if code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
             -X POST "$BACKEND_URL/api/teams/join" \
-            -H "Content-Type: application/json" -d '{}' || echo "000")
+            -H "Content-Type: application/json" -d '{}'); then
+            :
+          else
+            code="000"
+          fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Check frontend
