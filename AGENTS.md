@@ -40,16 +40,17 @@ v1の「機能寄せ集めSNS」からピボット済みで、**v2機能（記�
 ```
 # backend（要: docker compose up -d db）
 cd backend && npx tsc --noEmit        # エラー 0
-cd backend && npx jest --runInBand    # 16 suites / 161 passed
+cd backend && npx jest --runInBand    # 18 suites / 169 passed
 cd backend && npm run build           # 成功
 
 # frontend
 cd frontend && npx tsc --noEmit       # エラー 0
-cd frontend && npx vitest run         # 8 files / 70 passed
+cd frontend && npx vitest run         # 14 files / 120 passed
 cd frontend && npm run build          # 成功
 ```
 
-ベースライン更新日: 2026-08-01（Team Lead 実測。M4-01/M4-03 修正後）
+ベースライン更新日: 2026-10-02（main `6782bd2` の GitHub Actions `test` の実行 36978101045 の結果。前回は 2026-08-01 の Team Lead 実測で 16 suites / 161・8 files / 70）。
+件数の正本はここだけに置く（README には書かない）。
 
 ## 危険操作（実行前に必ず止まる）
 
