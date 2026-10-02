@@ -45,7 +45,7 @@ v3が解くのは1つだけです。大学ヨット部の週次反省会で、�
 - [`docs/dev-org/PRD.md`](docs/dev-org/PRD.md) — 何を作り、何を作らないか（企画の正本）
 - [`docs/dev-org/GATES.md`](docs/dev-org/GATES.md) — 各工程の人間承認の記録
 - [`docs/dev-org/ARCH.md`](docs/dev-org/ARCH.md) — 技術設計とADR
-- [`docs/dev-org/TASKS.md`](docs/dev-org/TASKS.md) — 実装タスクと進捗（現在地はここが正本）
+- [`docs/dev-org/TASKS.md`](docs/dev-org/TASKS.md) — 実装タスクの分解と検証記録（2026-08-02 までの履歴。新しいタスクと進捗は [GitHub Issue](https://github.com/happiitsumo-bit/sailvlog/issues) が正本。`AGENTS.md` の「正本の場所」）
 
 ## 主な機能
 
@@ -104,12 +104,14 @@ docker compose up -d
 docker compose exec backend npm install
 ```
 
-動作確認（実際に実行して確認済み）:
+動作確認:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/login   # → 200
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8001/api/teams  # → 200
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/login       # → 200
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8001/api/health  # → 200
 ```
+
+`/api/teams` は 2026-07-26 から認証必須になったため、未認証の curl では 401 が返ります（死活の確認には本番監視と同じ `/api/health` を使います）。
 
 ## テストの実行
 
@@ -126,10 +128,8 @@ cd frontend && npm test
 cd frontend && npx tsc --noEmit && npm run build
 ```
 
-実行結果（2026-07-28 検証時点・Team Lead が10回連続実行して確認）:
-
-- backend: `14 suites / 133 passed / 0 failed`（所要 約40秒）
-- frontend: `6 files / 55 passed`
+通る条件は、型チェック（`npx tsc --noEmit`）がエラー0、テストが全件成功、`npm run build` が成功です（2026-10-02 の CI では10ルート = `/`, `/handbook`, `/login`, `/register`, `/sessions`, `/sessions/[id]`, `/sessions/new`, `/p/[slug]`, `/teams`, `/_not-found`）。
+テストの件数のベースライン（下回ったら未完成）は `AGENTS.md` の「検証コマンドとベースライン」を正本とし、README には書きません。
 
 ### テスト運用のルール（守らないと壊れます）
 
@@ -137,8 +137,6 @@ cd frontend && npx tsc --noEmit && npm run build
 2. **`docker compose exec backend npm test` は使わない。** 以前はコンテナの `DATABASE_URL`（＝**開発DB**）が使われ、テストのたびに開発データが消えていました。現在は `.env.test` が必ず優先されるよう修正済みで、その結果コンテナ内からはテストDBに到達できず失敗します（安全側の設計）
 3. **本番DBに対して絶対に実行しない。** `export DATABASE_URL=<本番>` した状態で `npm test` を叩くと本番が全テーブル消去されうるため、接続先ホストとDB名の二重ガードで中断するようにしてあります（`localhost`/`127.0.0.1`/`db` 以外、または `_test` で終わらないDB名は拒否）
 4. **flakyを見つけたら `.skip` で隠さない。** 原因を特定して直します（過去に `supertest` の一時サーバ生成レースで約1/2の確率で落ちる状態を根絶した経緯があります。詳細は `docs/dev-org/TEST-PLAN.md`）
-- `npx tsc --noEmit`: エラー0
-- `npm run build`: 成功（生成される9ルート = `/`, `/handbook`, `/login`, `/register`, `/sessions`, `/sessions/[id]`, `/sessions/new`, `/p/[slug]`, `/_not-found`）
 
 GitHubにpushすると `.github/workflows/test.yml` が同じ内容（backendジョブ + frontendジョブ）を自動実行します。
 
@@ -208,7 +206,7 @@ A. `NEXT_PUBLIC_*` はNext.jsのビルド時に埋め込まれる値です。`ne
 A. テスト用フック（各テスト前にDBをTRUNCATE）が、Jestのデフォルト並列ワーカーと競合し、FK違反等で非決定的に失敗することがあります。`backend/package.json` の `test` スクリプトは既に `jest --runInBand`（直列実行）をデフォルトにしているため、通常のコマンドで踏むことはありません。自分で `npx jest`（オプションなし）を直接叩くと再現するので避けてください。
 
 **Q. `docker compose exec backend npm test` は本当にテスト専用DBを見ている?**
-A. **`docker compose exec` 経由では見ていません。** `docker-compose.yml` が開発用DB（`sailvlog_db`）向けの `DATABASE_URL` をコンテナに既に注入しており、dotenvは既存の環境変数を上書きしないため、`.env.test` の設定（本来は `sailvlog_test`）が無視され、開発DBに対してテストが実行されます。GitHub Actions（CI）ではこの問題は起きません（コンテナ経由ではなくホストで直接 `npm test` を実行するため）。挙動としては開発DBが都度TRUNCATEされるだけでテスト自体は通りますが、開発中に作ったデータが消える点は把握しておいてください。
+A. 2026-07-27〜28 の修正で、開発DBは使われなくなりました。以前は `docker-compose.yml` がコンテナに注入する開発用DB（`sailvlog_db`）向けの `DATABASE_URL` を dotenv が上書きせず、開発DBに対してテストが走って開発データが消えていました。今は `backend/src/__tests__/setup/env.ts` と `backend/scripts/ensure-test-db.js`（pretest）が `.env.test` を `override: true` で読むため、コンテナ経由でも `.env.test` のテストDBを見に行き、コンテナ内からは届かずに失敗します（上の「テスト運用のルール」2。接続先ホストとDB名のガードもあります）。テストはホスト側から `cd backend && npm test` で実行してください（CI もホストで直接実行しています）。
 
 ### 壊れたときの確認手順
 
