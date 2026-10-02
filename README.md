@@ -1,3 +1,28 @@
+---
+id: proj:sailvlog
+type: project
+name: sailvlog（反省会リプレイ）
+aliases: [反省会リプレイ・デバッガ, 反省会リプレイ, セイルブイログ]
+summary: ヨット部の反省会のために、複数艇の GPX を同じ時間軸で再生し、タイムラインに注釈を残して部内・部外へ共有する Web アプリ
+status: active
+part_of: area:dev
+uses: ['tool:nextjs', 'tool:vercel', 'tool:render', 'tool:neon', 'tool:express', 'tool:prisma', 'tool:postgresql', 'tool:docker', 'tool:github-actions', 'tool:codex-cli', 'tool:claude-code']
+provides:
+- {id: 'cap:multi-boat-gpx-replay', name: 複数艇の GPX のリプレイ, summary: 複数艇の GPX を検証して同じ時間軸に正規化し、Canvas で重ねて再生する（時計・投影・ズーム・ピンチ・タッチでの移動）, entry: frontend/src/lib/replay, check: cd frontend && npm test, maturity: production}
+- id: cap:codex-delegation-script
+  name: Codex への作業の委譲
+  aliases: [codex-task.sh, codex exec の委譲]
+  summary: audit・impl・research の3つの型で codex exec に作業を渡し、守る境界をプロンプトに自動で前置して、報告を .codex-reports/ に必ず残す
+  entry: scripts/codex-task.sh
+  maturity: working
+  built_with: ['tool:codex-cli', 'tool:claude-code']
+- id: cap:production-watchdog
+  name: 本番の死活とデプロイ漏れの監視
+  summary: GitHub Actions が30分ごとに Render と Vercel の本番を叩き、死活とデプロイ漏れを調べて Issue を自動で起票・クローズする
+  entry: .github/workflows/production-watchdog.yml
+  maturity: working
+  built_with: ['tool:github-actions']
+---
 # sailvlog — 反省会リプレイ・デバッガ
 
 [![test](https://github.com/happiitsumo-bit/sailvlog/actions/workflows/test.yml/badge.svg)](https://github.com/happiitsumo-bit/sailvlog/actions/workflows/test.yml)
