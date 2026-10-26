@@ -8,7 +8,8 @@ postgres_data/
 # Tooling / AI agent dirs (not part of the app)
 skills/
 .codex/
-.claude/
+.claude/*
+!.claude/skills/
 design_extracted.json
 .DS_Store
 spike/node_modules/
